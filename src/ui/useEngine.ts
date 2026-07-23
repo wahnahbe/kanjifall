@@ -9,6 +9,20 @@ const IDLE_SNAPSHOT: EngineSnapshot = {
   bufferKana: '', bufferRomaji: '', lockedIds: [], missed: [], timeMs: 0,
 };
 
+export interface GameKeyEvent {
+  key: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+  isComposing: boolean;
+}
+
+/** True when the game should consume this keydown (never modifier chords or IME composition). */
+export function isGameKey(e: GameKeyEvent): boolean {
+  if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return false;
+  return e.key === 'Enter' || e.key === 'Escape' || e.key === 'Backspace' || /^[a-zA-Z-]$/.test(e.key);
+}
+
 declare global {
   interface Window {
     __kotoba?: { snapshot(): EngineSnapshot };
@@ -67,11 +81,9 @@ export function useEngine() {
     };
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.isComposing) return; // IME guard (spec §3.5); banner UI lands in M4
-      if (e.key === 'Enter' || e.key === 'Escape' || e.key === 'Backspace' || /^[a-zA-Z-]$/.test(e.key)) {
-        e.preventDefault();
-        engine.handleKey(e.key);
-      }
+      if (!isGameKey(e)) return;
+      e.preventDefault();
+      engine.handleKey(e.key);
     };
 
     // No visibility handler needed: rAF stops in background tabs and the
