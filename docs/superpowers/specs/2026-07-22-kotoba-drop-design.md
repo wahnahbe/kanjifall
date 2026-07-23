@@ -73,7 +73,12 @@ Per-word points scaled by word length and current fall speed, with a combo multi
 | Homophones airborne simultaneously | Enter-submit + closest-to-floor rule (3.1.4) |
 | Katakana words (コーヒー) | Buffer accepts hyphen for ー; matcher normalizes katakana↔hiragana before comparing |
 
-## 4. Architecture
+### 3.6 Word introduction (added 2026-07-22, from M1 fun-check feedback)
+
+New words should be shown — meaning and spelling — before they first appear as falling threats, so first exposure never happens under time pressure. Two shapes, phased:
+
+- **M2 (session-scoped): pre-wave preview.** Before a wave starts, a brief interstitial lists that wave's not-yet-seen-this-session words (kanji + kana + gloss), dismissed by Enter or a short auto-timer. "Seen" is tracked in memory per session — stateless, no persistence needed.
+- **M3 (player-scoped): true first-encounter intro.** Once the attempts DB exists, "new" means "no prior attempt in any direction" per the player's history; the preview then shows only genuinely new words, and the interstitial view itself is recorded as an exposure event (`introduced_at`) so analytics can separate "introduced" from "tested."
 
 ### 4.1 Stack
 
@@ -215,7 +220,7 @@ Per-kanji weakness aggregation; retention-by-gap (forgetting curve); wrong-submi
 ## 9. Milestones (each ends playable)
 
 1. **Core loop fun-check** — engine + input + matcher + plain falling Pixi text; reading mode only; hardcoded ~50 N5 words; no DB, no effects. *Gate: is it fun? Tune fall/spawn curves before building anything on top.*
-2. **Real data + both modes** — build-data pipeline, level/pool select, recall mode with grace hint, results screen with missed words + revenge round.
+2. **Real data + both modes** — build-data pipeline, level/pool select, recall mode with grace hint, results screen with missed words + revenge round, pre-wave word introduction (3.6, session-scoped).
 3. **Backend + analytics** — server, schema, full raw event capture, profile/goals, Stats screen with the v1 five views.
 4. **Juice + extras** — particles, bloom, CRT toggle, SFX, combo effects, custom-list import UI, settings, IME warning banner polish, README.
 
