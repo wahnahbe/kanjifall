@@ -170,7 +170,10 @@ export class GameEngine {
       w.y += (w.speed * STEP_MS) / 1000;
       if (w.y >= 1) landed.push(w);
     }
-    for (const w of landed) this.missWord(w);
+    for (const w of landed) {
+      if (this.status !== 'playing') break; // a prior miss may have ended the game
+      this.missWord(w);
+    }
   }
 
   private missWord(word: AirborneWord): void {

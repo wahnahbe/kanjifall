@@ -161,6 +161,25 @@ describe('misses, lives, waves', () => {
     expect(engine.getSnapshot().wave).toBe(2);
   });
 
+  it('two words landing in the same step emit gameOver once', () => {
+    const engine = new GameEngine({
+      cards, mode: 'reading', seed: 1,
+      config: { ...config, lives: 1, baseSpawnIntervalMs: 500 },
+    });
+    const events: GameEvent[] = [];
+    engine.subscribe((e) => events.push(e));
+    engine.start();
+    advance(engine, 700);
+    expect(engine.getWords()).toHaveLength(2);
+    // Force both onto the floor for the same step — unreachable through normal
+    // pacing (equal speeds, staggered spawns), but the guard must hold if it
+    // ever happens.
+    for (const w of engine.getWords()) w.y = 0.999;
+    advance(engine, 100, 700);
+    expect(events.filter((e) => e.type === 'gameOver')).toHaveLength(1);
+    expect(engine.getSnapshot().lives).toBe(0);
+  });
+
   it('lock-on marks wasTargeted and firstKeyAt', () => {
     const { engine } = makeEngine();
     advance(engine, 20);
