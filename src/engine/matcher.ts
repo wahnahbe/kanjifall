@@ -35,7 +35,10 @@ export function findPrefixMatches(
   );
 }
 
-/** Homophone rule (spec §3.1): the word closest to the floor dies. */
+/**
+ * Homophone rule (spec §3.1): the word closest to the floor dies.
+ * Equal-y ties resolve to the first match in array order (spawn order).
+ */
 export function selectTarget(matches: readonly AirborneWord[]): AirborneWord | null {
   if (matches.length === 0) return null;
   return matches.reduce((lowest, w) => (w.y > lowest.y ? w : lowest));

@@ -37,6 +37,11 @@ describe('findExactMatches', () => {
   it('returns empty on no match', () => {
     expect(findExactMatches('いぬ', [neko])).toHaveLength(0);
   });
+
+  it('empty and whitespace-only buffers match nothing', () => {
+    expect(findExactMatches('', [neko])).toHaveLength(0);
+    expect(findExactMatches('   ', [neko])).toHaveLength(0);
+  });
 });
 
 describe('findPrefixMatches', () => {
@@ -55,6 +60,10 @@ describe('findPrefixMatches', () => {
     expect(findPrefixMatches('k', [benkyou])).toHaveLength(0);
     expect(findPrefixMatches('', [benkyou])).toHaveLength(0);
   });
+
+  it('non-empty prefix with no matching card locks nothing', () => {
+    expect(findPrefixMatches('いぬ', [benkyou, bengoshi])).toHaveLength(0);
+  });
 });
 
 describe('selectTarget', () => {
@@ -66,5 +75,12 @@ describe('selectTarget', () => {
   });
   it('returns null for empty input', () => {
     expect(selectTarget([])).toBeNull();
+  });
+
+  it('breaks equal-y ties by array order (first match wins)', () => {
+    const c = card('a', ['こうえん']);
+    const first = airborne(1, c, 0.5);
+    const second = airborne(2, c, 0.5);
+    expect(selectTarget([first, second])?.instanceId).toBe(1);
   });
 });

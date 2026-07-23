@@ -66,6 +66,14 @@ describe('spawning and falling', () => {
     expect(word.y).toBeCloseTo(0.1, 1);
   });
 
+  it('includes kana-only cards in recall mode', () => {
+    const kanaOnly = cards.filter((c) => c.id === 'kana-only');
+    const engine = new GameEngine({ cards: kanaOnly, mode: 'recall', seed: 1, config });
+    engine.start();
+    advance(engine, 20);
+    expect(engine.getWords().map((w) => w.card.id)).toEqual(['kana-only']);
+  });
+
   it('snapshot is a defensive copy', () => {
     const { engine } = makeEngine();
     advance(engine, 100);
@@ -131,6 +139,49 @@ describe('submit flow', () => {
     typeWord(engine, 'kouen');
     const killed = events.find((e) => e.type === 'wordKilled');
     expect(killed && killed.type === 'wordKilled' && killed.word.instanceId).toBe(lowest.instanceId);
+  });
+});
+
+describe('key handling', () => {
+  const makeNekoEngine = () => {
+    const neko = cards.filter((c) => c.id === 'neko');
+    const engine = new GameEngine({ cards: neko, mode: 'reading', seed: 1, config });
+    const events: GameEvent[] = [];
+    engine.subscribe((e) => events.push(e));
+    engine.start();
+    advance(engine, 20);
+    return { engine, events, word: engine.getWords()[0] };
+  };
+
+  it('Escape clears the buffer and releases locks', () => {
+    const { engine, word } = makeNekoEngine();
+    engine.handleKey('n');
+    engine.handleKey('e');
+    expect(engine.getSnapshot().lockedIds).toEqual([word.instanceId]);
+    engine.handleKey('Escape');
+    const snap = engine.getSnapshot();
+    expect(snap.bufferKana).toBe('');
+    expect(snap.bufferRomaji).toBe('');
+    expect(snap.lockedIds).toEqual([]);
+  });
+
+  it('Backspace edits the buffer and counts against locked words', () => {
+    const { engine, word } = makeNekoEngine();
+    engine.handleKey('n');
+    engine.handleKey('e');
+    engine.handleKey('Backspace'); // ね → n
+    expect(word.backspaceCount).toBe(1);
+    const snap = engine.getSnapshot();
+    expect(snap.bufferRomaji).toBe('n');
+    expect(snap.lockedIds).toEqual([]); // bare romaji tail locks nothing
+  });
+
+  it('Backspace on an empty buffer is a no-op', () => {
+    const { engine, events, word } = makeNekoEngine();
+    const bufferEvents = events.filter((e) => e.type === 'bufferChanged').length;
+    engine.handleKey('Backspace');
+    expect(events.filter((e) => e.type === 'bufferChanged')).toHaveLength(bufferEvents);
+    expect(word.backspaceCount).toBe(0);
   });
 });
 
