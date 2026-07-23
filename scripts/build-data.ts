@@ -68,6 +68,9 @@ function indexJmdict(): { byKanji: Map<string, JmdictWord[]>; byKana: Map<string
 function cleanGloss(raw: string): string {
   // Strip parens innermost-out so nested groups (e.g. "dog (Canis (lupus)
   // familiaris)") don't leave a stray unmatched ")" behind after one pass.
+  // Assumes parens in jmdict glosses are balanced; the committed-data
+  // invariant test (glosses contain no "(" or ")") catches any future gloss
+  // where that assumption doesn't hold.
   let cleaned = raw;
   let previous: string;
   do {
@@ -133,9 +136,10 @@ function main(): void {
   const { byKanji, byKana } = indexJmdict();
 
   const cardsByLevel = new Map<2 | 3 | 4 | 5, Card[]>([[5, []], [4, []], [3, []], [2, []]]);
-  const usedIds = new Set<string>();
+  const cardById = new Map<string, Card>();
   const unmatched: JlptEntry[] = [];
-  const duplicateIds: string[] = [];
+  const mergedReadings: string[] = [];
+  let duplicatesSkipped = 0;
 
   for (const entry of entries) {
     const kanaOnly = entry.term === entry.reading || isKana(entry.term);
@@ -146,11 +150,26 @@ function main(): void {
       unmatched.push(entry);
       continue;
     }
-    if (usedIds.has(card.id)) {
-      duplicateIds.push(`${card.id} (${entry.term}/${entry.reading})`);
+    const survivor = cardById.get(card.id);
+    if (survivor !== undefined) {
+      // Same jmdict word already produced a card (e.g. a kanji-headed term and
+      // a separate kana-only bank entry both resolve to the same jmdict id).
+      // Merge this entry's reading onto the survivor instead of dropping it —
+      // for kana-only entries `applying` is just [entry.reading], so skipping
+      // outright would erase that reading from the corpus entirely. Always
+      // append (never unshift): kana[0] must stay the survivor's canonical
+      // reading.
+      if (survivor.kana.includes(entry.reading)) {
+        duplicatesSkipped += 1;
+      } else {
+        survivor.kana.push(entry.reading);
+        mergedReadings.push(
+          `merged reading ${entry.reading} into ${survivor.id} (${survivor.kanji ?? survivor.kana[0]})`,
+        );
+      }
       continue;
     }
-    usedIds.add(card.id);
+    cardById.set(card.id, card);
     cardsByLevel.get(entry.level)!.push(card);
   }
 
@@ -171,10 +190,9 @@ function main(): void {
   }
   console.log(`Unmatched: ${unmatched.length}`);
   for (const u of unmatched.slice(0, 20)) console.log(`  dropped: ${u.term} / ${u.reading} (N${u.level})`);
-  if (duplicateIds.length > 0) {
-    console.log(`Duplicate jmdict ids skipped: ${duplicateIds.length}`);
-    for (const d of duplicateIds.slice(0, 10)) console.log(`  dup: ${d}`);
-  }
+  console.log(`Duplicate entries merged (new reading added): ${mergedReadings.length}`);
+  console.log(`Duplicate entries skipped (reading already present): ${duplicatesSkipped}`);
+  for (const m of mergedReadings.slice(0, 12)) console.log(`  ${m}`);
 }
 
 main();
