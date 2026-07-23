@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { N5_WORDS } from '../data/n5words';
 import { GameEngine } from '../engine/GameEngine';
-import type { EngineSnapshot, GameEvent } from '../engine/types';
+import type { Card, EngineSnapshot, GameEvent, GameMode } from '../engine/types';
 import { PixiStage } from '../render/PixiStage';
 
 const IDLE_SNAPSHOT: EngineSnapshot = {
@@ -30,10 +29,18 @@ function seedFromUrl(): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+export interface RunOptions {
+  mode: GameMode;
+  cards: Card[];
+  seed?: number;
+  introduceWords?: boolean; // default true: pause each wave behind the intro overlay
+}
+
 export function useEngine() {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const [runId, setRunId] = useState(0);
+  const [introCards, setIntroCards] = useState<Card[]>([]);
 
   // Snapshot store: replaced on engine events only (words render via Pixi, not React).
   const snapshotRef = useRef<EngineSnapshot>(IDLE_SNAPSHOT);
@@ -46,13 +53,19 @@ export function useEngine() {
   const getSnapshot = useCallback(() => snapshotRef.current, []);
   const snapshot = useSyncExternalStore(subscribe, getSnapshot);
 
-  const start = useCallback((seed?: number) => {
+  const start = useCallback((opts: RunOptions) => {
     engineRef.current = new GameEngine({
-      cards: N5_WORDS,
-      mode: 'reading',
-      seed: seed ?? seedFromUrl() ?? Date.now(),
+      cards: opts.cards,
+      mode: opts.mode,
+      seed: opts.seed ?? seedFromUrl() ?? Date.now(),
+      config: { pauseOnWaveStart: opts.introduceWords ?? true },
     });
+    setIntroCards([]);
     setRunId((n) => n + 1);
+  }, []);
+
+  const resume = useCallback(() => {
+    engineRef.current?.resume();
   }, []);
 
   useEffect(() => {
@@ -72,11 +85,13 @@ export function useEngine() {
     const onEvent = (event: GameEvent) => {
       if (event.type === 'wordKilled') stage?.playKill(event.word);
       if (event.type === 'wordMissed') stage?.playMiss(event.word);
+      if (event.type === 'waveStarting') setIntroCards(event.cards);
       publish();
     };
 
     const onKey = (e: KeyboardEvent) => {
-      if (snapshotRef.current.status !== 'playing') return;
+      const status = snapshotRef.current.status;
+      if (status !== 'playing' && status !== 'waveIntro') return;
       if (!isGameKey(e)) return;
       e.preventDefault();
       engine.handleKey(e.key);
@@ -86,7 +101,7 @@ export function useEngine() {
     // 100ms clamp in tick() absorbs the gap on return.
     const loop = (now: number) => {
       engine.tick(now);
-      stage?.sync(engine.getWords(), snapshotRef.current.lockedIds, 'reading');
+      stage?.sync(engine.getWords(), snapshotRef.current.lockedIds, snapshotRef.current.mode);
       rafId = requestAnimationFrame(loop);
     };
 
@@ -118,5 +133,5 @@ export function useEngine() {
     };
   }, [runId]);
 
-  return { snapshot, hostRef, start };
+  return { snapshot, hostRef, start, resume, introCards };
 }

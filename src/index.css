@@ -37,3 +37,12 @@ button:hover { background: #24304a; }
 }
 .missed { border-collapse: collapse; }
 .missed td { padding: 0.2rem 0.9rem; color: #ffb0b0; }
+.picker-row { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; }
+.picker { display: flex; flex-direction: column; gap: 0.2rem; min-width: 8.5rem; }
+.picker.selected { border-color: #7fdfff; background: #14263a; }
+.load-error { color: #ff8f8f; }
+.intro-words { border-collapse: collapse; }
+.intro-words td { padding: 0.3rem 1rem; }
+.intro-kanji { font-size: 1.6rem; }
+.intro-kana { color: #7fdfff; }
+.results-buttons { display: flex; gap: 0.75rem; }
