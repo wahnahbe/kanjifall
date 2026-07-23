@@ -28,7 +28,7 @@ The game is a **reinforcement** tool. Arcade speed pressure cements half-known w
 | Input method | Romaji → auto-kana via wanakana IME mode; validate kana readings only | Proven pattern from Japanese typing games; no IME fighting; never requires kanji conversion |
 | Submit rule | **Enter to submit** (no auto-kill) | Deliberate answering; solves homophone targeting and prefix-collision problems outright |
 | Word source | Bundled JLPT N5–N2 lists (yomitan-jlpt-vocab) + custom paste/CSV import | Best fit for N5→N2 climb; import covers current study words |
-| Rendering | Full PixiJS v8 (WebGL) | User chose maximum visual spectacle; text risks mitigated (see 5.4) |
+| Rendering | Full PixiJS v8 (WebGL) | User chose maximum visual spectacle; text risks mitigated (see 4.4) |
 | Persistence | Local Node backend (Hono + better-sqlite3 + Drizzle), SQLite file on disk | Durable analytics that survive browser-data clears; SQL-queryable; stack already proven on this machine in n2-prep |
 | Analytics scope | Capture all raw fields from day one; render only five v1 views | Raw signals can't be reconstructed later; dashboards can grow later for free |
 
@@ -51,12 +51,12 @@ The game is a **reinforcement** tool. Arcade speed pressure cements half-known w
 
 Both ship in v1 and share the engine, matcher, and input pipeline. Only the prompt display differs.
 
-- **Recall mode:** the English gloss falls ("to study"); the player types the reading (べんきょう). When a word falls past 60% of screen height, its kanji form fades in beside the gloss as a grace hint. Kills after the hint appeared are recorded as hinted (see 6.2).
+- **Recall mode:** the English gloss falls ("to study"); the player types the reading (べんきょう). When a word falls past 60% of screen height, its kanji form fades in beside the gloss as a grace hint. Kills after the hint appeared are recorded as hinted (see 5.2).
 - **Reading mode:** the kanji form falls (勉強); the player types the reading. The English gloss flashes on the kill for passive meaning exposure. **Kana-only words are excluded from this mode** — typing visible kana teaches nothing.
 
 ### 3.3 Pool selection
 
-Player picks a word pool per run: a single JLPT level (N5, N4, N3, N2), mixed (all levels weighted toward the selected target level), or a custom imported list.
+Player picks a word pool per run: a single JLPT level (N5, N4, N3, N2), mixed (all levels, weighted toward the profile's target level), or a custom imported list.
 
 ### 3.4 Scoring
 
@@ -141,10 +141,12 @@ Card {
   kana: string[]        // accepted readings; kana[0] canonical (shown in feedback)
   gloss: string         // short distinctive English, ≤ ~28 chars
   pos: string           // part of speech, from source data
-  jlpt: 5 | 4 | 3 | 2
+  jlpt: 5 | 4 | 3 | 2 | null   // null for custom cards
   source: 'jlpt' | 'custom'
 }
 ```
+
+The Vocab Level Estimate (5.3) counts only `source: 'jlpt'` cards; custom cards contribute to every other stat but never to level coverage/mastery denominators.
 
 JLPT cards are seeded into SQLite from the build pipeline output (also shipped as JSON for the client). Custom lists live in the DB via the import UI.
 
@@ -207,7 +209,7 @@ Per-kanji weakness aggregation; retention-by-gap (forgetting curve); wrong-submi
   - **Stats golden tests:** seed temp SQLite with a known attempt history → assert exact learned counts, level-estimate math, pace numbers, leech ranking, confusion pairs.
 - **API route tests:** Hono against temp DB file; batch idempotency.
 - **Component smoke tests:** Results, Stats (mock API), Import preview errors.
-- **E2E (Playwright, one keystone test):** launch server + client, start a seeded N5 reading run, type the deterministic first word via real keyboard events, Enter → assert score updates and the attempt row exists in the DB.
+- **E2E (Playwright, one keystone test):** launch server + client, start an N5 reading run with a fixed RNG seed (injected via a dev-only `?seed=` URL param), type the deterministic first word via real keyboard events, Enter → assert score updates and the attempt row exists in the DB.
 - **Manual:** 60fps check at max airborne words + particles; visual QA of effects.
 
 ## 9. Milestones (each ends playable)
