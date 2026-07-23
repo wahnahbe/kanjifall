@@ -145,12 +145,14 @@ export class GameEngine {
     this.wave = wave;
     this.wavePlan = this.spawner.planWave(wave);
     this.waveQueue = [...this.wavePlan.cards];
-    this.emit({ type: 'waveStarting', wave, cards: [...this.wavePlan.cards] });
     if (this.config.pauseOnWaveStart) {
       this.status = 'waveIntro';
-      return;
+    } else {
+      this.nextSpawnAt = this.timeMs; // first word spawns on the next step
     }
-    this.nextSpawnAt = this.timeMs; // first word spawns on the next step
+    // Emit AFTER the transition: subscribers snapshotting during this event
+    // must observe the post-transition state (waveIntro pause included).
+    this.emit({ type: 'waveStarting', wave, cards: [...this.wavePlan.cards] });
   }
 
   private step(): void {

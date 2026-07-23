@@ -402,4 +402,26 @@ describe('wave intro, hints, counters (M2)', () => {
     const after = engine.getSnapshot().timeMs;
     expect(after - before).toBeCloseTo(STEP_MS, 3); // exactly one step, no burst
   });
+
+  it('waveStarting is observed in post-transition state (snapshot reads waveIntro), every wave', () => {
+    const engine = new GameEngine({ cards, mode: 'reading', seed: 1, config: introConfig });
+    const statusAtEmit: string[] = [];
+    engine.subscribe((e) => {
+      if (e.type === 'waveStarting') statusAtEmit.push(engine.getSnapshot().status);
+    });
+    engine.start();
+    engine.handleKey('Enter'); // wave 1 live
+    let now = advance(engine, 20);
+    for (let i = 0; i < 2; i++) {
+      const word = engine.getWords()[0];
+      if (word) {
+        const romaji = word.card.id === 'neko' ? 'neko' : word.card.id === 'inu' ? 'inu' : 'hon';
+        typeWord(engine, romaji);
+      }
+      now = advance(engine, 1100, now);
+    }
+    now = advance(engine, 2000, now); // cross interWaveDelay into wave 2
+    expect(statusAtEmit.length).toBeGreaterThanOrEqual(2); // waves 1 and 2
+    for (const status of statusAtEmit) expect(status).toBe('waveIntro');
+  });
 });
