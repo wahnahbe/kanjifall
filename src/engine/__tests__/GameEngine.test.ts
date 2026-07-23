@@ -367,27 +367,34 @@ describe('wave intro, hints, counters (M2)', () => {
       if (e.type === 'waveCleared') clearedAt = engine.getSnapshot().timeMs;
     });
     engine.start();
-    engine.handleKey('Enter');
+    engine.handleKey('Enter'); // dismiss wave-1 intro
     let now = advance(engine, 20);
-    for (let i = 0; i < 2; i++) {
-      const word = engine.getWords()[0];
-      if (word) {
-        const romaji = word.card.id === 'neko' ? 'neko' : word.card.id === 'inu' ? 'inu' : 'hon';
-        typeWord(engine, romaji);
-      }
-      now = advance(engine, 1100, now);
-    }
+    const killFirst = () => {
+      const word = engine.getWords()[0]!;
+      const romaji = word.card.id === 'neko' ? 'neko' : word.card.id === 'inu' ? 'inu' : 'hon';
+      typeWord(engine, romaji);
+    };
+    killFirst(); // word 1 dies ~t=20
+    now = advance(engine, 1000, now); // word 2 spawns ~t=1017
+    killFirst(); // word 2 dies
+    now = advance(engine, 32, now); // let waveCleared fire (1-2 steps)
     expect(clearedAt).not.toBeNull();
     const boundary = clearedAt! + introConfig.interWaveDelayMs;
+    expect(engine.getSnapshot().status).toBe('playing'); // wave 2 must NOT have begun yet
+
+    // Walk in small real-time ticks to just before the boundary, still playing.
     while (engine.getSnapshot().timeMs < boundary - 20) {
       now += 16;
       engine.tick(now);
     }
-    // One clamped mega-tick (dt→100ms) crosses the wave-2 boundary mid-drain,
-    // parking in waveIntro with undrained accumulator backlog.
+    expect(engine.getSnapshot().status).toBe('playing');
+
+    // One clamped mega-tick (dt→100ms): the wave-2 pause lands mid-drain,
+    // leaving ~4 steps of undrained backlog in the accumulator.
     now += 5000;
     engine.tick(now);
     expect(engine.getSnapshot().status).toBe('waveIntro');
+
     engine.resume();
     const before = engine.getSnapshot().timeMs;
     now += 16;
