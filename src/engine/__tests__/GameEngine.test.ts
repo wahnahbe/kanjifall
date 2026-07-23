@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GameEngine } from '../GameEngine';
+import { STEP_MS } from '../constants';
 import type { Card, GameEvent } from '../types';
 
 const cards: Card[] = [
@@ -288,6 +289,9 @@ describe('wave intro, hints, counters (M2)', () => {
     const { engine, events } = makeIntroEngine();
     engine.handleKey('a');
     expect(engine.getSnapshot().status).toBe('waveIntro');
+    engine.handleKey('Escape');
+    engine.handleKey('Backspace');
+    expect(engine.getSnapshot().status).toBe('waveIntro');
     engine.handleKey('Enter');
     expect(engine.getSnapshot().status).toBe('playing');
     expect(events.some((e) => e.type === 'resumed')).toBe(true);
@@ -296,12 +300,14 @@ describe('wave intro, hints, counters (M2)', () => {
   });
 
   it('resume() is a no-op while playing', () => {
-    const { engine } = makeIntroEngine();
+    const { engine, events } = makeIntroEngine();
     engine.handleKey('Enter');
+    const resumedCount = events.filter((e) => e.type === 'resumed').length;
     const before = engine.getSnapshot();
     engine.resume();
     expect(engine.getSnapshot().status).toBe('playing');
     expect(engine.getSnapshot().timeMs).toBe(before.timeMs);
+    expect(events.filter((e) => e.type === 'resumed')).toHaveLength(resumedCount);
   });
 
   it('the next wave pauses again with its own cards', () => {
@@ -352,5 +358,41 @@ describe('wave intro, hints, counters (M2)', () => {
     expect(snap.mode).toBe('reading');
     expect(snap.kills).toBe(1);
     expect(snap.wrongSubmits).toBe(1);
+  });
+
+  it('resume() discards paused-tick backlog (no step burst after mid-drain wave transition)', () => {
+    const engine = new GameEngine({ cards, mode: 'reading', seed: 1, config: introConfig });
+    let clearedAt: number | null = null;
+    engine.subscribe((e) => {
+      if (e.type === 'waveCleared') clearedAt = engine.getSnapshot().timeMs;
+    });
+    engine.start();
+    engine.handleKey('Enter');
+    let now = advance(engine, 20);
+    for (let i = 0; i < 2; i++) {
+      const word = engine.getWords()[0];
+      if (word) {
+        const romaji = word.card.id === 'neko' ? 'neko' : word.card.id === 'inu' ? 'inu' : 'hon';
+        typeWord(engine, romaji);
+      }
+      now = advance(engine, 1100, now);
+    }
+    expect(clearedAt).not.toBeNull();
+    const boundary = clearedAt! + introConfig.interWaveDelayMs;
+    while (engine.getSnapshot().timeMs < boundary - 20) {
+      now += 16;
+      engine.tick(now);
+    }
+    // One clamped mega-tick (dt→100ms) crosses the wave-2 boundary mid-drain,
+    // parking in waveIntro with undrained accumulator backlog.
+    now += 5000;
+    engine.tick(now);
+    expect(engine.getSnapshot().status).toBe('waveIntro');
+    engine.resume();
+    const before = engine.getSnapshot().timeMs;
+    now += 16;
+    engine.tick(now);
+    const after = engine.getSnapshot().timeMs;
+    expect(after - before).toBeCloseTo(STEP_MS, 3); // exactly one step, no burst
   });
 });

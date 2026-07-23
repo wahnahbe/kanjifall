@@ -69,7 +69,8 @@ export class GameEngine {
     if (this.status !== 'waveIntro') return;
     this.status = 'playing';
     this.nextSpawnAt = this.timeMs;
-    this.lastNow = null; // clean fixed-timestep bootstrap after the pause
+    this.lastNow = null; // clean fixed-timestep bootstrap after the pause: discard clock AND backlog
+    this.accumulator = 0;
     this.emit({ type: 'resumed', wave: this.wave });
   }
 
