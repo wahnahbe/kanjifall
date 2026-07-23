@@ -10,7 +10,7 @@ const card = (id: string): Card => ({
 });
 
 const base: EngineSnapshot = {
-  status: 'gameOver', mode: 'reading', score: 4200, lives: 0, wave: 5, combo: 0,
+  status: 'gameOver', mode: 'reading', score: 4200, lives: 0, wave: 5, combo: 0, maxCombo: 0,
   kills: 12, wrongSubmits: 2, bufferKana: '', bufferRomaji: '',
   lockedIds: [], missed: [card('m1'), card('m2'), card('m1')], timeMs: 0,
 };

@@ -30,7 +30,7 @@ const card = (id: string): Card => ({
 });
 
 const snap = (over: Partial<EngineSnapshot>): EngineSnapshot => ({
-  status: 'waveIntro', mode: 'reading', score: 0, lives: 3, wave: 1, combo: 0,
+  status: 'waveIntro', mode: 'reading', score: 0, lives: 3, wave: 1, combo: 0, maxCombo: 0,
   kills: 0, wrongSubmits: 0, bufferKana: '', bufferRomaji: '',
   lockedIds: [], missed: [], timeMs: 0, ...over,
 });

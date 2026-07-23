@@ -360,6 +360,32 @@ describe('wave intro, hints, counters (M2)', () => {
     expect(snap.wrongSubmits).toBe(1);
   });
 
+  it('maxCombo tracks the peak combo and survives a reset by a wrong submit', () => {
+    const engine = new GameEngine({
+      cards, mode: 'reading', seed: 1,
+      config: { ...config, baseWaveSize: 3, maxWaveSize: 3 },
+    });
+    engine.start();
+
+    const killNextWord = () => {
+      const word = engine.getWords()[0];
+      const romaji = word.card.id === 'neko' ? 'neko' : word.card.id === 'inu' ? 'inu' : 'hon';
+      typeWord(engine, romaji);
+    };
+
+    let now = advance(engine, 20);
+    killNextWord(); // kill 1: combo 1
+    now = advance(engine, 1000, now);
+    killNextWord(); // kill 2: combo 2 (peak)
+    now = advance(engine, 1000, now);
+    typeWord(engine, 'zzz'); // wrong submit: combo resets to 0
+    killNextWord(); // kill 3: combo 1
+
+    const snap = engine.getSnapshot();
+    expect(snap.combo).toBe(1);
+    expect(snap.maxCombo).toBe(2);
+  });
+
   it('resume() discards paused-tick backlog (no step burst after mid-drain wave transition)', () => {
     const engine = new GameEngine({ cards, mode: 'reading', seed: 1, config: introConfig });
     let clearedAt: number | null = null;

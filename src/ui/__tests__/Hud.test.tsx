@@ -5,7 +5,7 @@ import type { EngineSnapshot } from '../../engine/types';
 import { Hud } from '../hud/Hud';
 
 const snapshot: EngineSnapshot = {
-  status: 'playing', mode: 'reading', score: 1230, lives: 2, wave: 3, combo: 4,
+  status: 'playing', mode: 'reading', score: 1230, lives: 2, wave: 3, combo: 4, maxCombo: 0,
   kills: 0, wrongSubmits: 0,
   bufferKana: 'べんk', bufferRomaji: 'benk', lockedIds: [1], missed: [], timeMs: 0,
 };

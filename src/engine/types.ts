@@ -44,6 +44,7 @@ export interface EngineSnapshot {
   lives: number;
   wave: number;
   combo: number;
+  maxCombo: number;
   kills: number;
   wrongSubmits: number;
   bufferKana: string;

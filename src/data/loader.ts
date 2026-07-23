@@ -22,16 +22,19 @@ export class DataLoadError extends Error {
 }
 
 const cache = new Map<LevelId, Promise<Card[]>>();
+const listVersions = new Map<LevelId, string>();
 
 /** Tests only: reset module-level cache between cases. */
 export function clearDataCache(): void {
   cache.clear();
+  listVersions.clear();
 }
 
 async function fetchLevelOnce(level: LevelId): Promise<Card[]> {
   const response = await fetch(`/data/jlpt-${level}.json`);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const parsed = levelFileSchema.parse(await response.json());
+  listVersions.set(level, parsed.listVersion);
   return toCards(parsed);
 }
 
@@ -57,9 +60,18 @@ function loadLevel(level: LevelId): Promise<Card[]> {
   return pending;
 }
 
+export interface LoadedPool {
+  cards: Card[];
+  listVersion: string;
+}
+
 /** Mixed = uniform concatenation in M2; profile-weighted mixing arrives in M3. */
-export async function loadPool(pool: PoolId): Promise<Card[]> {
-  if (pool !== 'mixed') return loadLevel(pool);
+export async function loadPool(pool: PoolId): Promise<LoadedPool> {
+  if (pool !== 'mixed') {
+    const cards = await loadLevel(pool);
+    return { cards, listVersion: listVersions.get(pool)! };
+  }
   const levels = await Promise.all(MIXED_ORDER.map(loadLevel));
-  return levels.flat();
+  // All four data files share one pipeline version; n5 stands in for the pool.
+  return { cards: levels.flat(), listVersion: listVersions.get('n5')! };
 }

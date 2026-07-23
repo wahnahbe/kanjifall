@@ -26,8 +26,9 @@ afterEach(() => vi.unstubAllGlobals());
 describe('loadPool', () => {
   it('fetches, validates, and returns a single level', async () => {
     fetchMock.mockResolvedValueOnce(ok(levelPayload(5, ['a', 'b'])));
-    const cards = await loadPool('n5');
+    const { cards, listVersion } = await loadPool('n5');
     expect(cards.map((c) => c.id)).toEqual(['a', 'b']);
+    expect(listVersion).toBe('test-v1');
     expect(fetchMock).toHaveBeenCalledWith('/data/jlpt-n5.json');
   });
 
@@ -43,15 +44,16 @@ describe('loadPool', () => {
       const level = Number(String(url).match(/n(\d)/)?.[1]) as 5 | 4 | 3 | 2;
       return Promise.resolve(ok(levelPayload(level, [`w${level}`])));
     });
-    const cards = await loadPool('mixed');
+    const { cards, listVersion } = await loadPool('mixed');
     expect(cards.map((c) => c.id)).toEqual(['w5', 'w4', 'w3', 'w2']);
+    expect(listVersion).toBe('test-v1'); // the n5 file's version
   });
 
   it('retries once on network failure, then succeeds', async () => {
     fetchMock
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValueOnce(ok(levelPayload(3, ['r'])));
-    const cards = await loadPool('n3');
+    const { cards } = await loadPool('n3');
     expect(cards).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -66,7 +68,8 @@ describe('loadPool', () => {
     fetchMock.mockResolvedValue(ok({ listVersion: 'v', level: 5, cards: [{ bogus: true }] }));
     await expect(loadPool('n5')).rejects.toBeInstanceOf(DataLoadError);
     fetchMock.mockResolvedValue(ok(levelPayload(5, ['a'])));
-    await expect(loadPool('n5')).resolves.toHaveLength(1);
+    const { cards } = await loadPool('n5');
+    expect(cards).toHaveLength(1);
   });
 
   it('exposes a label for every pool', () => {
@@ -93,7 +96,8 @@ describe('loadPool', () => {
     expect(fetchMock).toHaveBeenCalledTimes(5);
     fetchMock.mockClear();
     fetchMock.mockResolvedValue(ok(levelPayload(3, ['w3'])));
-    await expect(loadPool('mixed')).resolves.toHaveLength(4);
+    const { cards } = await loadPool('mixed');
+    expect(cards).toHaveLength(4);
     expect(fetchMock).toHaveBeenCalledTimes(1); // only the previously-failed n3 refetches
     expect(fetchMock).toHaveBeenCalledWith('/data/jlpt-n3.json');
   });

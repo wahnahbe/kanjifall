@@ -25,12 +25,12 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('title');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const lastRunRef = useRef<{ mode: GameMode; cards: Card[] } | null>(null);
+  const lastRunRef = useRef<{ mode: GameMode; cards: Card[]; listVersion: string } | null>(null);
   const seenIdsRef = useRef(new Set<string>()); // session-scoped across runs (spec §3.6)
   const { snapshot, hostRef, start, resume, introCards } = useEngine();
 
-  const beginRun = useCallback((mode: GameMode, cards: Card[]) => {
-    lastRunRef.current = { mode, cards };
+  const beginRun = useCallback((mode: GameMode, cards: Card[], listVersion: string) => {
+    lastRunRef.current = { mode, cards, listVersion };
     start({ mode, cards });
     setScreen('game');
   }, [start]);
@@ -39,8 +39,8 @@ export default function App() {
     setLoading(true);
     setLoadError(null);
     try {
-      const cards = await loadPool(pool);
-      beginRun(mode, cards);
+      const { cards, listVersion } = await loadPool(pool);
+      beginRun(mode, cards, listVersion);
     } catch (error: unknown) {
       setLoadError(error instanceof DataLoadError ? error.message : 'unexpected load failure');
     } finally {
@@ -80,9 +80,10 @@ export default function App() {
         hostRef={hostRef}
         introCards={unseenIntro}
         onDismissIntro={dismissIntro}
-        onRevenge={(missed) => lastRunRef.current && beginRun(lastRunRef.current.mode, missed)}
-        onPlayAgain={() =>
-          lastRunRef.current && beginRun(lastRunRef.current.mode, lastRunRef.current.cards)}
+        onRevenge={(missed) => lastRunRef.current
+          && beginRun(lastRunRef.current.mode, missed, lastRunRef.current.listVersion)}
+        onPlayAgain={() => lastRunRef.current
+          && beginRun(lastRunRef.current.mode, lastRunRef.current.cards, lastRunRef.current.listVersion)}
         onTitle={() => setScreen('title')}
       />
     );

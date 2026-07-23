@@ -29,6 +29,7 @@ export class GameEngine {
   private lives: number;
   private wave = 0;
   private combo = 0;
+  private maxCombo = 0;
   private timeMs = 0;
   private readonly mode: GameMode;
   private kills = 0;
@@ -125,6 +126,7 @@ export class GameEngine {
       lives: this.lives,
       wave: this.wave,
       combo: this.combo,
+      maxCombo: this.maxCombo,
       kills: this.kills,
       wrongSubmits: this.wrongSubmits,
       bufferKana: this.buffer.kana,
@@ -259,6 +261,7 @@ export class GameEngine {
     const msToKill = this.timeMs - word.spawnedAt;
     const points = pointsFor(word.card, this.wave, this.combo);
     this.combo += 1;
+    if (this.combo > this.maxCombo) this.maxCombo = this.combo;
     this.kills += 1;
     this.score += points;
     this.buffer.clear();
