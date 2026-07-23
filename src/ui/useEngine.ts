@@ -5,7 +5,8 @@ import type { EngineSnapshot, GameEvent } from '../engine/types';
 import { PixiStage } from '../render/PixiStage';
 
 const IDLE_SNAPSHOT: EngineSnapshot = {
-  status: 'idle', score: 0, lives: 0, wave: 0, combo: 0,
+  status: 'idle', mode: 'reading', score: 0, lives: 0, wave: 0, combo: 0,
+  kills: 0, wrongSubmits: 0,
   bufferKana: '', bufferRomaji: '', lockedIds: [], missed: [], timeMs: 0,
 };
 

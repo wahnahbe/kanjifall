@@ -30,6 +30,9 @@ export class GameEngine {
   private wave = 0;
   private combo = 0;
   private timeMs = 0;
+  private readonly mode: GameMode;
+  private kills = 0;
+  private wrongSubmits = 0;
 
   private wavePlan: WavePlan | null = null;
   private waveQueue: Card[] = [];
@@ -43,7 +46,8 @@ export class GameEngine {
   constructor(opts: EngineOptions) {
     this.config = { ...DEFAULT_CONFIG, ...opts.config };
     this.lives = this.config.lives;
-    const pool = opts.mode === 'reading'
+    this.mode = opts.mode;
+    const pool = this.mode === 'reading'
       ? opts.cards.filter((c) => c.kanji !== null)
       : opts.cards;
     this.spawner = new Spawner(pool, mulberry32(opts.seed), this.config);
@@ -58,6 +62,15 @@ export class GameEngine {
     if (this.status !== 'idle') return;
     this.status = 'playing';
     this.beginWave(1);
+  }
+
+  /** Leave the waveIntro pause and begin (or continue) the wave. */
+  resume(): void {
+    if (this.status !== 'waveIntro') return;
+    this.status = 'playing';
+    this.nextSpawnAt = this.timeMs;
+    this.lastNow = null; // clean fixed-timestep bootstrap after the pause
+    this.emit({ type: 'resumed', wave: this.wave });
   }
 
   /** rAF driver entry point. Fixed-timestep with tab-restore clamp. */
@@ -77,6 +90,10 @@ export class GameEngine {
   }
 
   handleKey(key: string): void {
+    if (this.status === 'waveIntro') {
+      if (key === 'Enter') this.resume();
+      return;
+    }
     if (this.status !== 'playing') return;
     if (key === 'Enter') return this.submit();
     if (key === 'Escape') {
@@ -102,10 +119,13 @@ export class GameEngine {
   getSnapshot(): EngineSnapshot {
     return {
       status: this.status,
+      mode: this.mode,
       score: this.score,
       lives: this.lives,
       wave: this.wave,
       combo: this.combo,
+      kills: this.kills,
+      wrongSubmits: this.wrongSubmits,
       bufferKana: this.buffer.kana,
       bufferRomaji: this.buffer.romaji,
       lockedIds: [...this.lockedIds],
@@ -124,6 +144,11 @@ export class GameEngine {
     this.wave = wave;
     this.wavePlan = this.spawner.planWave(wave);
     this.waveQueue = [...this.wavePlan.cards];
+    this.emit({ type: 'waveStarting', wave, cards: [...this.wavePlan.cards] });
+    if (this.config.pauseOnWaveStart) {
+      this.status = 'waveIntro';
+      return;
+    }
     this.nextSpawnAt = this.timeMs; // first word spawns on the next step
   }
 
@@ -136,6 +161,7 @@ export class GameEngine {
     this.timeMs = this.stepCount * STEP_MS;
     this.trySpawn();
     this.moveWords();
+    this.markHints();
     this.tryAdvanceWave();
   }
 
@@ -176,6 +202,13 @@ export class GameEngine {
     }
   }
 
+  private markHints(): void {
+    if (this.mode !== 'recall') return;
+    for (const w of this.words) {
+      if (!w.hintShown && w.y >= this.config.hintAtY) w.hintShown = true;
+    }
+  }
+
   private missWord(word: AirborneWord): void {
     this.words = this.words.filter((w) => w.instanceId !== word.instanceId);
     this.missed.push(word.card);
@@ -209,6 +242,7 @@ export class GameEngine {
     const target = selectTarget(findExactMatches(kana, this.words));
     if (target === null) {
       this.combo = 0;
+      this.wrongSubmits += 1;
       this.buffer.clear();
       this.refreshLocks();
       this.emit({ type: 'wrongSubmit', submittedKana: kana });
@@ -222,6 +256,7 @@ export class GameEngine {
     const msToKill = this.timeMs - word.spawnedAt;
     const points = pointsFor(word.card, this.wave, this.combo);
     this.combo += 1;
+    this.kills += 1;
     this.score += points;
     this.buffer.clear();
     this.refreshLocks();

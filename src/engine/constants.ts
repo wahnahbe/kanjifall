@@ -23,4 +23,6 @@ export const DEFAULT_CONFIG: EngineConfig = {
   spawnIntervalDecay: 0.94,
   minSpawnIntervalMs: 1200,
   interWaveDelayMs: 1500,
+  hintAtY: 0.6,
+  pauseOnWaveStart: false, // engine default keeps M1 behavior; the UI opts in
 };

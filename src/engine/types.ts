@@ -30,17 +30,22 @@ export type GameEvent =
   | { type: 'wordMissed'; word: AirborneWord }
   | { type: 'wrongSubmit'; submittedKana: string }
   | { type: 'bufferChanged'; kana: string; romaji: string; lockedIds: number[] }
+  | { type: 'waveStarting'; wave: number; cards: Card[] }
+  | { type: 'resumed'; wave: number }
   | { type: 'waveCleared'; wave: number }
   | { type: 'gameOver'; score: number; wave: number };
 
-export type GameStatus = 'idle' | 'playing' | 'gameOver';
+export type GameStatus = 'idle' | 'waveIntro' | 'playing' | 'gameOver';
 
 export interface EngineSnapshot {
   status: GameStatus;
+  mode: GameMode;
   score: number;
   lives: number;
   wave: number;
   combo: number;
+  kills: number;
+  wrongSubmits: number;
   bufferKana: string;
   bufferRomaji: string;
   lockedIds: number[];
@@ -61,4 +66,6 @@ export interface EngineConfig {
   spawnIntervalDecay: number; // multiplier per wave
   minSpawnIntervalMs: number;
   interWaveDelayMs: number;
+  hintAtY: number; // recall mode: kanji grace hint appears when word.y crosses this
+  pauseOnWaveStart: boolean; // emit waveStarting and hold in 'waveIntro' until resume()
 }

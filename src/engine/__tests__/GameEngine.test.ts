@@ -257,3 +257,100 @@ describe('determinism', () => {
     expect(run()).toEqual(run());
   });
 });
+
+describe('wave intro, hints, counters (M2)', () => {
+  const introConfig = { ...config, pauseOnWaveStart: true };
+
+  function makeIntroEngine(mode: 'reading' | 'recall' = 'reading') {
+    const engine = new GameEngine({ cards, mode, seed: 1, config: introConfig });
+    const events: GameEvent[] = [];
+    engine.subscribe((e) => events.push(e));
+    engine.start();
+    return { engine, events };
+  }
+
+  it('start() with pauseOnWaveStart holds in waveIntro and emits waveStarting with the wave cards', () => {
+    const { engine, events } = makeIntroEngine();
+    expect(engine.getSnapshot().status).toBe('waveIntro');
+    const starting = events.find((e) => e.type === 'waveStarting');
+    expect(starting && starting.type === 'waveStarting' && starting.cards.length).toBe(2);
+    expect(events.some((e) => e.type === 'wordSpawned')).toBe(false);
+  });
+
+  it('tick() is inert during waveIntro (no time, no spawns)', () => {
+    const { engine, events } = makeIntroEngine();
+    advance(engine, 5000);
+    expect(engine.getSnapshot().timeMs).toBe(0);
+    expect(events.some((e) => e.type === 'wordSpawned')).toBe(false);
+  });
+
+  it('resume() starts play; Enter during intro resumes; letters are ignored', () => {
+    const { engine, events } = makeIntroEngine();
+    engine.handleKey('a');
+    expect(engine.getSnapshot().status).toBe('waveIntro');
+    engine.handleKey('Enter');
+    expect(engine.getSnapshot().status).toBe('playing');
+    expect(events.some((e) => e.type === 'resumed')).toBe(true);
+    advance(engine, 50);
+    expect(events.some((e) => e.type === 'wordSpawned')).toBe(true);
+  });
+
+  it('resume() is a no-op while playing', () => {
+    const { engine } = makeIntroEngine();
+    engine.handleKey('Enter');
+    const before = engine.getSnapshot();
+    engine.resume();
+    expect(engine.getSnapshot().status).toBe('playing');
+    expect(engine.getSnapshot().timeMs).toBe(before.timeMs);
+  });
+
+  it('the next wave pauses again with its own cards', () => {
+    const { engine, events } = makeIntroEngine();
+    engine.handleKey('Enter');
+    let now = advance(engine, 20);
+    for (let i = 0; i < 2; i++) {
+      const word = engine.getWords()[0];
+      if (word) {
+        const romaji = word.card.id === 'neko' ? 'neko' : word.card.id === 'inu' ? 'inu' : 'hon';
+        typeWord(engine, romaji);
+      }
+      now = advance(engine, 1100, now);
+    }
+    now = advance(engine, 2000, now);
+    expect(engine.getSnapshot().status).toBe('waveIntro');
+    const startings = events.filter((e) => e.type === 'waveStarting');
+    expect(startings).toHaveLength(2);
+    expect(engine.getSnapshot().wave).toBe(2);
+  });
+
+  it('without pauseOnWaveStart, waveStarting is still emitted but play begins immediately', () => {
+    const { engine, events } = makeEngine();
+    expect(engine.getSnapshot().status).toBe('playing');
+    expect(events.some((e) => e.type === 'waveStarting')).toBe(true);
+  });
+
+  it('recall mode marks hintShown when a word crosses hintAtY; reading mode never does', () => {
+    const recall = new GameEngine({ cards, mode: 'recall', seed: 1, config: { ...config, hintAtY: 0.3 } });
+    recall.start();
+    advance(recall, 4000); // 0.1 y/s → y≈0.4 > 0.3
+    expect(recall.getWords().some((w) => w.hintShown)).toBe(true);
+
+    const reading = new GameEngine({ cards, mode: 'reading', seed: 1, config: { ...config, hintAtY: 0.3 } });
+    reading.start();
+    advance(reading, 4000);
+    expect(reading.getWords().every((w) => !w.hintShown)).toBe(true);
+  });
+
+  it('snapshot carries mode, kills, and wrongSubmits', () => {
+    const { engine } = makeEngine();
+    advance(engine, 20);
+    typeWord(engine, 'zzz'); // wrong submit
+    const word = engine.getWords()[0];
+    const romaji = word.card.id === 'neko' ? 'neko' : word.card.id === 'inu' ? 'inu' : 'hon';
+    typeWord(engine, romaji);
+    const snap = engine.getSnapshot();
+    expect(snap.mode).toBe('reading');
+    expect(snap.kills).toBe(1);
+    expect(snap.wrongSubmits).toBe(1);
+  });
+});
