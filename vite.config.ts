@@ -1,10 +1,11 @@
-import { defineConfig } from 'vite';
+/// <reference types="vitest/config" />
+import { defineConfig, type UserConfigExport } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig({
+const config: UserConfigExport & { test?: unknown } = {
   plugins: [react()],
   test: {
-    environment: 'node', // ui tests opt into jsdom via per-file pragma
+    environment: 'node',
     include: ['src/**/*.test.{ts,tsx}'],
     coverage: {
       provider: 'v8',
@@ -12,4 +13,6 @@ export default defineConfig({
       thresholds: { lines: 80, functions: 80, branches: 80 },
     },
   },
-} as any);
+};
+
+export default defineConfig(config);
