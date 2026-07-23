@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { GameEngine } from '../engine/GameEngine';
-import type { Card, EngineSnapshot, GameEvent, GameMode } from '../engine/types';
+import type { Card, EngineConfig, EngineSnapshot, GameEvent, GameMode } from '../engine/types';
 import { PixiStage } from '../render/PixiStage';
 
 const IDLE_SNAPSHOT: EngineSnapshot = {
@@ -34,6 +34,7 @@ export interface RunOptions {
   cards: Card[];
   seed?: number;
   introduceWords?: boolean; // default true: pause each wave behind the intro overlay
+  config?: Partial<EngineConfig>;
 }
 
 export function useEngine() {
@@ -58,7 +59,7 @@ export function useEngine() {
       cards: opts.cards,
       mode: opts.mode,
       seed: opts.seed ?? seedFromUrl() ?? Date.now(),
-      config: { pauseOnWaveStart: opts.introduceWords ?? true },
+      config: { pauseOnWaveStart: opts.introduceWords ?? true, ...opts.config },
     });
     setIntroCards([]);
     setRunId((n) => n + 1);

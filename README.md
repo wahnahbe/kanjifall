@@ -19,7 +19,7 @@ romaji (auto-converts to kana) and press Enter before they hit the floor.
 Milestone 2 of the design spec:
 `docs/superpowers/specs/2026-07-22-kotoba-drop-design.md`.
 Two modes (Reading: kanji → type the reading; Recall: English → type the
-Japanese), JLPT N5–N2 pools (~4,900 words) + Mixed, pre-wave word
+Japanese), JLPT N5–N2 pools (~4,700 words) + Mixed, pre-wave word
 introductions, results screen with revenge rounds.
 Pacing knobs live in `src/engine/constants.ts`.
 

@@ -48,11 +48,12 @@ export function ResultsScreen({ snapshot, onRevenge, onPlayAgain, onTitle }: Res
         <button
           data-testid="revenge-button"
           disabled={missed.length === 0}
+          autoFocus={missed.length > 0}
           onClick={() => onRevenge(missed)}
         >
           Revenge round ({missed.length})
         </button>
-        <button onClick={onPlayAgain}>Play again</button>
+        <button autoFocus={missed.length === 0} onClick={onPlayAgain}>Play again</button>
         <button onClick={onTitle}>Title</button>
       </div>
     </div>

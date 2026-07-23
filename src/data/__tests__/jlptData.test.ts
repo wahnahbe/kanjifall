@@ -37,6 +37,7 @@ describe('generated JLPT data invariants', () => {
       for (const card of file.cards) {
         for (const r of card.kana) expect(isKana(r), `${card.id}:${r}`).toBe(true);
         expect(card.kana[0].length, card.id).toBeGreaterThan(0);
+        expect(new Set(card.kana).size, card.id).toBe(card.kana.length);
       }
     }
   });
