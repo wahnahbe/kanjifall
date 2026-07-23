@@ -17,7 +17,11 @@ export class PixiStage {
 
   private constructor(app: Application) {
     this.app = app;
-    app.ticker.add(() => this.updateFx(app.ticker.deltaMS));
+    app.ticker.add(() => {
+      const delta = app.ticker.deltaMS;
+      this.updateFx(delta);
+      for (const sprite of this.sprites.values()) sprite.update(delta);
+    });
   }
 
   static async create(host: HTMLElement): Promise<PixiStage> {
@@ -44,6 +48,7 @@ export class PixiStage {
         this.app.stage.addChild(sprite.view);
       }
       sprite.setLocked(lockedIds.includes(word.instanceId));
+      if (word.hintShown && word.card.kanji !== null) sprite.showHint(word.card.kanji);
       sprite.setPosition(word.x * this.app.screen.width, word.y * this.app.screen.height);
     }
     for (const [id, sprite] of this.sprites) {
