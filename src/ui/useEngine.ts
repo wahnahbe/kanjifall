@@ -25,7 +25,7 @@ export function isGameKey(e: GameKeyEvent): boolean {
 
 declare global {
   interface Window {
-    __kotoba?: { snapshot(): EngineSnapshot };
+    __kotoba?: { snapshot(): EngineSnapshot & { firstAirborneReading?: string | null } };
   }
 }
 
@@ -97,7 +97,12 @@ export function useEngine() {
     const unsubscribe = engine.subscribe(onEvent);
     window.addEventListener('keydown', onKey);
     if (import.meta.env.DEV) {
-      window.__kotoba = { snapshot: () => engine.getSnapshot() };
+      window.__kotoba = {
+        snapshot: () => ({
+          ...engine.getSnapshot(),
+          firstAirborneReading: engine.getWords()[0]?.card.kana[0] ?? null,
+        }),
+      };
     }
 
     PixiStage.create(host).then((created) => {

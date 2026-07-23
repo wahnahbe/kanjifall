@@ -1,32 +1,20 @@
-# React + TypeScript + Vite
+# kotoba-drop
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Falling-words Japanese vocab typing game. Words fall; type the reading in
+romaji (auto-converts to kana) and press Enter before they hit the floor.
 
-Currently, two official plugins are available:
+## Run
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- `npm install`
+- `npm run dev` — play at http://localhost:5173
+- `npm run check` — typecheck + unit tests
+- `npm run e2e` — Playwright keystone test (first run: `npx playwright install chromium`). It starts its own dev server on port 5183, so it won't collide with a `npm run dev` already running on 5173.
 
-## React Compiler
+## Status
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Milestone 1 (core loop fun-check) of the design spec:
+`docs/superpowers/specs/2026-07-22-kotoba-drop-design.md`.
+Pacing knobs live in `src/engine/constants.ts`.
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Turn OFF the Windows Japanese IME (Win+Space) while playing — the game reads
+plain keystrokes.
