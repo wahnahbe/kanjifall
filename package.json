@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
     "e2e": "playwright test",
-    "check": "tsc -b && vitest run --passWithNoTests"
+    "lint": "oxlint",
+    "check": "tsc -b && oxlint && vitest run --passWithNoTests"
   },
   "dependencies": {
     "pixi.js": "^8.19.0",

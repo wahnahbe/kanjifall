@@ -7,7 +7,7 @@ romaji (auto-converts to kana) and press Enter before they hit the floor.
 
 - `npm install`
 - `npm run dev` — play at http://localhost:5173
-- `npm run check` — typecheck + unit tests
+- `npm run check` — typecheck (app, node, e2e projects) + lint + unit tests
 - `npm run e2e` — Playwright keystone test (first run: `npx playwright install chromium`). It starts its own dev server on port 5183, so it won't collide with a `npm run dev` already running on 5173.
 
 ## Status

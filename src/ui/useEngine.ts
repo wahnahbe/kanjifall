@@ -23,12 +23,6 @@ export function isGameKey(e: GameKeyEvent): boolean {
   return e.key === 'Enter' || e.key === 'Escape' || e.key === 'Backspace' || /^[a-zA-Z-]$/.test(e.key);
 }
 
-declare global {
-  interface Window {
-    __kotoba?: { snapshot(): EngineSnapshot & { firstAirborneReading?: string | null } };
-  }
-}
-
 function seedFromUrl(): number | null {
   const raw = new URLSearchParams(window.location.search).get('seed');
   const parsed = raw === null ? NaN : Number(raw);
