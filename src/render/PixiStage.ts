@@ -56,7 +56,7 @@ export class PixiStage {
 
   /** Scale-up + fade-out at the word's last position. */
   playKill(word: AirborneWord): void {
-    this.spawnFx(word, word.card.kana[0], 0x9dffb0, 350, (view, t) => {
+    this.spawnFx(word, word.card.gloss, 0x9dffb0, 350, (view, t) => {
       view.scale.set(1 + t * 0.8);
       view.alpha = 1 - t;
     });

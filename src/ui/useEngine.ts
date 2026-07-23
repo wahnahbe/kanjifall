@@ -81,6 +81,7 @@ export function useEngine() {
     };
 
     const onKey = (e: KeyboardEvent) => {
+      if (snapshotRef.current.status !== 'playing') return;
       if (!isGameKey(e)) return;
       e.preventDefault();
       engine.handleKey(e.key);
