@@ -2,6 +2,15 @@ import { toKana } from 'wanakana';
 
 const INPUT_KEY = /^[a-z-]$/;
 
+/**
+ * Hepburn writes っち as "tchi" (マッチ → matchi) but wanakana only doubles
+ * the following consonant ("cchi"). Rewriting t→c before "ch" is unambiguous:
+ * no romaji sequence "tch" means anything else.
+ */
+function hepburnToKunrei(raw: string): string {
+  return raw.replace(/t(?=ch)/g, 'c');
+}
+
 /** Romaji accumulator that renders as kana the way an IME would. */
 export class InputBuffer {
   private raw = '';
@@ -11,7 +20,7 @@ export class InputBuffer {
   }
 
   get kana(): string {
-    return toKana(this.raw, { IMEMode: true });
+    return toKana(hepburnToKunrei(this.raw), { IMEMode: true });
   }
 
   get isEmpty(): boolean {
@@ -42,6 +51,6 @@ export class InputBuffer {
     const finalized = this.raw.endsWith('n') && !this.raw.endsWith('nn')
       ? `${this.raw}n`
       : this.raw;
-    return toKana(finalized, { IMEMode: true });
+    return toKana(hepburnToKunrei(finalized), { IMEMode: true });
   }
 }

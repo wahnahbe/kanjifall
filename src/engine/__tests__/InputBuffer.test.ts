@@ -57,6 +57,12 @@ describe('InputBuffer', () => {
     expect(buf.backspace()).toBe(false);
   });
 
+  it('accepts Hepburn tch for っち (matchi → まっち)', () => {
+    type('matchi');
+    expect(buf.kana).toBe('まっち');
+    expect(buf.commitKana()).toBe('まっち');
+  });
+
   it('uppercase input is lowered', () => {
     type('NEKO');
     expect(buf.kana).toBe('ねこ');
