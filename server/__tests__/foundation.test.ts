@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { buildApp, RECOVERY } from '../app';
-import { DbOpenError } from '../db/connect';
+import { DbOpenError, connect } from '../db/connect';
 import { makeTestDb } from '../testDb';
 
 let cleanup: (() => void) | null = null;
@@ -11,15 +11,22 @@ afterEach(() => {
 });
 
 describe('server foundation', () => {
-  it('connect() migrates and seeds all committed cards, idempotently', () => {
+  it('connect() migrates and seeds all committed cards, idempotently across connections', () => {
     const t = makeTestDb();
     cleanup = t.cleanup;
-    const count = () =>
-      t.handle.db.get<{ n: number }>(sql`SELECT COUNT(*) AS n FROM cards`)?.n ?? 0;
-    const first = count();
+    const count = (h: typeof t.handle) =>
+      h.db.get<{ n: number }>(sql`SELECT COUNT(*) AS n FROM cards`)?.n ?? 0;
+    const first = count(t.handle);
     expect(first).toBeGreaterThan(4000);
-    // seeding again (fresh connect on same file) must not duplicate
-    expect(count()).toBe(first);
+    // Re-connect to the SAME file: seeding runs again and must not duplicate.
+    // On Windows, close the first handle to avoid WAL file locking issues.
+    t.handle.sqlite.close();
+    const second = connect(t.dbPath);
+    try {
+      expect(count(second)).toBe(first);
+    } finally {
+      second.sqlite.close();
+    }
   });
 
   it('creates the default profile row (N2, 2026-12-06, 20/day)', () => {
