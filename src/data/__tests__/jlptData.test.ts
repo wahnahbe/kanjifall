@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { isKana, toHiragana, toKatakana } from 'wanakana';
+import { readingForms } from '../../engine/matcher';
 import { levelFileSchema, type LevelFile } from '../schema';
 
 const LEVELS = [5, 4, 3, 2] as const;
@@ -69,6 +70,36 @@ describe('generated JLPT data invariants', () => {
         expect(card.source, card.id).toBe('jlpt');
       }
     }
+  });
+
+  it('naive-typing variants collide with other cards only in the two known steal pairs', () => {
+    // Guards the matcher's documented tradeoff: if a data regeneration ever
+    // introduces a NEW cross-card collision (canonical of X == naive variant
+    // of Y), this fails and the pair must be reviewed in matcher.ts.
+    const all = files.flatMap(([, f]) => f.cards);
+    const canonicalOwners = new Map<string, string[]>();
+    for (const c of all) {
+      for (const r of c.kana) {
+        const key = readingForms(r)[0];
+        canonicalOwners.set(key, [...(canonicalOwners.get(key) ?? []), c.id]);
+      }
+    }
+    const steals = new Set<string>();
+    for (const c of all) {
+      for (const r of c.kana) {
+        const [canonicalForm, ...variants] = readingForms(r);
+        for (const v of variants) {
+          if (v === canonicalForm) continue;
+          for (const owner of canonicalOwners.get(v) ?? []) {
+            if (owner !== c.id) steals.add(`${owner}<-${c.id}`);
+          }
+        }
+      }
+    }
+    expect([...steals].sort()).toEqual([
+      'jm-1365410<-jm-1359850', // 親友(しんゆう) <- 侵入(しんにゅう)
+      'jm-1417040<-jm-1417030', // 単位(たんい) <- 単に(たんに)
+    ]);
   });
 
   it('readings normalize consistently (katakana round-trip safe)', () => {

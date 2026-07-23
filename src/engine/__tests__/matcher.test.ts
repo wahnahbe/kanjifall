@@ -108,6 +108,19 @@ describe('lenient acceptance (input-bug fix: naive-IME typings must kill)', () =
     expect(findExactMatches('しんゆう', [shinnyuu, shinyuu]).map((w) => w.instanceId)).toEqual([7]);
   });
 
+  it('the same-level steal pair 単位/単に resolves to the exact word', () => {
+    const tanni = airborne(8, card('tanni', ['たんに'], '単に'), 0.9);
+    const tani = airborne(9, card('tani', ['たんい'], '単位'), 0.1);
+    expect(findExactMatches('たんい', [tanni, tani]).map((w) => w.instanceId)).toEqual([9]);
+  });
+
+  it('victims of steal pairs stay reachable via their exact readings', () => {
+    const tanni = airborne(8, card('tanni', ['たんに'], '単に'), 0.9);
+    const kinnen = airborne(10, card('kinnen', ['きんねん'], '近年'), 0.9);
+    expect(findExactMatches('たんに', [tanni]).map((w) => w.instanceId)).toEqual([8]);
+    expect(findExactMatches('きんねん', [kinnen]).map((w) => w.instanceId)).toEqual([10]);
+  });
+
   it('locks on through alternate forms too', () => {
     expect(findPrefixMatches('こおひ', [koohii])).toHaveLength(1);
   });

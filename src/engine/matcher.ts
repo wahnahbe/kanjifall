@@ -81,6 +81,11 @@ function convertedPrefix(kanaBuffer: string): string {
  * naive-typing variants are consulted only when no canonical match exists,
  * so a variant can never steal a kill from the word actually typed
  * (きんえん kills 禁煙, never 近年, when both are airborne).
+ *
+ * Known complete collision set (verified by scanning all 4,678 cards): only
+ * 親友(しんゆう)/侵入(しんにゅう) and 単位(たんい)/単に(たんに) collide —
+ * typing the shorter exact reading kills the exact word; the geminate word
+ * stays reachable via explicit nn (しんnにゅう → shinnnyuu, たんnに → tannni).
  */
 export function findExactMatches(
   kanaBuffer: string,
