@@ -56,7 +56,7 @@ Both ship in v1 and share the engine, matcher, and input pipeline. Only the prom
 
 ### 3.3 Pool selection
 
-Player picks a word pool per run: a single JLPT level (N5, N4, N3, N2), mixed (all levels, weighted toward the profile's target level), or a custom imported list.
+Player picks a word pool per run: a single JLPT level (N5, N4, N3, N2), mixed (uniform across all levels in M2; weighted toward the profile's target level once the M3 profile exists), or a custom imported list.
 
 ### 3.4 Scoring
 
