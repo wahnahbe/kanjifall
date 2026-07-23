@@ -21,7 +21,7 @@ export class DataLoadError extends Error {
   }
 }
 
-const cache = new Map<LevelId, Card[]>();
+const cache = new Map<LevelId, Promise<Card[]>>();
 
 /** Tests only: reset module-level cache between cases. */
 export function clearDataCache(): void {
@@ -35,21 +35,26 @@ async function fetchLevelOnce(level: LevelId): Promise<Card[]> {
   return toCards(parsed);
 }
 
-async function loadLevel(level: LevelId): Promise<Card[]> {
-  const cached = cache.get(level);
-  if (cached) return cached;
-  let cards: Card[];
+async function fetchWithRetry(level: LevelId): Promise<Card[]> {
   try {
-    cards = await fetchLevelOnce(level);
+    return await fetchLevelOnce(level);
   } catch {
     try {
-      cards = await fetchLevelOnce(level); // one retry (spec §7)
+      return await fetchLevelOnce(level); // one retry (spec §7)
     } catch (error: unknown) {
       throw new DataLoadError(level, error);
     }
   }
-  cache.set(level, cards);
-  return cards;
+}
+
+function loadLevel(level: LevelId): Promise<Card[]> {
+  const cached = cache.get(level);
+  if (cached) return cached;
+  const pending = fetchWithRetry(level);
+  cache.set(level, pending);
+  // A failed load must not poison the cache (spec §7: retry then error screen).
+  pending.catch(() => cache.delete(level));
+  return pending;
 }
 
 /** Mixed = uniform concatenation in M2; profile-weighted mixing arrives in M3. */

@@ -74,4 +74,35 @@ describe('loadPool', () => {
       expect(POOL_LABELS[pool].length).toBeGreaterThan(0);
     }
   });
+
+  it('concurrent loads of the same level fetch exactly once', async () => {
+    fetchMock.mockResolvedValueOnce(ok(levelPayload(5, ['a'])));
+    const [first, second] = await Promise.all([loadPool('n5'), loadPool('n5')]);
+    expect(first).toEqual(second);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('mixed rejects as a whole when one level fails, without refetching the healthy levels later', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes('n3')) return Promise.resolve(fail(500));
+      const level = Number(String(url).match(/n(\d)/)?.[1]) as 5 | 4 | 3 | 2;
+      return Promise.resolve(ok(levelPayload(level, [`w${level}`])));
+    });
+    await expect(loadPool('mixed')).rejects.toBeInstanceOf(DataLoadError);
+    // n3 fetched twice (retry); n5/n4/n2 once each = 5 calls total
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValue(ok(levelPayload(3, ['w3'])));
+    await expect(loadPool('mixed')).resolves.toHaveLength(4);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // only the previously-failed n3 refetches
+    expect(fetchMock).toHaveBeenCalledWith('/data/jlpt-n3.json');
+  });
+
+  it('DataLoadError carries the level and name', async () => {
+    fetchMock.mockResolvedValue(fail(404));
+    const error = await loadPool('n2').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(DataLoadError);
+    expect((error as DataLoadError).level).toBe('n2');
+    expect((error as DataLoadError).name).toBe('DataLoadError');
+  });
 });
