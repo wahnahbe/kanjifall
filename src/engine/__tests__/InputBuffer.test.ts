@@ -61,4 +61,23 @@ describe('InputBuffer', () => {
     type('NEKO');
     expect(buf.kana).toBe('ねこ');
   });
+
+  it('commitKana leaves an already-committed ん untouched', () => {
+    type('honn');
+    expect(buf.kana).toBe('ほん');
+    expect(buf.commitKana()).toBe('ほん');
+  });
+
+  it('commitKana is a no-op for input with no trailing n', () => {
+    type('kitte');
+    expect(buf.commitKana()).toBe('きって');
+    expect(buf.commitKana()).toBe(buf.kana);
+  });
+
+  it('commitKana does not clear the buffer', () => {
+    type('hon');
+    buf.commitKana();
+    expect(buf.romaji).toBe('hon');
+    expect(buf.kana).toBe('ほn');
+  });
 });
