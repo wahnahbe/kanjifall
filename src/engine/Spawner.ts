@@ -13,7 +13,7 @@ export class Spawner {
   private readonly config: EngineConfig;
 
   constructor(pool: Card[], rng: () => number, config: EngineConfig) {
-    this.pool = pool;
+    this.pool = [...pool];
     this.rng = rng;
     this.config = config;
   }

@@ -48,6 +48,13 @@ describe('Spawner.planWave', () => {
     expect(s.planWave(200).spawnIntervalMs).toBe(DEFAULT_CONFIG.minSpawnIntervalMs);
   });
 
+  it('is unaffected by mutation of the caller\'s pool array', () => {
+    const callerPool = [...pool];
+    const s = new Spawner(callerPool, mulberry32(42), DEFAULT_CONFIG);
+    callerPool.length = 0;
+    expect(s.planWave(1).cards).toHaveLength(DEFAULT_CONFIG.baseWaveSize);
+  });
+
   it('same seed → same wave composition', () => {
     expect(make(9).planWave(1).cards.map((c) => c.id))
       .toEqual(make(9).planWave(1).cards.map((c) => c.id));
