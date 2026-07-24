@@ -5,10 +5,11 @@ import { RunRecorder } from './data/recorder';
 import type { Card, GameMode } from './engine/types';
 import { GameScreen } from './ui/screens/GameScreen';
 import { SetupScreen } from './ui/screens/SetupScreen';
+import { StatsScreen } from './ui/screens/StatsScreen';
 import { TitleScreen } from './ui/screens/TitleScreen';
 import { useEngine } from './ui/useEngine';
 
-type Screen = 'title' | 'setup' | 'game';
+type Screen = 'title' | 'setup' | 'game' | 'stats';
 
 const VALID_MODES: GameMode[] = ['reading', 'recall'];
 const VALID_POOLS: PoolId[] = ['n5', 'n4', 'n3', 'n2', 'mixed'];
@@ -117,5 +118,8 @@ export default function App() {
       />
     );
   }
-  return <TitleScreen onStart={() => setScreen('setup')} />;
+  if (screen === 'stats') {
+    return <StatsScreen onBack={() => setScreen('title')} />;
+  }
+  return <TitleScreen onStart={() => setScreen('setup')} onStats={() => setScreen('stats')} />;
 }
