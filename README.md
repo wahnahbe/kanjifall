@@ -17,7 +17,7 @@ words.
   single process on http://localhost:8790 and opens it in your default
   browser. No Vite, no proxy — use this for a normal play session.
 - `npm run check` — typecheck (app, node, e2e, server projects) + lint + unit tests
-- `npm run e2e` — Playwright keystone test (first run: `npx playwright install chromium`). Runs its own dev server on port 5183 against a separate `data/e2e.db` (wiped before each run), so it won't collide with a `dev`/`start` server on 5173/8790 and never touches your real data.
+- `npm run e2e` — Playwright keystone test (first run: `npx playwright install chromium`). Runs its own dev server on port 5183 against a separate `data/e2e.db` (wiped before each run). The e2e client runs on its own port 5183 (no collision with 5173), but the API shares port 8790 with `npm run dev`, so stop any running dev server before starting e2e. Never touches your real data.
 - `npm run build:data` — regenerate `public/data/jlpt-n*.json` from local raw
   datasets (expects `data/raw/` populated with `term_meta_bank_*.json` and
   `jmdict-eng-3.6.2.json`; copies live in the n2-prep repo's `data/raw/`).

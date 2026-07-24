@@ -227,17 +227,24 @@ interface ProfileFormProps {
   onDraftChange: () => void;
 }
 
-/** Local draft state re-seeds from `profile` whenever a fresh one arrives (initial load, or the
- *  parent's post-save refetch) — an intentional derived-state resync, not a bug: the effect only
- *  fires when the `profile` object reference actually changes. A failed save leaves `profile`'s
- *  reference untouched (Important #3), so the draft — including whatever edit triggered the
- *  failure — survives exactly as the user left it. */
+/** Local draft state re-seeds from `profile` whenever a fresh one arrives (initial mount via the
+ *  useState initializer, then a new object from the parent's post-save refetch) — an intentional
+ *  derived-state resync. A failed save leaves `profile`'s reference untouched (Important #3), so
+ *  the draft — including whatever edit triggered the failure — survives exactly as the user left
+ *  it.
+ *
+ *  The resync must run DURING RENDER (React's "adjusting state when a prop changes" pattern),
+ *  not in a `useEffect([profile])`: an effect flushes asynchronously, so its mount invocation can
+ *  land AFTER an edit made between the ready-state commit and the passive-effect flush — at which
+ *  point setDraft(profile) is no longer a no-op and silently reverts the edit. That race was the
+ *  intermittent coverage-run failure of the Important #3a test. */
 function ProfileForm({ profile, onSave, saving, error, onDraftChange }: ProfileFormProps) {
   const [draft, setDraft] = useState<Profile>(profile);
-
-  useEffect(() => {
+  const [seededFrom, setSeededFrom] = useState<Profile>(profile);
+  if (seededFrom !== profile) {
+    setSeededFrom(profile);
     setDraft(profile);
-  }, [profile]);
+  }
 
   const updateDraft = (next: Profile) => {
     setDraft(next);

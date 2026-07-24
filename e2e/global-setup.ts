@@ -12,6 +12,11 @@ const DB_PATH = 'data/e2e.db';
  */
 export default function globalSetup(): void {
   for (const suffix of ['', '-wal', '-shm']) {
-    rmSync(`${DB_PATH}${suffix}`, { force: true });
+    const file = `${DB_PATH}${suffix}`;
+    try {
+      rmSync(file, { force: true });
+    } catch (error) {
+      console.warn('[e2e-setup] could not remove ' + file + ': ' + String(error));
+    }
   }
 }
