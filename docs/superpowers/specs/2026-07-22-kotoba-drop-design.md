@@ -191,7 +191,7 @@ Per-kanji weakness aggregation; retention-by-gap (forgetting curve); wrong-submi
 - `PATCH /api/runs/:id` — finalize (score, duration, accuracy)
 - `GET /api/stats/overview` — v1 five payload
 - `GET /api/stats/words?sort=strength&filter=...` — word-level table / leech list
-- `GET/POST/DELETE /api/lists` — custom lists; `POST /api/lists/preview` — parse + per-line errors without saving
+- `GET/POST/DELETE /api/lists` — custom lists; `POST /api/lists/preview` — parse + per-line errors without saving (M4 — ships with the import UI)
 - `GET/PUT /api/profile`
 
 ## 7. Error handling
