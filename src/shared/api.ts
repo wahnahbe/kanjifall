@@ -60,3 +60,32 @@ export type WrongSubmitEvent = z.infer<typeof wrongSubmitSchema>;
 export type EventsBatch = z.infer<typeof eventsBatchSchema>;
 export type FinalizeRun = z.infer<typeof finalizeRunSchema>;
 export type Profile = z.infer<typeof profileSchema>;
+
+export const levelStatSchema = z.object({
+  level: z.union([z.literal(5), z.literal(4), z.literal(3), z.literal(2)]),
+  total: z.number().int(),
+  encountered: z.number().int(),
+  learned: z.number().int(),
+  coverage: z.number(),
+  mastery: z.number(),
+});
+
+export const statsOverviewSchema = z.object({
+  learned: z.object({ reading: z.number().int(), recall: z.number().int() }),
+  levels: z.array(levelStatSchema),
+  estimatedLevel: z.union([z.literal(5), z.literal(4), z.literal(3), z.literal(2), z.null()]),
+  pace: z.object({
+    learnRatePerDay: z.number(),
+    requiredRatePerDay: z.number(),
+    remainingTargetWords: z.number().int(),
+    daysToExam: z.number().int(),
+    onPace: z.boolean(),
+  }),
+  trend: z.array(z.object({ date: z.string(), words: z.number().int(), accuracy: z.number() })),
+  streakDates: z.array(z.string()),
+  leeches: z.array(z.object({
+    cardId: z.string(), kanji: z.string().nullable(), kana: z.string(), gloss: z.string(),
+    strength: z.number().int(), encounters: z.number().int(),
+  })),
+});
+export type StatsOverview = z.infer<typeof statsOverviewSchema>;
