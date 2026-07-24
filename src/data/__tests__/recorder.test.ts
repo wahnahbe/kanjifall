@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AirborneWord, Card, EngineSnapshot } from '../../engine/types';
 
@@ -413,5 +414,41 @@ describe('ignored engine events', () => {
     await flush();
 
     expect(fetchMock).toHaveBeenCalledTimes(1); // createRun only — the waveCleared flush had nothing to send
+  });
+});
+
+describe('outbox storage resilience', () => {
+  it('with createRun failing and setItem throwing, subsequent waveCleared routes to outbox without poisoning the pipeline', async () => {
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+
+    fetchMock.mockResolvedValueOnce(fail(500)); // createRun fails
+
+    // Build a recorder; createRun will fail, triggering pushOutbox (which is mocked)
+    const recorder = new RunRecorder(ctx);
+    await flush();
+
+    // Verify createRun failed and attempted to push to outbox
+    expect(pushOutboxMock).toHaveBeenCalledTimes(1);
+    expect(pushOutboxMock).toHaveBeenCalledWith(expect.objectContaining({ kind: 'createRun' }));
+
+    // Now trigger a waveCleared event;
+    // since createRunFailed is true, it routes to outbox without attempting the network
+    const word = makeWord();
+    const view = { words: [], snapshot: makeSnapshot({ wave: 1 }) };
+    recorder.onEvent({ type: 'wordKilled', word, msToKill: 100, points: 10, combo: 1 }, view);
+    recorder.onEvent({ type: 'waveCleared', wave: 1 }, view);
+
+    // Flush the pipeline; should not throw and should successfully queue to outbox
+    await flush();
+
+    // Verify the waveCleared event was routed to outbox (mocked), not attempted via network
+    expect(pushOutboxMock).toHaveBeenCalledTimes(2);
+    expect(pushOutboxMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ kind: 'events' }));
+    // fetch was only called for the failed createRun, never for events (went to outbox instead)
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    setItemSpy.mockRestore();
   });
 });

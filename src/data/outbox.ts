@@ -10,19 +10,34 @@ export interface OutboxEntry {
   payload: unknown;
 }
 
+let readEntriesWarnedOnce = false;
+
 function readEntries(): OutboxEntry[] {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (raw === null) return [];
   try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as OutboxEntry[]) : [];
-  } catch {
-    return []; // corrupt storage must not crash the app; treat as empty
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw === null) return [];
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as OutboxEntry[]) : [];
+    } catch {
+      return []; // corrupt storage must not crash the app; treat as empty
+    }
+  } catch (error) {
+    // localStorage unavailable/throws: treat as empty and warn once
+    if (!readEntriesWarnedOnce) {
+      console.warn('[outbox] localStorage unavailable on read; treating as empty', error);
+      readEntriesWarnedOnce = true;
+    }
+    return [];
   }
 }
 
 function writeEntries(entries: OutboxEntry[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  } catch (error) {
+    console.warn('[outbox] write failed; entry dropped', error);
+  }
 }
 
 /** FIFO append. Past the cap, drops the oldest entries and warns (never grows unbounded). */

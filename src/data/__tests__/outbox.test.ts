@@ -88,6 +88,23 @@ describe('pushOutbox', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('dropped 3 oldest entries'));
     warn.mockRestore();
   });
+
+  it('does not throw when localStorage.setItem throws; warns and drops the entry', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+
+    expect(() => pushOutbox({ kind: 'events', runId: 'run-1', payload: eventsPayload })).not.toThrow();
+
+    expect(warn).toHaveBeenCalledWith(
+      '[outbox] write failed; entry dropped',
+      expect.any(Error),
+    );
+    expect(readStored()).toHaveLength(0); // entry was not persisted
+    setItemSpy.mockRestore();
+    warn.mockRestore();
+  });
 });
 
 describe('drainOutbox', () => {
@@ -149,5 +166,35 @@ describe('drainOutbox', () => {
     const second = await drainOutbox();
     expect(second).toEqual({ drained: 2, remaining: 0 });
     expect(readStored()).toEqual([]);
+  });
+
+  it('returns cleanly when localStorage.getItem throws; warns once on first read', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('StorageAccessDenied');
+    });
+
+    const result = await drainOutbox();
+
+    expect(result).toEqual({ drained: 0, remaining: 0 });
+    expect(warn).toHaveBeenCalledWith(
+      '[outbox] localStorage unavailable on read; treating as empty',
+      expect.any(Error),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    getItemSpy.mockRestore();
+    warn.mockRestore();
+  });
+
+  it('returns cleanly and does not throw when localStorage has corrupt JSON', async () => {
+    localStorage.setItem(STORAGE_KEY, '{nope}');
+
+    expect(async () => {
+      await drainOutbox();
+    }).not.toThrow();
+
+    const result = await drainOutbox();
+    expect(result).toEqual({ drained: 0, remaining: 0 });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
