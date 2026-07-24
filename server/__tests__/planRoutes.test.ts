@@ -26,4 +26,11 @@ describe('GET /api/plan', () => {
     const res = await buildApp(t.handle).request('/api/plan');
     expect(res.status).toBe(400);
   });
+
+  it('rejects an unknown pool', async () => {
+    const t = makeTestDb();
+    cleanup = t.cleanup;
+    const res = await buildApp(t.handle).request('/api/plan?pool=nope');
+    expect(res.status).toBe(400);
+  });
 });

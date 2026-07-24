@@ -12,6 +12,12 @@ const POOL_LEVELS: Record<string, number[]> = {
   mixed: [5, 4, 3, 2],
 };
 
+/** Pools the planner knows. The route rejects anything else; computeRunPlan
+ *  itself stays total, returning an empty plan for an unknown pool. */
+export function isKnownPool(pool: string): boolean {
+  return Object.hasOwn(POOL_LEVELS, pool);
+}
+
 /**
  * What this run may introduce. "New" means never attempted AND never
  * introduced, so quitting before a word falls doesn't burn its introduction,

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { DbHandle } from '../db/connect';
-import { computeRunPlan } from '../plan';
+import { computeRunPlan, isKnownPool } from '../plan';
 
 export function planRoutes(handle: DbHandle): Hono {
   const app = new Hono();
@@ -9,6 +9,9 @@ export function planRoutes(handle: DbHandle): Hono {
     const pool = c.req.query('pool');
     if (pool === undefined || pool.length === 0) {
       return c.json({ error: 'pool query parameter is required' }, 400);
+    }
+    if (!isKnownPool(pool)) {
+      return c.json({ error: `unknown pool: ${pool}` }, 400);
     }
     return c.json(computeRunPlan(handle, pool, Date.now()));
   });
