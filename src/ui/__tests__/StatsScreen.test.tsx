@@ -9,6 +9,10 @@ const ok = (body: unknown): Response =>
   ({ ok: true, status: 200, json: () => Promise.resolve(body) }) as Response;
 const dbErrorResponse = (detail: { path: string; message: string; recovery: string }): Response =>
   ({ ok: false, status: 503, json: () => Promise.resolve({ dbError: detail }) }) as Response;
+const failResponse = (status: number, body: unknown = {}): Response =>
+  ({ ok: false, status, json: () => Promise.resolve(body) }) as Response;
+const isPut = (call: unknown[]): boolean =>
+  (call[1] as { method?: string } | undefined)?.method === 'PUT';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -66,8 +70,12 @@ describe('StatsScreen', () => {
     expect(screen.getByTestId('estimated-level')).toHaveTextContent('N5');
     expect(screen.getByText(/vocab-only estimate/i)).toBeInTheDocument();
 
-    // (3) pace panel — on pace
-    expect(screen.getByTestId('pace-panel')).toHaveTextContent('On pace ✓');
+    // (3) pace panel — on pace; rates + days-to-exam still render unconditionally (Important #1)
+    const pacePanel = screen.getByTestId('pace-panel');
+    expect(pacePanel).toHaveTextContent('On pace ✓');
+    expect(pacePanel).toHaveTextContent('3.0');
+    expect(pacePanel).toHaveTextContent('2.0');
+    expect(pacePanel).toHaveTextContent('125');
 
     // (4) trend chart + streak grid (presence only — recharts renders empty SVG in jsdom)
     expect(screen.getByTestId('trend-chart')).toBeInTheDocument();
@@ -101,7 +109,7 @@ describe('StatsScreen', () => {
 
     render(<StatsScreen onBack={() => {}} />);
     const pacePanel = await screen.findByTestId('pace-panel');
-    expect(pacePanel).toHaveTextContent('Behind pace');
+    expect(pacePanel).toHaveTextContent('Behind pace ✗'); // Minor #4: the ✗ mark
     expect(pacePanel).toHaveTextContent('1.5');
     expect(pacePanel).toHaveTextContent('4.2');
     expect(pacePanel).toHaveTextContent('120');
@@ -196,5 +204,100 @@ describe('StatsScreen', () => {
 
     // the post-save refetch is reflected (pace flipped to "behind" in updatedOverview)
     await waitFor(() => expect(screen.getByTestId('pace-panel')).toHaveTextContent('Behind pace'));
+  });
+
+  it('guards the profile save against double-submission — only one PUT fires on a rapid double-click (Important #2)', async () => {
+    let resolvePut: (value: Response) => void = () => {};
+    const pendingPut = new Promise<Response>((resolve) => {
+      resolvePut = resolve;
+    });
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(ok(baseOverview))
+      .mockResolvedValueOnce(ok(baseProfile))
+      .mockImplementationOnce(() => pendingPut)
+      .mockResolvedValueOnce(ok(baseOverview));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<StatsScreen onBack={() => {}} />);
+    await screen.findByTestId('stats-screen');
+
+    await userEvent.dblClick(screen.getByRole('button', { name: 'Save' }));
+
+    // Both clicks of the double-click have been dispatched; the PUT is still in flight (we haven't
+    // resolved it yet), so this is the definitive count — a regression would show 2 here.
+    expect(fetchMock.mock.calls.filter(isPut)).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+
+    resolvePut(ok(baseProfile));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+
+    expect(fetchMock.mock.calls.filter(isPut)).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled();
+  });
+
+  it('a 400 profile-save failure keeps the stats view, shows the check-values inline error, and preserves the draft (Important #3a)', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(ok(baseOverview))
+      .mockResolvedValueOnce(ok(baseProfile))
+      .mockResolvedValueOnce(failResponse(400, { error: 'invalid examDate' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<StatsScreen onBack={() => {}} />);
+    await screen.findByTestId('stats-screen');
+
+    fireEvent.change(screen.getByLabelText('Exam date'), { target: { value: '2027-05-01' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const errorEl = await screen.findByTestId('profile-error');
+    expect(errorEl).toHaveTextContent('Could not save — check the values and try again.');
+
+    // the screen was not swapped for ServerErrorScreen — the loaded overview is still visible
+    expect(screen.getByTestId('stats-screen')).toBeInTheDocument();
+    expect(screen.getByTestId('learned-reading')).toHaveTextContent('42');
+    expect(screen.getByTestId('learned-recall')).toHaveTextContent('17');
+
+    // the draft edit that triggered the 400 is preserved, not reset to the last-saved profile
+    expect(screen.getByLabelText('Exam date')).toHaveValue('2027-05-01');
+  });
+
+  it('a network-rejected profile save shows the server inline error and leaves the screen intact (Important #3b)', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(ok(baseOverview))
+      .mockResolvedValueOnce(ok(baseProfile))
+      .mockRejectedValueOnce(new TypeError('fetch failed'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<StatsScreen onBack={() => {}} />);
+    await screen.findByTestId('stats-screen');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const errorEl = await screen.findByTestId('profile-error');
+    expect(errorEl).toHaveTextContent('Could not save — is the server running?');
+    expect(screen.getByTestId('stats-screen')).toBeInTheDocument();
+    expect(screen.queryByTestId('server-down')).not.toBeInTheDocument();
+  });
+
+  it('a successful save clears a previously-shown profile-save error (Important #3c)', async () => {
+    const updatedProfile: Profile = { targetLevel: 3, examDate: '2027-03-01', dailyWordGoal: 30 };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(ok(baseOverview))
+      .mockResolvedValueOnce(ok(baseProfile))
+      .mockResolvedValueOnce(failResponse(400))
+      .mockResolvedValueOnce(ok(updatedProfile))
+      .mockResolvedValueOnce(ok(baseOverview));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<StatsScreen onBack={() => {}} />);
+    await screen.findByTestId('stats-screen');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByTestId('profile-error');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(screen.queryByTestId('profile-error')).not.toBeInTheDocument());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
   });
 });

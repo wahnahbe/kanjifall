@@ -37,10 +37,27 @@ class DbError extends Error {
   }
 }
 
+/** Thrown for any other non-ok response (i.e. not a dbError-shaped 503) — same shape as
+ *  `apiClient.ts`'s `ApiError`, defined locally rather than imported (this file already owns a
+ *  small fetch layer instead of extending `apiClient`; see Design Decision 1, m3-task-6-report.md).
+ *  Carrying `status` lets the save path distinguish a 400 validation failure from everything else
+ *  (Important #3) without touching initial-load's error handling at all: `toServerErrorInfo` below
+ *  still only special-cases `DbError`, so an `HttpError` resolves to the same "server-down"
+ *  `ServerErrorInfo` a plain `Error` did before this type existed. */
+class HttpError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`request failed with status ${status}`);
+    this.name = 'HttpError';
+    this.status = status;
+  }
+}
+
 async function parseOrThrow(response: Response): Promise<unknown> {
   const body: unknown = await response.json().catch(() => null);
   if (response.status === 503 && isDbErrorBody(body)) throw new DbError(body.dbError);
-  if (!response.ok) throw new Error(`request failed with status ${response.status}`);
+  if (!response.ok) throw new HttpError(response.status);
   return body;
 }
 
@@ -58,12 +75,27 @@ async function putJson(url: string, payload: unknown): Promise<unknown> {
 
 /** Error precedence (task brief): a dbError-shaped 503 always renders the DB variant; every other
  *  failure — network rejection, non-503 status, schema-invalid body — renders the server-down
- *  variant ("start the app with npm run dev or npm start"). */
+ *  variant ("start the app with npm run dev or npm start"). Used for INITIAL LOAD (and retry) only —
+ *  a save failure never reaches this function; see `saveErrorMessage` below. */
 function toServerErrorInfo(error: unknown): ServerErrorInfo {
   if (error instanceof DbError) {
     return { kind: 'db', path: error.path, message: error.message, recovery: error.recovery };
   }
   return { kind: 'serverDown' };
+}
+
+const SAVE_ERROR_VALIDATION = 'Could not save — check the values and try again.';
+const SAVE_ERROR_SERVER = 'Could not save — is the server running?';
+
+/** A failed profile save must not destroy the screen (Important #3): it never routes through
+ *  `ServerErrorScreen` / `toServerErrorInfo` — it only ever picks one of these two inline messages.
+ *  A 400 is assumed to be the draft failing server-side validation (the reproducible trigger was an
+ *  empty exam date; see the `required` attribute added to that input below). Anything else —
+ *  network rejection, a dbError-shaped 503, any other status — reuses the generic "is the server
+ *  running?" copy, since there's nothing more specific to tell the user. */
+function saveErrorMessage(error: unknown): string {
+  if (error instanceof HttpError && error.status === 400) return SAVE_ERROR_VALIDATION;
+  return SAVE_ERROR_SERVER;
 }
 
 type LoadState =
@@ -77,6 +109,8 @@ interface StatsScreenProps {
 
 export function StatsScreen({ onBack }: StatsScreenProps) {
   const [state, setState] = useState<LoadState>({ phase: 'loading' });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setState({ phase: 'loading' });
@@ -102,16 +136,24 @@ export function StatsScreen({ onBack }: StatsScreenProps) {
   }, [load]);
 
   const saveProfile = useCallback(async (draft: Profile) => {
+    // Important #2: re-entry guard — a second Save while one is already in flight is a no-op.
+    if (saving) return;
+    setSaving(true);
     try {
       const saved = profileSchema.parse(await putJson('/api/profile', draft));
       // Pace depends on the profile (target level / exam date / daily goal), so re-pull the overview
       // rather than trusting the pre-save numbers still in state.
       const overview = statsOverviewSchema.parse(await getJson('/api/stats/overview'));
       setState({ phase: 'ready', overview, profile: saved });
+      setSaveError(null);
     } catch (error: unknown) {
-      setState({ phase: 'error', info: toServerErrorInfo(error) });
+      // Important #3: stay on the stats view with the draft intact — a save failure never falls
+      // through to ServerErrorScreen the way an initial-load failure does (see `load` above).
+      setSaveError(saveErrorMessage(error));
+    } finally {
+      setSaving(false);
     }
-  }, []);
+  }, [saving]);
 
   if (state.phase === 'loading') {
     return (
@@ -148,14 +190,11 @@ export function StatsScreen({ onBack }: StatsScreenProps) {
 
       <section className="pace-panel" data-testid="pace-panel">
         <h3>Pace</h3>
-        {overview.pace.onPace ? (
-          <p>On pace ✓</p>
-        ) : (
-          <p>
-            Behind pace — learning {overview.pace.learnRatePerDay.toFixed(1)}/day, need{' '}
-            {overview.pace.requiredRatePerDay.toFixed(1)}/day ({overview.pace.daysToExam} days to exam)
-          </p>
-        )}
+        <p>{overview.pace.onPace ? 'On pace ✓' : 'Behind pace ✗'}</p>
+        <p>
+          Learning {overview.pace.learnRatePerDay.toFixed(1)}/day, need{' '}
+          {overview.pace.requiredRatePerDay.toFixed(1)}/day ({overview.pace.daysToExam} days to exam)
+        </p>
       </section>
 
       <section>
@@ -167,7 +206,13 @@ export function StatsScreen({ onBack }: StatsScreenProps) {
         <LeechTable leeches={overview.leeches} />
       </section>
 
-      <ProfileForm profile={profile} onSave={(draft) => void saveProfile(draft)} />
+      <ProfileForm
+        profile={profile}
+        onSave={(draft) => void saveProfile(draft)}
+        saving={saving}
+        error={saveError}
+        onDraftChange={() => setSaveError(null)}
+      />
 
       <button onClick={onBack}>Back</button>
     </div>
@@ -177,17 +222,27 @@ export function StatsScreen({ onBack }: StatsScreenProps) {
 interface ProfileFormProps {
   profile: Profile;
   onSave: (draft: Profile) => void;
+  saving: boolean;
+  error: string | null;
+  onDraftChange: () => void;
 }
 
 /** Local draft state re-seeds from `profile` whenever a fresh one arrives (initial load, or the
  *  parent's post-save refetch) — an intentional derived-state resync, not a bug: the effect only
- *  fires when the `profile` object reference actually changes. */
-function ProfileForm({ profile, onSave }: ProfileFormProps) {
+ *  fires when the `profile` object reference actually changes. A failed save leaves `profile`'s
+ *  reference untouched (Important #3), so the draft — including whatever edit triggered the
+ *  failure — survives exactly as the user left it. */
+function ProfileForm({ profile, onSave, saving, error, onDraftChange }: ProfileFormProps) {
   const [draft, setDraft] = useState<Profile>(profile);
 
   useEffect(() => {
     setDraft(profile);
   }, [profile]);
+
+  const updateDraft = (next: Profile) => {
+    setDraft(next);
+    onDraftChange();
+  };
 
   return (
     <form
@@ -203,7 +258,7 @@ function ProfileForm({ profile, onSave }: ProfileFormProps) {
         id="target-level"
         value={draft.targetLevel}
         onChange={(event) =>
-          setDraft({ ...draft, targetLevel: Number(event.target.value) as Profile['targetLevel'] })}
+          updateDraft({ ...draft, targetLevel: Number(event.target.value) as Profile['targetLevel'] })}
       >
         {TARGET_LEVELS.map((level) => (
           <option key={level} value={level}>N{level}</option>
@@ -214,8 +269,9 @@ function ProfileForm({ profile, onSave }: ProfileFormProps) {
       <input
         id="exam-date"
         type="date"
+        required
         value={draft.examDate}
-        onChange={(event) => setDraft({ ...draft, examDate: event.target.value })}
+        onChange={(event) => updateDraft({ ...draft, examDate: event.target.value })}
       />
 
       <label htmlFor="daily-goal">Daily goal</label>
@@ -225,10 +281,11 @@ function ProfileForm({ profile, onSave }: ProfileFormProps) {
         min={DAILY_GOAL_MIN}
         max={DAILY_GOAL_MAX}
         value={draft.dailyWordGoal}
-        onChange={(event) => setDraft({ ...draft, dailyWordGoal: Number(event.target.value) })}
+        onChange={(event) => updateDraft({ ...draft, dailyWordGoal: Number(event.target.value) })}
       />
 
-      <button type="submit">Save</button>
+      <button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+      {error !== null && <p data-testid="profile-error">{error}</p>}
     </form>
   );
 }
