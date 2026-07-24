@@ -77,8 +77,19 @@ try {
 const app = buildApp(handle);
 if (shouldServeDist) attachDistServing(app);
 
-serve({ fetch: app.fetch, port, hostname: '127.0.0.1' }, () => {
+const server = serve({ fetch: app.fetch, port, hostname: '127.0.0.1' }, () => {
   const url = `http://localhost:${port}`;
   console.log(`kotoba-drop api listening on ${url}`);
   if (shouldOpen) openBrowser(url);
+});
+
+// A failed bind (EADDRINUSE etc.) must be LOUD and fatal. Without this, the
+// listen error escapes the serve callback, tsx watch keeps the process alive
+// as a file-watcher zombie, and the game runs happily with no API — the
+// Stats screen then blames a server that appears to be "running".
+server.on('error', (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`kotoba-drop api FAILED to listen on port ${port}: ${message}`);
+  console.error('Is another kotoba-drop instance (npm run dev / npm start / e2e) still running?');
+  process.exit(1);
 });
