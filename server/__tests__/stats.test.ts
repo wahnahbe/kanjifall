@@ -12,8 +12,9 @@ afterEach(() => {
 });
 
 // Fixed "now" for every assertion below: 2026-08-01T12:00:00Z (noon UTC). days(n) walks back n
-// whole days, staying at 12:00 UTC so every timestamp lands mid-day in its own UTC calendar date
-// (no boundary risk for the toISOString().slice(0,10) bucketing stats.ts uses for trend/streak).
+// whole days, staying at 12:00 UTC. All fixture timestamps land mid-day in their own LOCAL calendar
+// date (via localDateKey, server/dates.ts), so bucket membership is unaffected by the switch from
+// UTC to local bucketing; the fixture's date assertions remain valid.
 const NOW = Date.parse('2026-08-01T12:00:00Z');
 const days = (n: number): number => NOW - n * 86_400_000;
 
@@ -182,7 +183,7 @@ describe('computeOverview — golden fixture', () => {
     expect(overview.pace.requiredRatePerDay).toBeCloseTo(13.976, 2);
     expect(overview.pace.onPace).toBe(false); // 0.142857 < 13.976
 
-    // --- trend: spot-check three days that exercise distinct branches (30-day window, UTC bucketed) ---
+    // --- trend: spot-check three days that exercise distinct branches (30-day window, local date bucketed via localDateKey) ---
     expect(overview.trend).toHaveLength(30);
     // days(1) = 2026-07-31: only Card D attempted (1 kill) -> words=1, accuracy=1.
     expect(overview.trend.find((r) => r.date === '2026-07-31')).toEqual(
