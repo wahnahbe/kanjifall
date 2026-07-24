@@ -46,17 +46,24 @@ export function computeOverview(handle: DbHandle, nowMs: number): StatsOverview 
   // An attempt whose cardId has no matching `cards` row (run_id/card_id FKs are declared but not
   // runtime-enforced, see connect.ts) is dropped here, at the single shared source, rather than
   // relying on each downstream consumer to re-check — so an orphaned attempt is invisible EVERYWHERE
-  // (learned counts, pace, leeches), not just in the display-oriented ones.
+  // (learned counts, pace, leeches, trend, streak), not just in the display-oriented ones.
   const cardStats = new Map(
     [...grouped]
       .filter(([cardId]) => cardsById.has(cardId))
       .map(([id, g]) => [id, computeCardStats(g)]),
   );
 
+  // Build the filtered attempt list for trend/streak — only attempts with known cards
+  const knownAttempts = attemptRows.filter((a) => cardsById.has(a.cardId));
+  const orphanCount = attemptRows.length - knownAttempts.length;
+  if (orphanCount > 0) {
+    console.warn(`[stats] ignoring ${orphanCount} attempt(s) for unknown cards`);
+  }
+
   const levels = computeLevelRows(cardRows, cardStats);
   const estimatedLevel = computeEstimatedLevel(levels);
   const pace = computePace(cardStats, levels, toLevel(profileRow.targetLevel), profileRow.examDate, nowMs);
-  const { trend, streakDates } = computeTrendAndStreak(attemptRows, nowMs);
+  const { trend, streakDates } = computeTrendAndStreak(knownAttempts, nowMs);
   const leeches = computeLeeches(cardStats, cardsById);
 
   let learnedReading = 0;

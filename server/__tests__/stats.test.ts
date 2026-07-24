@@ -306,6 +306,58 @@ describe('computeOverview / computeWordStats — custom cards and orphaned attem
   });
 });
 
+describe('computeOverview — orphan attempts excluded from trend and streak', () => {
+  it('an attempt for a ghost-card (unknown cardId) is filtered from trend.words and streakDates', () => {
+    const t = makeTestDb();
+    cleanup = t.cleanup;
+    const { cardA } = pickFixtureCards(t.handle);
+    const runId = 'run-orphan-trend';
+    seedRun(t.handle, runId);
+
+    // Real card: 3 kills on different dates to reach learned status (need 3 encounters, 80% accuracy)
+    kill(t.handle, runId, cardA.id, 'reading', days(5));
+    kill(t.handle, runId, cardA.id, 'reading', days(4));
+    kill(t.handle, runId, cardA.id, 'reading', days(3));
+
+    // Orphan attempts (cardId 'ghost-card' has no cards row): 3 kills on days(2) and days(1)
+    kill(t.handle, runId, 'ghost-card', 'reading', days(2));
+    kill(t.handle, runId, 'ghost-card', 'reading', days(2)); // same day, different attempt
+    kill(t.handle, runId, 'ghost-card', 'reading', days(1));
+
+    const overview = computeOverview(t.handle, NOW);
+
+    // Verify the real card's dates show words=1 in trend
+    expect(overview.trend.find((r) => r.date === '2026-07-27')).toEqual(
+      { date: '2026-07-27', words: 1, accuracy: 1 },
+    );
+    expect(overview.trend.find((r) => r.date === '2026-07-28')).toEqual(
+      { date: '2026-07-28', words: 1, accuracy: 1 },
+    );
+    expect(overview.trend.find((r) => r.date === '2026-07-29')).toEqual(
+      { date: '2026-07-29', words: 1, accuracy: 1 },
+    );
+
+    // Verify the ghost-card's dates show words=0 in trend (orphans are invisible)
+    expect(overview.trend.find((r) => r.date === '2026-07-30')).toEqual(
+      { date: '2026-07-30', words: 0, accuracy: 0 },
+    );
+    expect(overview.trend.find((r) => r.date === '2026-07-31')).toEqual(
+      { date: '2026-07-31', words: 0, accuracy: 0 },
+    );
+
+    // Verify streakDates contains only the real card's dates, not the ghost-card's dates
+    expect(overview.streakDates).toContain('2026-07-27');
+    expect(overview.streakDates).toContain('2026-07-28');
+    expect(overview.streakDates).toContain('2026-07-29');
+    expect(overview.streakDates).not.toContain('2026-07-30');
+    expect(overview.streakDates).not.toContain('2026-07-31');
+
+    // Verify learned/leeches are unaffected (just the one real card learned in reading)
+    expect(overview.learned.reading).toBe(1);
+    expect(overview.leeches.some((l) => l.cardId === 'ghost-card')).toBe(false);
+  });
+});
+
 describe('computeOverview — empty attempts table', () => {
   it('returns all-zero shapes with no NaN anywhere', () => {
     const t = makeTestDb();
