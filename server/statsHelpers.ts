@@ -1,5 +1,6 @@
 import { STATS } from './statsConfig';
 import type { attempts, cards } from './db/schema';
+import { localDateKey } from './dates';
 
 export type Level = 5 | 4 | 3 | 2;
 
@@ -257,21 +258,26 @@ export interface TrendRow {
   accuracy: number;
 }
 
-/** Last `trendDays` calendar days ending today, UTC-bucketed via `toISOString().slice(0,10)` — a
- *  deliberate choice (not local time) so results are stable across the server's process timezone.
- *  `trend` has one entry per day in the window (including zero-activity days); `streakDates` is the
- *  subset that actually saw an attempt. */
+/** Last `trendDays` calendar days ending today, bucketed by LOCAL date (see `./dates`) so the
+ *  trend agrees with the daily new-word budget about what "today" means. Days are walked with
+ *  setDate() rather than fixed 24h offsets, which would duplicate or skip a date across a
+ *  daylight-saving transition. `trend` has one entry per day in the window (including
+ *  zero-activity days); `streakDates` is the subset that actually saw an attempt. */
 export function computeTrendAndStreak(
   attemptsAsc: readonly AttemptRow[],
   nowMs: number,
 ): { trend: TrendRow[]; streakDates: string[] } {
   const dates: string[] = [];
+  const cursor = new Date(nowMs);
+  cursor.setHours(0, 0, 0, 0);
   for (let i = STATS.trendDays - 1; i >= 0; i--) {
-    dates.push(new Date(nowMs - i * DAY_MS).toISOString().slice(0, 10));
+    const day = new Date(cursor);
+    day.setDate(cursor.getDate() - i);
+    dates.push(localDateKey(day.getTime()));
   }
   const buckets = new Map(dates.map((d) => [d, { cardIds: new Set<string>(), kills: 0, misses: 0 }]));
   for (const a of attemptsAsc) {
-    const dateKey = new Date(a.createdAt).toISOString().slice(0, 10);
+    const dateKey = localDateKey(a.createdAt);
     const bucket = buckets.get(dateKey);
     if (!bucket) continue; // older than the trend window
     bucket.cardIds.add(a.cardId);
