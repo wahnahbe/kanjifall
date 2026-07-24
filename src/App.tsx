@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DataLoadError, loadPool, type PoolId } from './data/loader';
+import { drainOutbox } from './data/outbox';
+import { RunRecorder } from './data/recorder';
 import type { Card, GameMode } from './engine/types';
 import { GameScreen } from './ui/screens/GameScreen';
 import { SetupScreen } from './ui/screens/SetupScreen';
@@ -25,13 +27,15 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('title');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const lastRunRef = useRef<{ mode: GameMode; cards: Card[]; listVersion: string } | null>(null);
+  const lastRunRef =
+    useRef<{ mode: GameMode; cards: Card[]; listVersion: string; pool: string } | null>(null);
   const seenIdsRef = useRef(new Set<string>()); // session-scoped across runs (spec §3.6)
   const { snapshot, hostRef, start, resume, introCards } = useEngine();
 
-  const beginRun = useCallback((mode: GameMode, cards: Card[], listVersion: string) => {
-    lastRunRef.current = { mode, cards, listVersion };
-    start({ mode, cards });
+  const beginRun = useCallback((mode: GameMode, cards: Card[], listVersion: string, pool: string) => {
+    lastRunRef.current = { mode, cards, listVersion, pool };
+    const recorder = new RunRecorder({ runId: crypto.randomUUID(), mode, pool, cards, listVersion });
+    start({ mode, cards, onEvent: (event, view) => recorder.onEvent(event, view) });
     setScreen('game');
   }, [start]);
 
@@ -40,7 +44,7 @@ export default function App() {
     setLoadError(null);
     try {
       const { cards, listVersion } = await loadPool(pool);
-      beginRun(mode, cards, listVersion);
+      beginRun(mode, cards, listVersion, pool);
     } catch (error: unknown) {
       setLoadError(error instanceof DataLoadError ? error.message : 'unexpected load failure');
     } finally {
@@ -57,6 +61,16 @@ export default function App() {
       void beginFromPool(mode, pool);
     }
   }, [beginFromPool]);
+
+  // Replays any offline-queued run/event/finalize payloads from a prior
+  // session, once at boot. Never blocks: fire-and-forget, failures stay queued.
+  useEffect(() => {
+    drainOutbox()
+      .then(({ remaining }) => {
+        if (remaining > 0) console.warn(`kotoba outbox: ${remaining} entries still pending`);
+      })
+      .catch((error: unknown) => console.warn('kotoba outbox drain failed', error));
+  }, []);
 
   const unseenIntro = introCards.filter((c) => !seenIdsRef.current.has(c.id));
 
@@ -81,9 +95,14 @@ export default function App() {
         introCards={unseenIntro}
         onDismissIntro={dismissIntro}
         onRevenge={(missed) => lastRunRef.current
-          && beginRun(lastRunRef.current.mode, missed, lastRunRef.current.listVersion)}
+          && beginRun(lastRunRef.current.mode, missed, lastRunRef.current.listVersion, 'revenge')}
         onPlayAgain={() => lastRunRef.current
-          && beginRun(lastRunRef.current.mode, lastRunRef.current.cards, lastRunRef.current.listVersion)}
+          && beginRun(
+            lastRunRef.current.mode,
+            lastRunRef.current.cards,
+            lastRunRef.current.listVersion,
+            lastRunRef.current.pool,
+          )}
         onTitle={() => setScreen('title')}
       />
     );

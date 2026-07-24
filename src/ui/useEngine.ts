@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { GameEngine } from '../engine/GameEngine';
-import type { Card, EngineConfig, EngineSnapshot, GameEvent, GameMode } from '../engine/types';
+import type {
+  AirborneWord, Card, EngineConfig, EngineSnapshot, GameEvent, GameMode,
+} from '../engine/types';
 import { PixiStage } from '../render/PixiStage';
 
 const IDLE_SNAPSHOT: EngineSnapshot = {
@@ -35,11 +37,13 @@ export interface RunOptions {
   seed?: number;
   introduceWords?: boolean; // default true: pause each wave behind the intro overlay
   config?: Partial<EngineConfig>;
+  onEvent?: (event: GameEvent, view: { words: readonly AirborneWord[]; snapshot: EngineSnapshot }) => void;
 }
 
 export function useEngine() {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
+  const onRunEventRef = useRef<RunOptions['onEvent']>(undefined);
   const [runId, setRunId] = useState(0);
   const [introCards, setIntroCards] = useState<Card[]>([]);
 
@@ -61,6 +65,7 @@ export function useEngine() {
       seed: opts.seed ?? seedFromUrl() ?? Date.now(),
       config: { pauseOnWaveStart: opts.introduceWords ?? true, ...opts.config },
     });
+    onRunEventRef.current = opts.onEvent;
     setIntroCards([]);
     setRunId((n) => n + 1);
   }, []);
@@ -88,6 +93,7 @@ export function useEngine() {
       if (event.type === 'wordMissed') stage?.playMiss(event.word);
       if (event.type === 'waveStarting') setIntroCards(event.cards);
       publish();
+      onRunEventRef.current?.(event, { words: engine.getWords(), snapshot: engine.getSnapshot() });
     };
 
     const onKey = (e: KeyboardEvent) => {
