@@ -331,7 +331,7 @@ describe('gameOver (rule 6)', () => {
     expect(finalizeBodyOf()).toEqual({
       endedAt: NOW + 90_000,
       score: 5_000,
-      wavesCleared: 4,
+      wavesCleared: 3,
       durationMs: 80_000,
       pausedMs: 10_000, // (90_000 wall elapsed) - 80_000 engine time
       maxCombo: 7,

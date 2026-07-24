@@ -77,7 +77,7 @@ try {
 const app = buildApp(handle);
 if (shouldServeDist) attachDistServing(app);
 
-serve({ fetch: app.fetch, port }, () => {
+serve({ fetch: app.fetch, port, hostname: '127.0.0.1' }, () => {
   const url = `http://localhost:${port}`;
   console.log(`kotoba-drop api listening on ${url}`);
   if (shouldOpen) openBrowser(url);

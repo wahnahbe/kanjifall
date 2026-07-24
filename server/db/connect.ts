@@ -1,9 +1,8 @@
 import Database from 'better-sqlite3';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { mkdirSync } from 'node:fs';
 import { levelFileSchema } from '../../src/data/schema';
 import * as schema from './schema';
 
@@ -60,6 +59,9 @@ function ensureProfileRow(handle: DbHandle): void {
     .run();
 }
 
+// NOTE: PRAGMA foreign_keys stays OFF by design: routes guard run existence on one
+// synchronous connection, there are no delete endpoints, and drizzle-kit's SQLite
+// rebuild migrations can fail spuriously with it enabled. Orphans are filtered in stats.
 /** Opens + migrates + seeds. Never deletes: a failed migration throws DbOpenError. */
 export function connect(dbPath: string): DbHandle {
   try {

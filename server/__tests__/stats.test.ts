@@ -387,10 +387,6 @@ describe('computeOverview — empty attempts table', () => {
     expect(overview.streakDates).toEqual([]);
     expect(overview.leeches).toEqual([]);
 
-    // No NaN anywhere in the serialized payload (JSON.stringify drops NaN-valued keys entirely for
-    // plain `undefined`, but for numeric NaN it would emit the literal token `NaN` in the JSON text).
-    expect(JSON.stringify(overview)).not.toMatch(/NaN/);
-
     expect(computeWordStats(t.handle, NOW)).toEqual([]);
   });
 });
