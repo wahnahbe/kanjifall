@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { DbOpenError, type DbHandle } from './db/connect';
+import { planRoutes } from './routes/plan';
 import { profileRoutes } from './routes/profile';
 import { runsRoutes } from './routes/runs';
 import { statsRoutes } from './routes/stats';
@@ -26,6 +27,7 @@ export function buildApp(handle: DbHandle | DbOpenError): Hono {
   app.route('/api/runs', runsRoutes(handle));
   app.route('/api/profile', profileRoutes(handle));
   app.route('/api/stats', statsRoutes(handle));
+  app.route('/api/plan', planRoutes(handle));
 
   return app;
 }

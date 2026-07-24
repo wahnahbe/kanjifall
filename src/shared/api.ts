@@ -89,3 +89,10 @@ export const statsOverviewSchema = z.object({
   })),
 });
 export type StatsOverview = z.infer<typeof statsOverviewSchema>;
+
+export const runPlanSchema = z.object({
+  newCardIds: z.array(z.string()),
+  seenCardIds: z.array(z.string()),
+  runBudget: z.number().int().nonnegative(),
+});
+export type RunPlan = z.infer<typeof runPlanSchema>;

@@ -64,3 +64,11 @@ export const ingestedBatches = sqliteTable('ingested_batches', {
   runId: text('run_id').notNull(),
   receivedAt: integer('received_at').notNull(),
 });
+
+export const introductions = sqliteTable('introductions', {
+  // PRIMARY KEY: a card is introduced once, ever. Makes outbox replays
+  // idempotent and stops the daily budget being spent twice on one card.
+  cardId: text('card_id').primaryKey(),
+  runId: text('run_id').notNull(),
+  introducedAt: integer('introduced_at').notNull(),
+});
