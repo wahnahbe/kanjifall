@@ -130,6 +130,7 @@ export class RunRecorder {
       batchId: crypto.randomUUID(),
       attempts: this.attempts,
       wrongSubmits: this.wrongSubmits,
+      introductions: [],
     };
     this.attempts = [];
     this.wrongSubmits = [];

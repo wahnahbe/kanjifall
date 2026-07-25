@@ -32,10 +32,16 @@ export const wrongSubmitSchema = z.object({
   createdAt: z.number().int().positive(),
 });
 
+export const introductionSchema = z.object({
+  cardId: z.string().min(1),
+  introducedAt: z.number().int().positive(),
+});
+
 export const eventsBatchSchema = z.object({
   batchId: z.uuid(),
   attempts: z.array(attemptSchema),
   wrongSubmits: z.array(wrongSubmitSchema),
+  introductions: z.array(introductionSchema).optional().default([]),
 });
 
 export const finalizeRunSchema = z.object({
@@ -57,6 +63,7 @@ export const profileSchema = z.object({
 export type CreateRun = z.infer<typeof createRunSchema>;
 export type AttemptEvent = z.infer<typeof attemptSchema>;
 export type WrongSubmitEvent = z.infer<typeof wrongSubmitSchema>;
+export type IntroductionEvent = z.infer<typeof introductionSchema>;
 export type EventsBatch = z.infer<typeof eventsBatchSchema>;
 export type FinalizeRun = z.infer<typeof finalizeRunSchema>;
 export type Profile = z.infer<typeof profileSchema>;

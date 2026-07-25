@@ -18,7 +18,7 @@ const createRunBody: CreateRun = {
   id: 'run-1', startedAt: 1_000, mode: 'reading', pool: 'n5', appVersion: '1.0.0', listVersion: 'v1',
 };
 
-const eventsBatch: EventsBatch = { batchId: 'batch-1', attempts: [], wrongSubmits: [] };
+const eventsBatch: EventsBatch = { batchId: 'batch-1', attempts: [], wrongSubmits: [], introductions: [] };
 
 const finalizeBody: FinalizeRun = {
   endedAt: 2_000, score: 100, wavesCleared: 1, durationMs: 1_000, pausedMs: 0, maxCombo: 2, accuracy: 1,

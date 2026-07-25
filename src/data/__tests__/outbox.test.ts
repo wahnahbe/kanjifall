@@ -17,7 +17,7 @@ const fail = (status: number) =>
 const createRunPayload: CreateRun = {
   id: 'run-1', startedAt: 1, mode: 'reading', pool: 'n5', appVersion: '1.0.0', listVersion: 'v1',
 };
-const eventsPayload: EventsBatch = { batchId: 'b1', attempts: [], wrongSubmits: [] };
+const eventsPayload: EventsBatch = { batchId: 'b1', attempts: [], wrongSubmits: [], introductions: [] };
 const finalizePayload: FinalizeRun = {
   endedAt: 2, score: 1, wavesCleared: 1, durationMs: 1, pausedMs: 0, maxCombo: 1, accuracy: 1,
 };

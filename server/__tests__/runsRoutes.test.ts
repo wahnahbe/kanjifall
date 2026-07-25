@@ -105,7 +105,7 @@ describe('POST /api/runs/:id/events', () => {
 
     const res = await app.request(`/api/runs/${runId}/events`, jsonRequest(batch));
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ inserted: { attempts: 2, wrongSubmits: 1 } });
+    expect(await res.json()).toEqual({ inserted: { attempts: 2, wrongSubmits: 1, introductions: 0 } });
 
     expect(countRows(t.handle.sqlite, 'attempts')).toBe(2);
     expect(countRows(t.handle.sqlite, 'wrong_submits')).toBe(1);
@@ -173,6 +173,74 @@ describe('POST /api/runs/:id/events', () => {
 
     expect(countRows(t.handle.sqlite, 'attempts')).toBe(0);
     expect(countRows(t.handle.sqlite, 'ingested_batches')).toBe(0);
+  });
+
+  describe('introduction ingest', () => {
+    it('stores introductions in the same batch as attempts', async () => {
+      const t = makeTestDb();
+      cleanup = t.cleanup;
+      const app = buildApp(t.handle);
+      const run = makeCreateRunBody();
+      await app.request('/api/runs', jsonRequest(run));
+
+      const res = await app.request(
+        `/api/runs/${run.id}/events`,
+        jsonRequest({
+          batchId: randomUUID(),
+          attempts: [makeAttempt()],
+          wrongSubmits: [],
+          introductions: [{ cardId: 'jm-1000000', introducedAt: Date.now() }],
+        }),
+      );
+
+      expect(res.status).toBe(201);
+      expect(countRows(t.handle.sqlite, 'introductions')).toBe(1);
+    });
+
+    it('re-introducing a card is ignored rather than duplicated or erroring', async () => {
+      const t = makeTestDb();
+      cleanup = t.cleanup;
+      const app = buildApp(t.handle);
+      const run = makeCreateRunBody();
+      await app.request('/api/runs', jsonRequest(run));
+
+      const send = (batchId: string) =>
+        app.request(
+          `/api/runs/${run.id}/events`,
+          jsonRequest({
+            batchId,
+            attempts: [],
+            wrongSubmits: [],
+            introductions: [{ cardId: 'jm-1000000', introducedAt: Date.now() }],
+          }),
+        );
+
+      expect((await send(randomUUID())).status).toBe(201);
+      // A DIFFERENT batch carrying the same card: the batch is new, the card is not.
+      expect((await send(randomUUID())).status).toBe(201);
+      expect(countRows(t.handle.sqlite, 'introductions')).toBe(1);
+    });
+
+    it('batch without introductions field is accepted and inserts zero introduction rows', async () => {
+      const t = makeTestDb();
+      cleanup = t.cleanup;
+      const app = buildApp(t.handle);
+      const run = makeCreateRunBody();
+      await app.request('/api/runs', jsonRequest(run));
+
+      const res = await app.request(
+        `/api/runs/${run.id}/events`,
+        jsonRequest({
+          batchId: randomUUID(),
+          attempts: [makeAttempt()],
+          wrongSubmits: [],
+          // intentionally omitting introductions
+        }),
+      );
+
+      expect(res.status).toBe(201);
+      expect(countRows(t.handle.sqlite, 'introductions')).toBe(0);
+    });
   });
 });
 

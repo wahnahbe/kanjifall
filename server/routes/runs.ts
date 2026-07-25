@@ -44,10 +44,25 @@ export function runsRoutes(handle: DbHandle): Hono {
       for (const w of batch.wrongSubmits) {
         handle.db.insert(wrongSubmits).values({ runId, ...w }).run();
       }
+      for (const intro of batch.introductions) {
+        // INSERT OR IGNORE: card_id is the primary key, so a re-introduction
+        // (outbox replay, or a card met again on a later day) is a no-op.
+        handle.sqlite
+          .prepare(
+            `INSERT OR IGNORE INTO introductions (card_id, run_id, introduced_at) VALUES (?, ?, ?)`,
+          )
+          .run(intro.cardId, runId, intro.introducedAt);
+      }
     });
     insertAll();
     return c.json(
-      { inserted: { attempts: batch.attempts.length, wrongSubmits: batch.wrongSubmits.length } },
+      {
+        inserted: {
+          attempts: batch.attempts.length,
+          wrongSubmits: batch.wrongSubmits.length,
+          introductions: batch.introductions.length,
+        },
+      },
       201,
     );
   });
