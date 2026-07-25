@@ -82,6 +82,14 @@ describe('computeRunPlan', () => {
     expect(computeRunPlan(t.handle, 'n5', NOW).runBudget).toBe(0);
   });
 
+  it('floors at zero when the goal is lowered below what was already introduced today', () => {
+    const { t, ids, introduce } = setup();
+    for (let i = 0; i < 12; i++) introduce(ids[i], NOW - HOUR);
+    // Mid-day goal reduction: 5 - 12 = -7 before clamping.
+    t.handle.sqlite.prepare('UPDATE profile SET daily_word_goal = 5 WHERE id = 1').run();
+    expect(computeRunPlan(t.handle, 'n5', NOW).runBudget).toBe(0);
+  });
+
   it('mixed spans every level; an unknown pool is empty with no budget', () => {
     const { t } = setup();
     const mixed = computeRunPlan(t.handle, 'mixed', NOW);
