@@ -19,8 +19,9 @@ words.
 - `npm run check` — typecheck (app, node, e2e, server projects) + lint + unit tests
 - `npm run e2e` — Playwright keystone test (first run: `npx playwright install chromium`). Runs its own dev server on port 5183 against a separate `data/e2e.db` (wiped before each run). The e2e client runs on its own port 5183 (no collision with 5173), but the API shares port 8790 with both `npm run dev` and `npm start`, so stop either before starting e2e. Never touches your real data.
 - `npm run build:data` — regenerate `public/data/jlpt-n*.json` from local raw
-  datasets (expects `data/raw/` populated with `term_meta_bank_*.json` and
-  `jmdict-eng-3.6.2.json`; copies live in the n2-prep repo's `data/raw/`).
+  datasets (expects `data/raw/` populated with `term_meta_bank_*.json`,
+  `jmdict-eng-3.6.2.json`, `tatoeba-jpn-eng.tsv`, and
+  `kanjidic2-en-3.6.2.json`; copies live in the n2-prep repo's `data/raw/`).
   Generated files are committed — you only need this when changing the pipeline.
 
 ## Data
@@ -30,6 +31,10 @@ gitignored). The app never deletes or silently recreates this file — if it
 can't be opened, you get an error screen with the path and recovery steps
 instead of a silent reset. To back it up, stop the server and copy the file
 (plus its `-wal`/`-shm` siblings, if present).
+
+Example sentences come from the [Tatoeba Project](https://tatoeba.org), used
+under CC-BY 2.0 (France). Kanji meanings come from KANJIDIC2 (Electronic
+Dictionary Research and Development Group), used under CC-BY-SA 4.0.
 
 ## Status
 

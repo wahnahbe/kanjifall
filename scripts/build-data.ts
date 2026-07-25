@@ -130,6 +130,109 @@ function toCard(entry: JlptEntry, word: JmdictWord): Card | null {
   };
 }
 
+const SENTENCE_MAX_JA = 50;
+
+interface Hook {
+  ja: string;
+  en: string;
+}
+
+/**
+ * Shortest qualifying Tatoeba sentence per search key.
+ * Inverted index: for each sentence, probe every substring up to the longest
+ * card key against the key set — O(sentences × length × maxKeyLen) rather than
+ * O(cards × sentences).
+ */
+function buildSentenceIndex(keys: Set<string>): Map<string, Hook> {
+  let maxKeyLen = 1;
+  for (const key of keys) maxKeyLen = Math.max(maxKeyLen, key.length);
+
+  const best = new Map<string, Hook>();
+  const raw = readFileSync(join(RAW_DIR, 'tatoeba-jpn-eng.tsv'), 'utf8');
+  for (const line of raw.split('\n')) {
+    const parts = line.split('\t');
+    if (parts.length < 2) continue;
+    const en = parts[0].trim();
+    const ja = parts[1].trim();
+    if (ja.length === 0 || ja.length > SENTENCE_MAX_JA || en.length === 0) continue;
+
+    const seenHere = new Set<string>();
+    for (let i = 0; i < ja.length; i++) {
+      for (let len = 1; len <= maxKeyLen && i + len <= ja.length; len++) {
+        const candidate = ja.slice(i, i + len);
+        if (!keys.has(candidate) || seenHere.has(candidate)) continue;
+        seenHere.add(candidate);
+        const current = best.get(candidate);
+        if (current === undefined || ja.length < current.ja.length) {
+          best.set(candidate, { ja, en });
+        }
+      }
+    }
+  }
+  return best;
+}
+
+/** Primary English meaning per kanji, only for characters the corpus uses. */
+function buildKanjiMeanings(used: Set<string>): Map<string, string> {
+  interface KMeaning { lang: string; value: string }
+  interface KGroup { meanings?: KMeaning[] }
+  interface KChar {
+    literal: string;
+    readingMeaning?: { groups?: KGroup[] } | null;
+  }
+  const parsed = JSON.parse(
+    readFileSync(join(RAW_DIR, 'kanjidic2-en-3.6.2.json'), 'utf8'),
+  ) as { characters: KChar[] };
+
+  const meanings = new Map<string, string>();
+  for (const char of parsed.characters) {
+    if (!used.has(char.literal)) continue;
+    const first = (char.readingMeaning?.groups ?? [])
+      .flatMap((g) => g.meanings ?? [])
+      .find((m) => m.lang === 'en');
+    if (first && first.value.trim().length > 0) meanings.set(char.literal, first.value.trim());
+  }
+  return meanings;
+}
+
+const KANJI_RANGE = /[\u4e00-\u9fff\u3400-\u4dbf]/;
+
+/** Attaches sentence + kanjiParts in place. Both fields stay optional. */
+function attachHooks(cardsByLevel: Map<2 | 3 | 4 | 5, Card[]>): void {
+  const all = [...cardsByLevel.values()].flat();
+
+  const keys = new Set<string>();
+  const usedKanji = new Set<string>();
+  for (const card of all) {
+    keys.add(card.kanji ?? card.kana[0]);
+    for (const ch of card.kanji ?? '') if (KANJI_RANGE.test(ch)) usedKanji.add(ch);
+  }
+
+  const sentences = buildSentenceIndex(keys);
+  const meanings = buildKanjiMeanings(usedKanji);
+
+  let withSentence = 0;
+  let withParts = 0;
+  for (const card of all) {
+    const hook = sentences.get(card.kanji ?? card.kana[0]);
+    if (hook) {
+      card.sentence = hook;
+      withSentence += 1;
+    }
+    if (card.kanji !== null) {
+      const parts = [...card.kanji]
+        .filter((ch) => KANJI_RANGE.test(ch))
+        .map((ch) => ({ char: ch, meaning: meanings.get(ch) ?? '' }))
+        .filter((p) => p.meaning.length > 0);
+      if (parts.length > 0) {
+        card.kanjiParts = parts;
+        withParts += 1;
+      }
+    }
+  }
+  console.log(`hooks: ${withSentence}/${all.length} sentences, ${withParts} cards with kanji parts`);
+}
+
 function main(): void {
   const entries = readJlptEntries();
   console.log(`JLPT entries (N5-N2, deduped): ${entries.length}`);
@@ -176,6 +279,8 @@ function main(): void {
   mkdirSync(OUT_DIR, { recursive: true });
   const entryCounts = new Map<number, number>([[5, 0], [4, 0], [3, 0], [2, 0]]);
   for (const e of entries) entryCounts.set(e.level, (entryCounts.get(e.level) ?? 0) + 1);
+
+  attachHooks(cardsByLevel);
 
   for (const [level, cards] of cardsByLevel) {
     const rate = cards.length / (entryCounts.get(level) || 1);

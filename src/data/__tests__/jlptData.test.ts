@@ -117,4 +117,49 @@ describe('generated JLPT data invariants', () => {
       expect(withKanji, `N${level}`).toBeGreaterThanOrEqual(file.cards.length * 0.5);
     }
   });
+
+  it('every emitted sentence contains its word and stays within the length cap', () => {
+    for (const [, file] of files) {
+      for (const card of file.cards) {
+        if (!card.sentence) continue;
+        expect(card.sentence.ja.length, card.id).toBeLessThanOrEqual(50);
+        const needle = card.kanji ?? card.kana[0];
+        expect(card.sentence.ja.includes(needle), `${card.id} (${needle})`).toBe(true);
+        expect(card.sentence.en.length, card.id).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('kanji cards carry a part meaning for each character kanjidic knows', () => {
+    for (const [, file] of files) {
+      for (const card of file.cards) {
+        if (!card.kanjiParts) continue;
+        expect(card.kanji, card.id).not.toBeNull();
+        for (const part of card.kanjiParts) {
+          expect(part.char.length, card.id).toBe(1);
+          expect(card.kanji!.includes(part.char), `${card.id}:${part.char}`).toBe(true);
+          expect(part.meaning.trim().length, `${card.id}:${part.char}`).toBeGreaterThan(0);
+        }
+      }
+    }
+  });
+
+  it('kana-only cards never carry kanji parts', () => {
+    for (const [, file] of files) {
+      for (const card of file.cards) {
+        if (card.kanji === null) expect(card.kanjiParts, card.id).toBeUndefined();
+      }
+    }
+  });
+
+  it('hook coverage is meaningful, not accidental', () => {
+    const all = files.flatMap(([, f]) => f.cards);
+    const withSentence = all.filter((c) => c.sentence).length;
+    const kanjiCards = all.filter((c) => c.kanji !== null);
+    const withParts = kanjiCards.filter((c) => c.kanjiParts).length;
+    // Tatoeba coverage is partial by nature, especially at N2 — this is a floor,
+    // not a target. Record the real number in your report.
+    expect(withSentence / all.length).toBeGreaterThan(0.25);
+    expect(withParts / kanjiCards.length).toBeGreaterThan(0.9);
+  });
 });

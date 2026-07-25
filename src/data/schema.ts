@@ -9,6 +9,8 @@ export const cardSchema = z.object({
   pos: z.string().min(1),
   jlpt: z.union([z.literal(5), z.literal(4), z.literal(3), z.literal(2), z.null()]),
   source: z.union([z.literal('jlpt'), z.literal('custom')]),
+  sentence: z.object({ ja: z.string().min(1), en: z.string().min(1) }).optional(),
+  kanjiParts: z.array(z.object({ char: z.string().min(1), meaning: z.string().min(1) })).optional(),
 });
 
 export const levelFileSchema = z.object({

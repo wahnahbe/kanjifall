@@ -6,6 +6,8 @@ export interface Card {
   pos: string;
   jlpt: 5 | 4 | 3 | 2 | null; // null for custom cards (M2+)
   source: 'jlpt' | 'custom';
+  sentence?: { ja: string; en: string };
+  kanjiParts?: { char: string; meaning: string }[];
 }
 
 export type GameMode = 'reading' | 'recall';
