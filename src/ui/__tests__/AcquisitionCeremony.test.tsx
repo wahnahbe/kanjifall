@@ -38,7 +38,7 @@ describe('AcquisitionCeremony', () => {
     expect(screen.getByTestId('ceremony-buffer')).toHaveTextContent('ねこ');
   });
 
-  it('Enter advances only once the reading is correct', async () => {
+  it('Enter accepts a correct reading and rejects an incorrect one', async () => {
     const onIntroduced = vi.fn();
     const onComplete = vi.fn();
     render(<AcquisitionCeremony cards={[neko]} onIntroduced={onIntroduced} onComplete={onComplete} />);
@@ -46,10 +46,22 @@ describe('AcquisitionCeremony', () => {
     await userEvent.keyboard('inu{Enter}');
     expect(onIntroduced).not.toHaveBeenCalled();
     expect(onComplete).not.toHaveBeenCalled();
+    expect(screen.getByTestId('ceremony')).toHaveTextContent('猫');
 
-    await userEvent.keyboard('{Escape}neko{Enter}');
+    // A rejected Enter clears the buffer itself, so the correct reading can
+    // be typed directly next — no Escape involved anywhere in this test.
+    await userEvent.keyboard('neko{Enter}');
+    expect(onIntroduced).toHaveBeenCalledTimes(1);
     expect(onIntroduced).toHaveBeenCalledWith('neko');
     expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it('Backspace clears the rejected state left by a wrong submission', async () => {
+    render(<AcquisitionCeremony cards={[neko]} onIntroduced={vi.fn()} onComplete={vi.fn()} />);
+    await userEvent.keyboard('inu{Enter}');
+    expect(screen.getByTestId('ceremony-buffer')).toHaveClass('rejected');
+    await userEvent.keyboard('{Backspace}');
+    expect(screen.getByTestId('ceremony-buffer')).not.toHaveClass('rejected');
   });
 
   it('Escape skips the word, which still counts as introduced', async () => {
@@ -86,5 +98,37 @@ describe('AcquisitionCeremony', () => {
   it('shows the required Tatoeba credit when a sentence is displayed', () => {
     render(<AcquisitionCeremony cards={[neko]} onIntroduced={vi.fn()} onComplete={vi.fn()} />);
     expect(screen.getByTestId('ceremony')).toHaveTextContent(/tatoeba/i);
+  });
+
+  it('removes its keydown listener on unmount', () => {
+    const onIntroduced = vi.fn();
+    const onComplete = vi.fn();
+    const { unmount } = render(
+      <AcquisitionCeremony cards={[neko]} onIntroduced={onIntroduced} onComplete={onComplete} />,
+    );
+    unmount();
+
+    // If the listener were still attached, either of these would advance
+    // (and thus call back) past the still-showing first card.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    expect(onIntroduced).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('stays inert after the last card is done', async () => {
+    const onIntroduced = vi.fn();
+    const onComplete = vi.fn();
+    render(<AcquisitionCeremony cards={[neko]} onIntroduced={onIntroduced} onComplete={onComplete} />);
+
+    await userEvent.keyboard('neko{Enter}');
+    expect(onIntroduced).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+
+    // The ceremony is done and renders null; further keystrokes must be inert.
+    await userEvent.keyboard('a{Enter}{Escape}');
+    expect(onIntroduced).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledTimes(1);
   });
 });

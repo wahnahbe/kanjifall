@@ -66,6 +66,7 @@ export function AcquisitionCeremony({ cards, onIntroduced, onComplete }: Acquisi
         e.preventDefault();
         buffer.backspace();
         setKana(buffer.kana);
+        setRejected(false);
         return;
       }
       if (/^[a-zA-Z-]$/.test(e.key)) {
