@@ -80,6 +80,11 @@ New words should be shown — meaning and spelling — before they first appear 
 - **M2 (session-scoped): pre-wave preview.** Before a wave starts, a brief interstitial lists that wave's not-yet-seen-this-session words (kanji + kana + gloss), dismissed by Enter or a short auto-timer. "Seen" is tracked in memory per session — stateless, no persistence needed.
 - **M3 (player-scoped): true first-encounter intro.** Once the attempts DB exists, "new" means "no prior attempt in any direction" per the player's history; the preview then shows only genuinely new words, and the interstitial view itself is recorded as an exposure event (`introduced_at`) so analytics can separate "introduced" from "tested."
 
+**Status:** both phases delivered. The M3 (player-scoped) phase shipped in M4
+sub-project A — see `2026-07-24-word-introduction-v2-design.md`, which also
+replaced the M2 table with an acquisition ceremony and added the daily
+new-word budget.
+
 ### 4.1 Stack
 
 - **Client:** Vite, React 19, TypeScript (strict), PixiJS v8, pixi-filters (bloom, CRT), wanakana, Recharts (Stats screen)

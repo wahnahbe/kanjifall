@@ -38,15 +38,11 @@ Dictionary Research and Development Group), used under CC-BY-SA 4.0.
 
 ## Status
 
-Milestone 3 of the design spec:
-`docs/superpowers/specs/2026-07-22-kotoba-drop-design.md`.
-Both modes (Reading: kanji → type the reading; Recall: English → type the
-Japanese) over JLPT N5–N2 pools (~4,700 words) + Mixed, pre-wave word
-introductions, results screen with revenge rounds, and a local backend
-(Hono + SQLite) that records every attempt behind a Stats screen (learned
-words, level estimate, pace vs. exam date, trend, leech list).
-Pacing knobs live in `src/engine/constants.ts`; stats thresholds live in
-`server/statsConfig.ts`.
+Milestone 4 (sub-project A) of the design spec: word introductions are now
+player-scoped — a word is "new" only if you have never met it, each new word
+gets an acquisition moment with an example sentence and kanji-part meanings,
+and your profile's daily word goal caps how many you meet per day. See
+`docs/superpowers/specs/2026-07-24-word-introduction-v2-design.md`.
 
 Turn OFF the Windows Japanese IME (Win+Space) while playing — the game reads
 plain keystrokes.

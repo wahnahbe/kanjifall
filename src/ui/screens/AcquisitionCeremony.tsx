@@ -86,7 +86,7 @@ export function AcquisitionCeremony({ cards, onIntroduced, onComplete }: Acquisi
     <div className="overlay ceremony" data-testid="ceremony">
       <p className="ceremony-label">New word</p>
       <p className="ceremony-word">{card.kanji ?? card.kana[0]}</p>
-      <p className="ceremony-reading">{card.kana[0]}</p>
+      <p className="ceremony-reading" data-testid="ceremony-reading">{card.kana[0]}</p>
       <p className="ceremony-gloss">{card.gloss}</p>
 
       {card.kanjiParts && (

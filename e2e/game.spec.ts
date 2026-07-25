@@ -5,6 +5,55 @@ interface StatsOverviewResponse {
   trend: { date: string; words: number; accuracy: number }[];
 }
 
+/** Shape of GET /api/plan?pool=... that matters to these specs (server/plan.ts). */
+interface PlanResponse {
+  newCardIds: string[];
+  seenCardIds: string[];
+}
+
+/**
+ * Characters AcquisitionCeremony's own keydown handler (and InputBuffer
+ * underneath it) actually accept while typing a reading — see
+ * AcquisitionCeremony.tsx's onKey and InputBuffer.ts's INPUT_KEY, both
+ * `/^[a-zA-Z-]$/`. A romaji reading that falls outside this can never be
+ * typed correctly: the disallowed character is silently dropped rather than
+ * buffered, so Enter keeps rejecting the same (now-wrong) buffer forever.
+ * Confirmed in the N5 pool: not the katakana ー words (wanakana's toRomaji
+ * renders those as plain doubled vowels, e.g. コーヒー → "koohii"), but
+ * 金曜日 → "kin'youbi", where wanakana inserts an apostrophe to disambiguate
+ * ん before a や/ゆ/よ-row kana. Escape is equally valid here — spec §3.1: a
+ * skipped word still counts as introduced — so it is the escape hatch for
+ * any reading this buffer cannot faithfully accept.
+ */
+const TYPABLE_ROMAJI = /^[a-zA-Z-]+$/;
+
+/**
+ * Walks the acquisition ceremony (spec §3.1) from wave 1's pause through to
+ * 'playing'. The e2e DB is wiped before every run (global-setup.ts), so on a
+ * fresh run every pool card is new and the ceremony is guaranteed to show at
+ * least one card before wave 1 can start. Types each card's displayed
+ * reading (ceremony-reading, i.e. card.kana[0]) in romaji and submits with
+ * Enter; a reading that wouldn't round-trip cleanly (see TYPABLE_ROMAJI) is
+ * skipped with Escape instead.
+ */
+async function clearCeremony(page: Page): Promise<void> {
+  await page.waitForFunction(() => window.__kotoba?.snapshot().status === 'waveIntro');
+  // Fresh e2e DB: every word is new, so the ceremony is showing.
+  while (await page.getByTestId('ceremony').isVisible().catch(() => false)) {
+    const reading = await page.getByTestId('ceremony-reading').textContent();
+    if (reading === null) break;
+    const romaji = toRomaji(reading);
+    if (TYPABLE_ROMAJI.test(romaji)) {
+      await page.keyboard.type(romaji, { delay: 20 });
+      await page.keyboard.press('Enter');
+    } else {
+      await page.keyboard.press('Escape');
+    }
+    await page.waitForTimeout(50);
+  }
+  await page.waitForFunction(() => window.__kotoba?.snapshot().status === 'playing');
+}
+
 /** Waits until either an airborne word is available to type against, or the
  *  wave/run has moved past 'playing' (wave cleared → next 'waveIntro', or
  *  game over). Shared exit condition for a single kill and the full-wave
@@ -25,10 +74,9 @@ async function killFirstAirborneWord(page: Page): Promise<void> {
 }
 
 async function dismissIntroAndKillFirstWord(page: Page) {
-  // Wave intro comes first (spec §3.6): wait for the pause, dismiss with Enter.
-  await page.waitForFunction(() => window.__kotoba?.snapshot().status === 'waveIntro');
-  await expect(page.getByTestId('wave-intro')).toBeVisible();
-  await page.keyboard.press('Enter');
+  // Wave intro comes first (spec §3.6): the acquisition ceremony pauses the
+  // wave until every new card has been typed through (or escaped past).
+  await clearCeremony(page);
 
   await waitForAirborneOrWaveEnd(page);
   await killFirstAirborneWord(page);
@@ -60,6 +108,12 @@ test('reading mode: intro → dismiss → type reading → kill scores', async (
   // DB-flush poll below comfortably exceeds Playwright's 30s default.
   test.setTimeout(60_000);
   await page.goto('/?seed=42&mode=reading&pool=n5');
+
+  // Captured before any card is introduced, so the persistence proof below
+  // has a known-empty baseline to move away from.
+  const before = (await (await page.request.get('/api/plan?pool=n5')).json()) as PlanResponse;
+  expect(before.seenCardIds).toHaveLength(0); // globalSetup wiped the e2e DB
+
   await dismissIntroAndKillFirstWord(page);
 
   // spec §8: "assert ... the attempt row exists in the DB." A single kill
@@ -82,6 +136,23 @@ test('reading mode: intro → dismiss → type reading → kill scores', async (
       { timeout: 15_000 },
     )
     .toBeGreaterThanOrEqual(1); // the kill(s) landed in SQLite — rides the vite proxy → API → e2e DB
+
+  // There is no introductions endpoint, but /api/plan observes the same
+  // table (server/plan.ts): a card that has been introduced (typed through
+  // or escaped past in the ceremony) must move out of newCardIds and into
+  // seenCardIds. Same flush this poll rides as the overview one above —
+  // both wait on RunRecorder's waveCleared-triggered batch landing in SQLite.
+  await expect
+    .poll(
+      async () => {
+        const res = await page.request.get('/api/plan?pool=n5');
+        if (!res.ok()) return 0;
+        const plan = (await res.json()) as PlanResponse;
+        return plan.seenCardIds.length;
+      },
+      { timeout: 15_000 },
+    )
+    .toBeGreaterThan(0);
 });
 
 test('recall mode: gloss prompt still killed by typing the reading', async ({ page }) => {
