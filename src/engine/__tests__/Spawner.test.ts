@@ -96,6 +96,20 @@ describe('Spawner run-plan composition', () => {
     expect(wave.cards.slice(0, 2).map((c) => c.id)).toEqual(wave.newCards.map((c) => c.id));
   });
 
+  it('wave 1 of a fresh run fills its remainder only from cards introduced this same wave, never from cards still un-introduced', () => {
+    // Budget (6) and cap (2) both exceed what a single wave needs, so this
+    // is not the budget-exhausted case: there is plenty of budget left, yet
+    // the wave's remainder must still be repeats of the 2 cards just
+    // introduced, not other never-met cards (spec §3.1/§3.2).
+    const s = makeWithPlan(planOf(allNew, 6, 2));
+    const wave = s.planWave(1);
+    expect(wave.newCards).toHaveLength(2);
+    const introducedIds = new Set(wave.newCards.map((c) => c.id));
+    for (const card of wave.cards) {
+      expect(introducedIds.has(card.id)).toBe(true);
+    }
+  });
+
   it('spends the run budget across waves and then stops introducing', () => {
     const s = makeWithPlan(planOf(allNew, 3, 2));
     expect(s.planWave(1).newCards).toHaveLength(2); // 2 of 3
@@ -127,6 +141,25 @@ describe('Spawner run-plan composition', () => {
     const wave = s.planWave(1);
     expect(wave.newCards).toHaveLength(0);
     expect(wave.cards.length).toBeGreaterThan(0);
+  });
+
+  it('starved-pool fallback cards are not spent: a later run with real budget for them can still give them a proper introduction', () => {
+    // Within one Spawner, budgetRemaining is fixed at construction and only
+    // ever decreases, so a starved (runBudget: 0) instance can never regain
+    // budget in a later wave of the *same* run - "a later day" (the
+    // drawSeen doc comment's phrasing) means a later run: a fresh plan,
+    // computed the next time this player plays, still listing these cards
+    // as new. This test stands in for that: the fallback path must not have
+    // done anything - consumed them from newPool, marked them seen, or
+    // anything else - that would make them ineligible for a real
+    // introduction once a plan with budget actually names them.
+    const starved = makeWithPlan(planOf(allNew, 0, 2));
+    const fallbackIds = starved.planWave(1).cards.map((c) => c.id);
+    expect(fallbackIds.length).toBeGreaterThan(0);
+
+    const later = makeWithPlan(planOf(fallbackIds, fallbackIds.length, fallbackIds.length));
+    const introducedIds = new Set(later.planWave(1).newCards.map((c) => c.id));
+    for (const id of fallbackIds) expect(introducedIds.has(id)).toBe(true);
   });
 
   it('with no plan-eligible new cards, behaves like a pure review run', () => {

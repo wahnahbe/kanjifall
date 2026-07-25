@@ -37,11 +37,15 @@ export class Spawner {
     this.newPool = this.newPool.filter((card) => !introducedIds.has(card.id));
     this.budgetRemaining -= newCards.length;
 
-    const cards = [...newCards, ...this.drawSeen(size - newCards.length)];
-
-    // Introduced cards join the seen pool: later waves must draw from it once
-    // the budget is gone, which is what guarantees the re-encounter.
+    // Introduced cards join the seen pool immediately - before this wave's
+    // own remainder is drawn, not just for later waves. Otherwise, on a
+    // fresh run's wave 1, the seen pool is still empty at the moment the
+    // remainder is chosen and drawSeen falls back to still-un-introduced
+    // cards to fill it, letting them fall with no acquisition ceremony and
+    // (once an attempt is recorded) no way back (spec §3.1/§3.2).
     this.seenPool = [...this.seenPool, ...newCards];
+
+    const cards = [...newCards, ...this.drawSeen(size - newCards.length)];
 
     return {
       cards,
@@ -55,10 +59,20 @@ export class Spawner {
   }
 
   /**
-   * Fills the rest of a wave from cards already met, repeating them when the
-   * seen pool is smaller than the wave. Starved pool (nothing met and no
-   * budget): fall back to un-introduced cards so the run stays playable —
-   * they keep their acquisition moment for a later day (spec §3.2).
+   * Fills the rest of a wave from cards the player has met, including ones
+   * just introduced this same wave (planWave folds this wave's newCards
+   * into seenPool before calling this, so "met" already covers them).
+   * Repeats cards when that pool is smaller than the remainder needed.
+   *
+   * Falls back to still-un-introduced cards only in the genuine starved
+   * case: seenPool is empty and this wave introduced nothing either. The
+   * fallback does not remove those cards from newPool or mark them
+   * introduced, so this engine's own state still treats them as eligible
+   * for a proper acquisition moment on a later run with real budget for
+   * them. That is a claim about this engine's bookkeeping only, though:
+   * once one of them falls and an attempt is recorded, whether a *future*
+   * plan still calls it "new" is entirely up to whatever computed that
+   * plan (spec §3.2, §7).
    */
   private drawSeen(count: number): Card[] {
     if (count <= 0) return [];
