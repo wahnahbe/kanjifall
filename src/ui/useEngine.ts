@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { GameEngine } from '../engine/GameEngine';
 import type {
-  AirborneWord, Card, EngineConfig, EngineSnapshot, GameEvent, GameMode,
+  AirborneWord, Card, EngineConfig, EnginePlan, EngineSnapshot, GameEvent, GameMode,
 } from '../engine/types';
 import { PixiStage } from '../render/PixiStage';
 
@@ -37,6 +37,7 @@ export interface RunOptions {
   seed?: number;
   introduceWords?: boolean; // default true: pause each wave behind the intro overlay
   config?: Partial<EngineConfig>;
+  plan?: EnginePlan;
   onEvent?: (event: GameEvent, view: { words: readonly AirborneWord[]; snapshot: EngineSnapshot }) => void;
 }
 
@@ -64,6 +65,7 @@ export function useEngine() {
       mode: opts.mode,
       seed: opts.seed ?? seedFromUrl() ?? Date.now(),
       config: { pauseOnWaveStart: opts.introduceWords ?? true, ...opts.config },
+      plan: opts.plan,
     });
     onRunEventRef.current = opts.onEvent;
     setIntroCards([]);
@@ -91,7 +93,7 @@ export function useEngine() {
     const onEvent = (event: GameEvent) => {
       if (event.type === 'wordKilled') stage?.playKill(event.word);
       if (event.type === 'wordMissed') stage?.playMiss(event.word);
-      if (event.type === 'waveStarting') setIntroCards(event.cards);
+      if (event.type === 'waveStarting') setIntroCards(event.newCards);
       publish();
       onRunEventRef.current?.(event, { words: engine.getWords(), snapshot: engine.getSnapshot() });
     };

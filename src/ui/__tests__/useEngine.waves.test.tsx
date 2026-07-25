@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Card } from '../../engine/types';
+import type { Card, EnginePlan } from '../../engine/types';
 
 vi.mock('../../render/PixiStage', () => ({
   PixiStage: {
@@ -24,6 +24,11 @@ const FAST = {
   interWaveDelayMs: 50,
 };
 
+// Both cards flagged new with budget/cap enough for one per wave: introCards
+// (sourced from waveStarting.newCards, not all wave cards) has length 1 at
+// wave 1 AND wave 2, which is what this test actually needs to observe.
+const PLAN: EnginePlan = { newCardIds: ['neko', 'inu'], runBudget: 2, perWaveNewCap: 2 };
+
 const pressKeys = (keys: string[]) => {
   for (const key of keys) {
     window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
@@ -40,7 +45,7 @@ describe('useEngine wave transitions (the wave-2 intro seam)', () => {
     (result.current.hostRef as { current: HTMLDivElement | null }).current = host;
 
     act(() => {
-      result.current.start({ mode: 'reading', cards, seed: 1, config: FAST });
+      result.current.start({ mode: 'reading', cards, seed: 1, config: FAST, plan: PLAN });
     });
 
     await waitFor(() => expect(result.current.snapshot.status).toBe('waveIntro'), { timeout: 3000 });

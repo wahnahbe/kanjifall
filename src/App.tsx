@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DataLoadError, loadPool, type PoolId } from './data/loader';
 import { drainOutbox } from './data/outbox';
+import { fetchRunPlan } from './data/planClient';
 import { RunRecorder } from './data/recorder';
-import type { Card, GameMode } from './engine/types';
+import type { Card, EnginePlan, GameMode } from './engine/types';
 import { GameScreen } from './ui/screens/GameScreen';
 import { SetupScreen } from './ui/screens/SetupScreen';
 import { StatsScreen } from './ui/screens/StatsScreen';
@@ -24,28 +25,44 @@ function runFromUrl(): { mode: GameMode; pool: PoolId } | null {
   return null;
 }
 
+/** What to tell the player about this run's new-word situation (spec §3.2, §7). */
+function noticeFor(plan: EnginePlan | null): string | null {
+  if (plan === null) return 'Word introductions need the server — playing without them.';
+  if (plan.runBudget > 0) return null;
+  if (plan.newCardIds.length === 0) return null;
+  return "Today's new words are done — this run is review.";
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>('title');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const lastRunRef =
     useRef<{ mode: GameMode; cards: Card[]; listVersion: string; pool: string } | null>(null);
-  const seenIdsRef = useRef(new Set<string>()); // session-scoped across runs (spec §3.6)
+  const recorderRef = useRef<RunRecorder | null>(null);
+  const [planNotice, setPlanNotice] = useState<string | null>(null);
   const { snapshot, hostRef, start, resume, introCards } = useEngine();
 
-  const beginRun = useCallback((mode: GameMode, cards: Card[], listVersion: string, pool: string) => {
-    lastRunRef.current = { mode, cards, listVersion, pool };
-    const recorder = new RunRecorder({ runId: crypto.randomUUID(), mode, pool, cards, listVersion });
-    start({ mode, cards, onEvent: (event, view) => recorder.onEvent(event, view) });
-    setScreen('game');
-  }, [start]);
+  const beginRun = useCallback(
+    (mode: GameMode, cards: Card[], listVersion: string, pool: string, plan: EnginePlan | null) => {
+      lastRunRef.current = { mode, cards, listVersion, pool };
+      const recorder = new RunRecorder({ runId: crypto.randomUUID(), mode, pool, cards, listVersion });
+      recorderRef.current = recorder;
+      start({
+        mode, cards, plan: plan ?? undefined, onEvent: (event, view) => recorder.onEvent(event, view),
+      });
+      setScreen('game');
+    },
+    [start],
+  );
 
   const beginFromPool = useCallback(async (mode: GameMode, pool: PoolId) => {
     setLoading(true);
     setLoadError(null);
     try {
-      const { cards, listVersion } = await loadPool(pool);
-      beginRun(mode, cards, listVersion, pool);
+      const [{ cards, listVersion }, plan] = await Promise.all([loadPool(pool), fetchRunPlan(pool)]);
+      setPlanNotice(noticeFor(plan));
+      beginRun(mode, cards, listVersion, pool, plan);
     } catch (error: unknown) {
       setLoadError(error instanceof DataLoadError ? error.message : 'unexpected load failure');
     } finally {
@@ -73,36 +90,24 @@ export default function App() {
       .catch((error: unknown) => console.warn('kotoba outbox drain failed', error));
   }, []);
 
-  const unseenIntro = introCards.filter((c) => !seenIdsRef.current.has(c.id));
-
-  const dismissIntro = useCallback(() => {
-    for (const card of introCards) seenIdsRef.current.add(card.id);
-    resume();
-  }, [introCards, resume]);
-
-  const prevStatus = useRef(snapshot.status);
-  useEffect(() => {
-    if (prevStatus.current === 'waveIntro' && snapshot.status === 'playing') {
-      for (const card of introCards) seenIdsRef.current.add(card.id);
-    }
-    prevStatus.current = snapshot.status;
-  }, [snapshot.status, introCards]);
-
   if (screen === 'game') {
     return (
       <GameScreen
         snapshot={snapshot}
         hostRef={hostRef}
-        introCards={unseenIntro}
-        onDismissIntro={dismissIntro}
+        introCards={introCards}
+        planNotice={planNotice}
+        onIntroduced={(cardId) => recorderRef.current?.recordIntroduction(cardId)}
+        onIntroComplete={resume}
         onRevenge={(missed) => lastRunRef.current
-          && beginRun(lastRunRef.current.mode, missed, lastRunRef.current.listVersion, 'revenge')}
+          && beginRun(lastRunRef.current.mode, missed, lastRunRef.current.listVersion, 'revenge', null)}
         onPlayAgain={() => lastRunRef.current
           && beginRun(
             lastRunRef.current.mode,
             lastRunRef.current.cards,
             lastRunRef.current.listVersion,
             lastRunRef.current.pool,
+            null,
           )}
         onTitle={() => setScreen('title')}
       />

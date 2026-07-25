@@ -76,7 +76,12 @@ async function flush(): Promise<void> {
   await vi.advanceTimersByTimeAsync(0);
 }
 
-function eventsBodyOf(): { attempts: unknown[]; wrongSubmits: unknown[]; batchId: string } {
+function eventsBodyOf(): {
+  attempts: unknown[];
+  wrongSubmits: unknown[];
+  introductions: unknown[];
+  batchId: string;
+} {
   const call = fetchMock.mock.calls.find((args) => (args[0] as string).endsWith('/events'));
   if (!call) throw new Error('no /events call was made');
   return JSON.parse((call[1] as RequestInit).body as string);
@@ -450,5 +455,36 @@ describe('outbox storage resilience', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     setItemSpy.mockRestore();
+  });
+});
+
+describe('introductions (ceremony)', () => {
+  it('flushes recorded introductions with the wave batch', async () => {
+    fetchMock.mockResolvedValue(ok());
+    const recorder = new RunRecorder(ctx);
+    await flush();
+
+    const view = { words: [], snapshot: makeSnapshot({ wave: 1 }) };
+    recorder.recordIntroduction('neko');
+    recorder.onEvent({ type: 'waveCleared', wave: 1 }, view);
+    await flush();
+
+    expect(eventsBodyOf().introductions).toEqual([
+      { cardId: 'neko', introducedAt: expect.any(Number) },
+    ]);
+  });
+
+  it('a wave with only introductions still flushes', async () => {
+    fetchMock.mockResolvedValue(ok());
+    const recorder = new RunRecorder(ctx);
+    await flush();
+
+    const view = { words: [], snapshot: makeSnapshot({ wave: 1 }) };
+    recorder.recordIntroduction('neko');
+    recorder.onEvent({ type: 'waveCleared', wave: 1 }, view);
+    await flush();
+
+    expect(eventsBodyOf().attempts).toEqual([]);
+    expect(eventsBodyOf().introductions).toHaveLength(1);
   });
 });

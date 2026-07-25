@@ -1,6 +1,8 @@
 import { normalizeReading } from '../engine/matcher';
 import type { AirborneWord, Card, EngineSnapshot, GameEvent, GameMode } from '../engine/types';
-import type { AttemptEvent, CreateRun, EventsBatch, FinalizeRun, WrongSubmitEvent } from '../shared/api';
+import type {
+  AttemptEvent, CreateRun, EventsBatch, FinalizeRun, IntroductionEvent, WrongSubmitEvent,
+} from '../shared/api';
 import { api } from './apiClient';
 import { pushOutbox } from './outbox';
 
@@ -35,6 +37,7 @@ export class RunRecorder {
   private createRunFailed = false;
   private attempts: AttemptEvent[] = [];
   private wrongSubmits: WrongSubmitEvent[] = [];
+  private introductions: IntroductionEvent[] = [];
 
   constructor(ctx: RecorderContext) {
     this.ctx = ctx;
@@ -72,6 +75,11 @@ export class RunRecorder {
       default:
         return; // wordSpawned/bufferChanged/waveStarting/resumed: nothing to record
     }
+  }
+
+  /** Called by the ceremony when a word has been introduced (typed or skipped). */
+  recordIntroduction(cardId: string): void {
+    this.introductions.push({ cardId, introducedAt: Date.now() });
   }
 
   private attemptRow(
@@ -125,15 +133,22 @@ export class RunRecorder {
 
   /** Flushes buffered rows as one batch. Buffer clears optimistically either way. */
   private flush(): void {
-    if (this.attempts.length === 0 && this.wrongSubmits.length === 0) return;
+    if (
+      this.attempts.length === 0 &&
+      this.wrongSubmits.length === 0 &&
+      this.introductions.length === 0
+    ) {
+      return;
+    }
     const batch: EventsBatch = {
       batchId: crypto.randomUUID(),
       attempts: this.attempts,
       wrongSubmits: this.wrongSubmits,
-      introductions: [],
+      introductions: this.introductions,
     };
     this.attempts = [];
     this.wrongSubmits = [];
+    this.introductions = [];
     this.pipeline = this.pipeline.then(() => this.sendEvents(batch));
   }
 
