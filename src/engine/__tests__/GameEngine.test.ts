@@ -450,4 +450,26 @@ describe('wave intro, hints, counters (M2)', () => {
     expect(statusAtEmit.length).toBeGreaterThanOrEqual(2); // waves 1 and 2
     for (const status of statusAtEmit) expect(status).toBe('waveIntro');
   });
+
+  it('waveStarting carries the wave’s newly introduced cards', () => {
+    const engine = new GameEngine({
+      cards,
+      mode: 'reading',
+      seed: 1,
+      config: introConfig,
+      plan: { newCardIds: cards.map((c) => c.id), runBudget: 1, perWaveNewCap: 1 },
+    });
+    const starts: { wave: number; newCards: number }[] = [];
+    engine.subscribe((e) => {
+      if (e.type === 'waveStarting') starts.push({ wave: e.wave, newCards: e.newCards.length });
+    });
+    engine.start();
+    expect(starts[0]).toEqual({ wave: 1, newCards: 1 });
+  });
+
+  it('without a plan nothing is ever introduced', () => {
+    const { events } = makeIntroEngine();
+    const starting = events.find((e) => e.type === 'waveStarting');
+    expect(starting && starting.type === 'waveStarting' && starting.newCards).toEqual([]);
+  });
 });

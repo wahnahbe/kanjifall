@@ -5,7 +5,7 @@ import { mulberry32 } from './rng';
 import { pointsFor } from './scoring';
 import { Spawner, type WavePlan } from './Spawner';
 import type {
-  AirborneWord, Card, EngineConfig, EngineSnapshot, GameEvent, GameMode, GameStatus,
+  AirborneWord, Card, EngineConfig, EnginePlan, EngineSnapshot, GameEvent, GameMode, GameStatus,
 } from './types';
 
 export interface EngineOptions {
@@ -13,6 +13,7 @@ export interface EngineOptions {
   mode: GameMode;
   seed: number;
   config?: Partial<EngineConfig>;
+  plan?: EnginePlan;
 }
 
 export class GameEngine {
@@ -51,7 +52,10 @@ export class GameEngine {
     const pool = this.mode === 'reading'
       ? opts.cards.filter((c) => c.kanji !== null)
       : opts.cards;
-    this.spawner = new Spawner(pool, mulberry32(opts.seed), this.config);
+    // No plan (server unavailable) means nothing counts as new: no ceremonies,
+    // no budget, ordinary play. Gameplay never depends on the API.
+    const plan: EnginePlan = opts.plan ?? { newCardIds: [], runBudget: 0, perWaveNewCap: 0 };
+    this.spawner = new Spawner(pool, mulberry32(opts.seed), this.config, plan);
   }
 
   subscribe(listener: (e: GameEvent) => void): () => void {
@@ -154,7 +158,7 @@ export class GameEngine {
     }
     // Emit AFTER the transition: subscribers snapshotting during this event
     // must observe the post-transition state (waveIntro pause included).
-    this.emit({ type: 'waveStarting', wave, cards: [...this.wavePlan.cards] });
+    this.emit({ type: 'waveStarting', wave, cards: [...this.wavePlan.cards], newCards: [...this.wavePlan.newCards] });
   }
 
   private step(): void {

@@ -1,5 +1,5 @@
 import { toHiragana, toKatakana, toRomaji } from 'wanakana';
-import type { AirborneWord } from './types';
+import type { AirborneWord, Card } from './types';
 
 /**
  * Canonical comparison form for readings. The katakana round-trip makes
@@ -116,4 +116,16 @@ export function findPrefixMatches(
 export function selectTarget(matches: readonly AirborneWord[]): AirborneWord | null {
   if (matches.length === 0) return null;
   return matches.reduce((lowest, w) => (w.y > lowest.y ? w : lowest));
+}
+
+/**
+ * Does this typed buffer match this one card's reading, with exactly the
+ * leniency gameplay allows? Used by the acquisition ceremony, where there is
+ * no competition between cards, so the two-tier exact-beats-variant rule in
+ * findExactMatches collapses to "any accepted form of this card".
+ */
+export function matchesReading(kanaBuffer: string, card: Card): boolean {
+  const target = canonical(kanaBuffer);
+  if (target.length === 0) return false;
+  return card.kana.some((reading) => readingForms(reading).includes(target));
 }

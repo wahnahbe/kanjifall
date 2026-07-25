@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AirborneWord, Card } from '../types';
-import { findExactMatches, findPrefixMatches, normalizeReading, selectTarget } from '../matcher';
+import {
+  findExactMatches, findPrefixMatches, matchesReading, normalizeReading, selectTarget,
+} from '../matcher';
 
 const card = (id: string, readings: string[], kanji: string | null = '字'): Card => ({
   id, kanji, kana: readings, gloss: 'x', pos: 'noun', jlpt: 5, source: 'jlpt',
@@ -142,5 +144,24 @@ describe('selectTarget', () => {
     const first = airborne(1, c, 0.5);
     const second = airborne(2, c, 0.5);
     expect(selectTarget([first, second])?.instanceId).toBe(1);
+  });
+});
+
+describe('matchesReading (ceremony input)', () => {
+  const neko = card('neko', ['ねこ'], '猫');
+  const koohii = card('koohii', ['コーヒー'], null);
+
+  it('accepts the canonical reading', () => {
+    expect(matchesReading('ねこ', neko)).toBe(true);
+  });
+
+  it('accepts the same naive typings gameplay accepts', () => {
+    expect(matchesReading('こおひい', koohii)).toBe(true);
+    expect(matchesReading('こーひー', koohii)).toBe(true);
+  });
+
+  it('rejects a wrong or empty reading', () => {
+    expect(matchesReading('いぬ', neko)).toBe(false);
+    expect(matchesReading('', neko)).toBe(false);
   });
 });

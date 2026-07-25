@@ -12,6 +12,13 @@ export interface Card {
 
 export type GameMode = 'reading' | 'recall';
 
+/** What this run may introduce. Injected — the engine never derives it. */
+export interface EnginePlan {
+  newCardIds: readonly string[];
+  runBudget: number;
+  perWaveNewCap: number;
+}
+
 export interface AirborneWord {
   instanceId: number;
   card: Card;
@@ -32,7 +39,7 @@ export type GameEvent =
   | { type: 'wordMissed'; word: AirborneWord }
   | { type: 'wrongSubmit'; submittedKana: string }
   | { type: 'bufferChanged'; kana: string; romaji: string; lockedIds: number[] }
-  | { type: 'waveStarting'; wave: number; cards: Card[] }
+  | { type: 'waveStarting'; wave: number; cards: Card[]; newCards: Card[] }
   | { type: 'resumed'; wave: number }
   | { type: 'waveCleared'; wave: number }
   | { type: 'gameOver'; score: number; wave: number };

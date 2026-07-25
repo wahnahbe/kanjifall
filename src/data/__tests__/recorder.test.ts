@@ -408,7 +408,7 @@ describe('ignored engine events', () => {
     const view = { words: [], snapshot: makeSnapshot() };
     recorder.onEvent({ type: 'wordSpawned', word: makeWord() }, view);
     recorder.onEvent({ type: 'bufferChanged', kana: '', romaji: '', lockedIds: [] }, view);
-    recorder.onEvent({ type: 'waveStarting', wave: 1, cards: [] }, view);
+    recorder.onEvent({ type: 'waveStarting', wave: 1, cards: [], newCards: [] }, view);
     recorder.onEvent({ type: 'resumed', wave: 1 }, view);
     recorder.onEvent({ type: 'waveCleared', wave: 1 }, view);
     await flush();
