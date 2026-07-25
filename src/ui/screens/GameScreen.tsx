@@ -23,7 +23,9 @@ export function GameScreen({
     <div className="game-screen">
       <div className="pixi-host" ref={hostRef} />
       <Hud snapshot={snapshot} />
-      {planNotice !== null && <p className="plan-notice" data-testid="plan-notice">{planNotice}</p>}
+      {snapshot.status === 'playing' && planNotice !== null && (
+        <p className="plan-notice" data-testid="plan-notice">{planNotice}</p>
+      )}
       {snapshot.status === 'waveIntro' && (
         <AcquisitionCeremony
           cards={introCards}

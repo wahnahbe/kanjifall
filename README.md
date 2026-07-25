@@ -40,7 +40,8 @@ Dictionary Research and Development Group), used under CC-BY-SA 4.0.
 
 Milestone 4 (sub-project A) of the design spec: word introductions are now
 player-scoped — a word is "new" only if you have never met it, each new word
-gets an acquisition moment with an example sentence and kanji-part meanings,
+gets an acquisition moment with kanji-part meanings (near-universal) and, for
+most words, an example sentence (coverage varies by level, lowest at N2),
 and your profile's daily word goal caps how many you meet per day. See
 `docs/superpowers/specs/2026-07-24-word-introduction-v2-design.md`.
 

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DataLoadError, loadPool, type PoolId } from './data/loader';
 import { drainOutbox } from './data/outbox';
-import { fetchRunPlan } from './data/planClient';
+import { fetchRunPlan, toEnginePlan } from './data/planClient';
 import { RunRecorder } from './data/recorder';
 import type { Card, EnginePlan, GameMode } from './engine/types';
+import { noticeFor } from './planNotice';
 import { GameScreen } from './ui/screens/GameScreen';
 import { SetupScreen } from './ui/screens/SetupScreen';
 import { StatsScreen } from './ui/screens/StatsScreen';
@@ -15,6 +16,13 @@ type Screen = 'title' | 'setup' | 'game' | 'stats';
 const VALID_MODES: GameMode[] = ['reading', 'recall'];
 const VALID_POOLS: PoolId[] = ['n5', 'n4', 'n3', 'n2', 'mixed'];
 
+/**
+ * Replays never introduce anything, so this always replaces whatever notice
+ * the original run was showing (item 4: planNotice must never go stale
+ * across a replay by silently inheriting the previous run's message).
+ */
+const REPLAY_NOTICE = 'Replay — review only, no new words this run.';
+
 function runFromUrl(): { mode: GameMode; pool: PoolId } | null {
   const params = new URLSearchParams(window.location.search);
   const mode = params.get('mode') as GameMode | null;
@@ -25,12 +33,24 @@ function runFromUrl(): { mode: GameMode; pool: PoolId } | null {
   return null;
 }
 
-/** What to tell the player about this run's new-word situation (spec §3.2, §7). */
-function noticeFor(plan: EnginePlan | null): string | null {
-  if (plan === null) return 'Word introductions need the server — playing without them.';
-  if (plan.runBudget > 0) return null;
-  if (plan.newCardIds.length === 0) return null;
-  return "Today's new words are done — this run is review.";
+/**
+ * A zero-budget plan whose newCardIds is still the ORIGINAL run's list of
+ * genuinely-unmet cards. Used for both replay paths (onPlayAgain, onRevenge)
+ * instead of `null`: Spawner keys its newPool/seenPool split entirely off
+ * `plan.newCardIds` (src/engine/Spawner.ts), so a null/empty plan makes it
+ * treat every card as already seen, including ones the player has truly
+ * never met. That silently spawns them with no ceremony - and the server
+ * marks a card seen the instant it gets an attempt, with no way back, so
+ * this destroys that word's acquisition moment forever (the CRITICAL replay
+ * bug this type guards against).
+ *
+ * Naming the original newCardIds here (with zero budget/cap) keeps those
+ * cards correctly parked in the un-introduced pool - unreachable unless the
+ * seen pool is itself empty (Spawner's documented starved-pool fallback,
+ * which is the one case where a replay pool can't avoid it either).
+ */
+function replayPlan(newCardIds: readonly string[]): EnginePlan {
+  return { newCardIds, runBudget: 0, perWaveNewCap: 0 };
 }
 
 export default function App() {
@@ -39,13 +59,28 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const lastRunRef =
     useRef<{ mode: GameMode; cards: Card[]; listVersion: string; pool: string } | null>(null);
+  // The plan the CURRENT run was actually started with (fresh fetch only -
+  // replays never overwrite this), so a replay can still name the original
+  // run's genuinely-unmet cards even though it hands the engine zero budget.
+  const lastPlanRef = useRef<EnginePlan | null>(null);
   const recorderRef = useRef<RunRecorder | null>(null);
   const [planNotice, setPlanNotice] = useState<string | null>(null);
   const { snapshot, hostRef, start, resume, introCards } = useEngine();
 
+  // The sole place planNotice is set, for fresh starts and both replay paths
+  // alike - so it's always recomputed for what's actually happening now and
+  // can never keep showing a previous run's stale notice (item 4).
   const beginRun = useCallback(
-    (mode: GameMode, cards: Card[], listVersion: string, pool: string, plan: EnginePlan | null) => {
+    (
+      mode: GameMode,
+      cards: Card[],
+      listVersion: string,
+      pool: string,
+      plan: EnginePlan | null,
+      notice: string | null,
+    ) => {
       lastRunRef.current = { mode, cards, listVersion, pool };
+      setPlanNotice(notice);
       const recorder = new RunRecorder({ runId: crypto.randomUUID(), mode, pool, cards, listVersion });
       recorderRef.current = recorder;
       start({
@@ -60,9 +95,11 @@ export default function App() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [{ cards, listVersion }, plan] = await Promise.all([loadPool(pool), fetchRunPlan(pool)]);
-      setPlanNotice(noticeFor(plan));
-      beginRun(mode, cards, listVersion, pool, plan);
+      const [{ cards, listVersion }, fetched] = await Promise.all([loadPool(pool), fetchRunPlan(pool)]);
+      const plan = fetched === null ? null : toEnginePlan(fetched);
+      lastPlanRef.current = plan;
+      const notice = noticeFor(plan, fetched !== null && fetched.seenCardIds.length === 0);
+      beginRun(mode, cards, listVersion, pool, plan, notice);
     } catch (error: unknown) {
       setLoadError(error instanceof DataLoadError ? error.message : 'unexpected load failure');
     } finally {
@@ -100,14 +137,33 @@ export default function App() {
         onIntroduced={(cardId) => recorderRef.current?.recordIntroduction(cardId)}
         onIntroComplete={resume}
         onRevenge={(missed) => lastRunRef.current
-          && beginRun(lastRunRef.current.mode, missed, lastRunRef.current.listVersion, 'revenge', null)}
+          && beginRun(
+            lastRunRef.current.mode,
+            missed,
+            lastRunRef.current.listVersion,
+            'revenge',
+            // Revenge's cards are always previously-missed, hence attempted,
+            // hence already seen server-side - so in practice this is a
+            // no-op. Applied anyway so both replay paths are identical and
+            // neither can silently un-introduce a fresh card if that
+            // invariant about missed cards ever stops holding (see
+            // replayPlan's doc comment for the failure this guards against).
+            replayPlan(lastPlanRef.current?.newCardIds ?? []),
+            REPLAY_NOTICE,
+          )}
         onPlayAgain={() => lastRunRef.current
           && beginRun(
             lastRunRef.current.mode,
             lastRunRef.current.cards,
             lastRunRef.current.listVersion,
             lastRunRef.current.pool,
-            null,
+            // lastRunRef.current.cards is the ENTIRE loaded pool (hundreds
+            // of cards), most never attempted server-side. See replayPlan's
+            // doc comment: this is the fix for the CRITICAL "Play again"
+            // bug, where a null plan let un-introduced cards spawn and burn
+            // their acquisition moment forever.
+            replayPlan(lastPlanRef.current?.newCardIds ?? []),
+            REPLAY_NOTICE,
           )}
         onTitle={() => setScreen('title')}
       />

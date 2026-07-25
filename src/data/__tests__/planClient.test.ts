@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchRunPlan } from '../planClient';
+import { fetchRunPlan, toEnginePlan } from '../planClient';
 
 const ok = (body: unknown) =>
   ({ ok: true, status: 200, json: () => Promise.resolve(body) }) as Response;
@@ -23,7 +23,17 @@ describe('fetchRunPlan', () => {
     expect(plan!.newCardIds).toEqual(['a', 'b']);
     expect(plan!.runBudget).toBe(4);
     expect(plan!.perWaveNewCap).toBeGreaterThan(0);
+    // Carried through (not discarded) so the UI can tell a starved pool with
+    // history from one that has never been touched at all (spec §3.2, §7) -
+    // but kept off the engine-facing shape below.
+    expect(plan!.seenCardIds).toEqual(['c']);
     expect(fetchMock).toHaveBeenCalledWith('/api/plan?pool=n5');
+  });
+
+  it('toEnginePlan narrows away seenCardIds', () => {
+    const engine = toEnginePlan({ newCardIds: ['a'], seenCardIds: ['b'], runBudget: 1, perWaveNewCap: 2 });
+    expect(engine).toEqual({ newCardIds: ['a'], runBudget: 1, perWaveNewCap: 2 });
+    expect(engine).not.toHaveProperty('seenCardIds');
   });
 
   it('returns null when the server is unreachable', async () => {

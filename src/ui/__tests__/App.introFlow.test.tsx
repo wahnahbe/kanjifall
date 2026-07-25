@@ -49,15 +49,31 @@ describe('App plan wiring', () => {
       ),
     );
 
-    render(<App />);
-    await waitFor(() => expect(screen.getByTestId('plan-notice')).toHaveTextContent(/need the server/i));
+    const { rerender } = render(<App />);
 
     // Nothing to introduce: the real AcquisitionCeremony (not mocked) never
     // renders for an empty card list, and its onComplete (wired to resume)
     // fires immediately — proving App's wiring doesn't get stuck behind an
     // empty ceremony when the plan is unavailable.
     expect(screen.queryByTestId('ceremony')).toBeNull();
-    expect(resume).toHaveBeenCalled();
+    // Awaited, not a bare expect: setPlanNotice and setScreen batch into one
+    // commit, so the notice above lands together with the ceremony's mount —
+    // but onComplete runs in that commit's passive effects, which React
+    // schedules as a setImmediate, while waitFor only hands back after a
+    // setTimeout(0). Node's timers phase beats its check phase whenever ~1ms
+    // of jitter intervenes, so a bare expect read resume one task too early
+    // and failed ~1 run in 12.
+    await waitFor(() => expect(resume).toHaveBeenCalled());
+
+    // GameScreen gates plan-notice on status === 'playing' (it must not sit
+    // under the ceremony/results overlays — see GameScreen.planNotice.test.tsx
+    // for that contract directly). useEngine is fully mocked here, so the
+    // real engine never actually flips this; we simulate the transition
+    // resume() would have driven, to prove the notice is what a player
+    // reaches once play resumes, not merely present somewhere in the tree.
+    mockSnapshot = snap({ status: 'playing' });
+    rerender(<App />);
+    await waitFor(() => expect(screen.getByTestId('plan-notice')).toHaveTextContent(/need the server/i));
 
     vi.unstubAllGlobals();
   });
