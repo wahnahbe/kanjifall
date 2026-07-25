@@ -137,17 +137,42 @@ interface Hook {
   en: string;
 }
 
+interface SentenceIndex {
+  standalone: Map<string, Hook>;
+  embedded: Map<string, Hook>;
+}
+
+const KANJI_RANGE = /[\u4e00-\u9fff\u3400-\u4dbf]/;
+
 /**
- * Shortest qualifying Tatoeba sentence per search key.
+ * A key's occurrence at index `i` (length `len`) is standalone when neither
+ * neighbouring character is a kanji. Kana neighbours are fine — particles and
+ * okurigana — but another kanji means the key is embedded inside a larger,
+ * unrelated compound (e.g. 本 inside 本当). Standalone occurrences teach the
+ * word's own meaning; embedded ones teach the compound's instead.
+ */
+function isStandaloneOccurrence(ja: string, i: number, len: number): boolean {
+  const before = i > 0 ? ja[i - 1] : undefined;
+  const after = i + len < ja.length ? ja[i + len] : undefined;
+  return (
+    (before === undefined || !KANJI_RANGE.test(before)) &&
+    (after === undefined || !KANJI_RANGE.test(after))
+  );
+}
+
+/**
+ * Shortest qualifying Tatoeba sentence per search key, split into standalone
+ * and embedded candidates so callers can prefer standalone (see attachHooks).
  * Inverted index: for each sentence, probe every substring up to the longest
  * card key against the key set — O(sentences × length × maxKeyLen) rather than
  * O(cards × sentences).
  */
-function buildSentenceIndex(keys: Set<string>): Map<string, Hook> {
+function buildSentenceIndex(keys: Set<string>): SentenceIndex {
   let maxKeyLen = 1;
   for (const key of keys) maxKeyLen = Math.max(maxKeyLen, key.length);
 
-  const best = new Map<string, Hook>();
+  const standalone = new Map<string, Hook>();
+  const embedded = new Map<string, Hook>();
   const raw = readFileSync(join(RAW_DIR, 'tatoeba-jpn-eng.tsv'), 'utf8');
   for (const line of raw.split('\n')) {
     const parts = line.split('\t');
@@ -156,20 +181,31 @@ function buildSentenceIndex(keys: Set<string>): Map<string, Hook> {
     const ja = parts[1].trim();
     if (ja.length === 0 || ja.length > SENTENCE_MAX_JA || en.length === 0) continue;
 
-    const seenHere = new Set<string>();
+    // Per candidate seen in this sentence: has a standalone occurrence
+    // already been recorded (nothing left to learn), or only an embedded one
+    // so far (a later standalone occurrence of the same key can still
+    // upgrade it)?
+    const seenHere = new Map<string, boolean>();
     for (let i = 0; i < ja.length; i++) {
       for (let len = 1; len <= maxKeyLen && i + len <= ja.length; len++) {
         const candidate = ja.slice(i, i + len);
-        if (!keys.has(candidate) || seenHere.has(candidate)) continue;
-        seenHere.add(candidate);
-        const current = best.get(candidate);
+        if (!keys.has(candidate)) continue;
+        const already = seenHere.get(candidate);
+        if (already === true) continue;
+
+        const standaloneHere = isStandaloneOccurrence(ja, i, len);
+        if (already === false && !standaloneHere) continue;
+        seenHere.set(candidate, standaloneHere);
+
+        const target = standaloneHere ? standalone : embedded;
+        const current = target.get(candidate);
         if (current === undefined || ja.length < current.ja.length) {
-          best.set(candidate, { ja, en });
+          target.set(candidate, { ja, en });
         }
       }
     }
   }
-  return best;
+  return { standalone, embedded };
 }
 
 /** Primary English meaning per kanji, only for characters the corpus uses. */
@@ -195,8 +231,6 @@ function buildKanjiMeanings(used: Set<string>): Map<string, string> {
   return meanings;
 }
 
-const KANJI_RANGE = /[\u4e00-\u9fff\u3400-\u4dbf]/;
-
 /** Attaches sentence + kanjiParts in place. Both fields stay optional. */
 function attachHooks(cardsByLevel: Map<2 | 3 | 4 | 5, Card[]>): void {
   const all = [...cardsByLevel.values()].flat();
@@ -208,16 +242,21 @@ function attachHooks(cardsByLevel: Map<2 | 3 | 4 | 5, Card[]>): void {
     for (const ch of card.kanji ?? '') if (KANJI_RANGE.test(ch)) usedKanji.add(ch);
   }
 
-  const sentences = buildSentenceIndex(keys);
+  const { standalone, embedded } = buildSentenceIndex(keys);
   const meanings = buildKanjiMeanings(usedKanji);
 
   let withSentence = 0;
+  let standaloneCount = 0;
+  let embeddedCount = 0;
   let withParts = 0;
   for (const card of all) {
-    const hook = sentences.get(card.kanji ?? card.kana[0]);
+    const key = card.kanji ?? card.kana[0];
+    const hook = standalone.get(key) ?? embedded.get(key);
     if (hook) {
       card.sentence = hook;
       withSentence += 1;
+      if (standalone.has(key)) standaloneCount += 1;
+      else embeddedCount += 1;
     }
     if (card.kanji !== null) {
       const parts = [...card.kanji]
@@ -230,7 +269,9 @@ function attachHooks(cardsByLevel: Map<2 | 3 | 4 | 5, Card[]>): void {
       }
     }
   }
-  console.log(`hooks: ${withSentence}/${all.length} sentences, ${withParts} cards with kanji parts`);
+  console.log(
+    `hooks: ${withSentence}/${all.length} sentences (${standaloneCount} standalone, ${embeddedCount} embedded), ${withParts} cards with kanji parts`,
+  );
 }
 
 function main(): void {
