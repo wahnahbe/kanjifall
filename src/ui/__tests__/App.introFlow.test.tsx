@@ -26,9 +26,16 @@ const snap = (over: Partial<EngineSnapshot>): EngineSnapshot => ({
 });
 
 describe('App plan wiring', () => {
-  it('shows the ceremony for the wave’s new cards, and the notice when the server is absent', async () => {
+  it('shows the server-absent notice and completes an empty ceremony without blocking play', async () => {
     window.history.pushState({}, '', '/?mode=reading&pool=n5');
-    mockIntroCards = [card('a')];
+    // A failed /api/plan fetch means fetchRunPlan resolves null, and the real
+    // engine/Spawner turn a null plan into an empty newCards on every wave
+    // (see useEngine.waves.test.tsx and waveIntroSeam.test.tsx, which drive
+    // the real hook) — so the only introCards value that can genuinely
+    // co-occur with a failed fetch is empty. Anything else, with useEngine
+    // mocked, would just be GameScreen rendering whatever it's handed —
+    // proving nothing about the plan-fetch-failure path specifically.
+    mockIntroCards = [];
     mockSnapshot = snap({});
     vi.stubGlobal(
       'fetch',
@@ -43,8 +50,15 @@ describe('App plan wiring', () => {
     );
 
     render(<App />);
-    await screen.findByTestId('ceremony');
     await waitFor(() => expect(screen.getByTestId('plan-notice')).toHaveTextContent(/need the server/i));
+
+    // Nothing to introduce: the real AcquisitionCeremony (not mocked) never
+    // renders for an empty card list, and its onComplete (wired to resume)
+    // fires immediately — proving App's wiring doesn't get stuck behind an
+    // empty ceremony when the plan is unavailable.
+    expect(screen.queryByTestId('ceremony')).toBeNull();
+    expect(resume).toHaveBeenCalled();
+
     vi.unstubAllGlobals();
   });
 });

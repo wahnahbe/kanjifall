@@ -99,8 +99,16 @@ export function useEngine() {
     };
 
     const onKey = (e: KeyboardEvent) => {
-      const status = snapshotRef.current.status;
-      if (status !== 'playing' && status !== 'waveIntro') return;
+      // waveIntro is deliberately excluded: AcquisitionCeremony owns its own
+      // window keydown listener while a ceremony is showing, and the two
+      // listeners are siblings on the same target — preventDefault() cannot
+      // stop the other from firing. Forwarding Enter to the engine here used
+      // to race the ceremony's own Enter handling and resume the engine out
+      // from under it (a wrong-reading Enter, or an Enter meant for an
+      // earlier card, would end the pause before every new card had its
+      // ceremony). The ceremony calls resume() itself via onComplete once
+      // it's actually done, so the engine only needs keys while 'playing'.
+      if (snapshotRef.current.status !== 'playing') return;
       if (!isGameKey(e)) return;
       e.preventDefault();
       engine.handleKey(e.key);

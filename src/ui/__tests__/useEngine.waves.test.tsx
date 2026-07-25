@@ -53,7 +53,11 @@ describe('useEngine wave transitions (the wave-2 intro seam)', () => {
     expect(result.current.introCards).toHaveLength(1);
     const firstReading = result.current.introCards[0].kana[0];
 
-    act(() => pressKeys(['Enter'])); // dismiss intro → engine resumes
+    // useEngine no longer forwards keys to the engine during waveIntro (the
+    // ceremony owns that seam); in production AcquisitionCeremony's
+    // onComplete calls resume() once every new card has had its turn, so
+    // simulate that directly rather than pressing Enter.
+    act(() => { result.current.resume(); });
     await waitFor(() => expect(result.current.snapshot.status).toBe('playing'), { timeout: 3000 });
 
     // Kill the wave's single word once it spawns, typed via real key events.

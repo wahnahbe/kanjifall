@@ -96,6 +96,11 @@ export class GameEngine {
   }
 
   handleKey(key: string): void {
+    // Legitimate engine-level API, pinned by GameEngine.test.ts — but the UI
+    // no longer routes keydown here during waveIntro (src/ui/useEngine.ts
+    // only forwards keys once status is 'playing'). AcquisitionCeremony owns
+    // the paused state and calls resume() directly once every new card has
+    // had its ceremony; this branch stays reachable for any non-UI caller.
     if (this.status === 'waveIntro') {
       if (key === 'Enter') this.resume();
       return;
