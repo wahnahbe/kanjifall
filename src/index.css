@@ -72,3 +72,26 @@ button:hover { background: #24304a; }
   align-items: center; max-width: 24rem;
 }
 .profile-form button { grid-column: 1 / -1; justify-self: start; }
+
+.ceremony { gap: 0.35rem; }
+.ceremony-label { color: #7fdfff; letter-spacing: 0.25em; text-transform: uppercase; font-size: 0.75rem; }
+.ceremony-word { font-size: 4rem; line-height: 1.1; animation: ceremony-arrive 320ms ease-out; }
+.ceremony-reading { font-size: 1.5rem; color: #7fdfff; }
+.ceremony-gloss { font-size: 1.15rem; }
+.ceremony-parts { color: #bfd4ff; font-size: 0.95rem; }
+.ceremony-sentence { margin-top: 0.5rem; text-align: center; max-width: 32rem; }
+.ceremony-sentence-ja { font-size: 1.2rem; }
+.ceremony-sentence-en { color: #8b98b8; font-size: 0.95rem; }
+.ceremony-buffer { font-size: 2rem; color: #7fdfff; min-height: 2.6rem; }
+.ceremony-buffer.rejected { color: #ff8f8f; animation: ceremony-shake 220ms ease-in-out; }
+.ceremony-credit { color: #55617d; font-size: 0.7rem; margin-top: 0.75rem; }
+
+@keyframes ceremony-arrive {
+  from { transform: scale(0.82); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes ceremony-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
