@@ -16,7 +16,7 @@ vi.mock('../useEngine', () => ({
 import App from '../../App';
 
 const card = (id: string): Card => ({
-  id, kanji: '字', kana: ['かな'], gloss: 'g', pos: 'n', jlpt: 5, source: 'jlpt',
+  id, kanji: '字', kana: ['かな'], gloss: 'g', pos: 'n', jlpt: 5, source: 'jlpt', tier: 1,
 });
 
 const snap = (over: Partial<EngineSnapshot>): EngineSnapshot => ({

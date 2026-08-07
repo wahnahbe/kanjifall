@@ -162,4 +162,39 @@ describe('generated JLPT data invariants', () => {
     expect(withSentence / all.length).toBeGreaterThan(0.25);
     expect(withParts / kanjiCards.length).toBeGreaterThan(0.9);
   });
+
+  it('every card carries a contiguous 1-based tier; all tiers full at 10 except each level\'s last', () => {
+    for (const [level, file] of files) {
+      const byTier = new Map<number, number>();
+      for (const card of file.cards) {
+        expect(Number.isInteger(card.tier), card.id).toBe(true);
+        expect(card.tier, card.id).toBeGreaterThanOrEqual(1);
+        byTier.set(card.tier, (byTier.get(card.tier) ?? 0) + 1);
+      }
+      const totalTiers = Math.max(...byTier.keys());
+      expect(byTier.size, `N${level} tiers contiguous from 1`).toBe(totalTiers);
+      expect(totalTiers, `N${level}`).toBe(Math.ceil(file.cards.length / 10));
+      for (let t = 1; t <= totalTiers; t++) {
+        const size = byTier.get(t) ?? 0;
+        if (t < totalTiers) expect(size, `N${level} tier ${t}`).toBe(10);
+        else {
+          expect(size, `N${level} last tier`).toBeGreaterThanOrEqual(1);
+          expect(size, `N${level} last tier`).toBeLessThanOrEqual(10);
+        }
+      }
+    }
+  });
+
+  it('tier order tracks corpus frequency: no sentence-less card outranks a card with a sentence', () => {
+    // A card has a sentence iff its key appeared in >=1 qualifying Tatoeba
+    // sentence, i.e. iff its count is nonzero — so every with-sentence card
+    // must rank at or above every without-sentence card. The boundary tier
+    // may contain both, hence <= rather than <.
+    for (const [level, file] of files) {
+      const withS = file.cards.filter((c) => c.sentence).map((c) => c.tier);
+      const withoutS = file.cards.filter((c) => !c.sentence).map((c) => c.tier);
+      if (withS.length === 0 || withoutS.length === 0) continue;
+      expect(Math.max(...withS), `N${level}`).toBeLessThanOrEqual(Math.min(...withoutS));
+    }
+  });
 });

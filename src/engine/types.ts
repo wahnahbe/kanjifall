@@ -5,6 +5,10 @@ export interface Card {
   gloss: string;
   pos: string;
   jlpt: 5 | 4 | 3 | 2 | null; // null for custom cards (M2+)
+  /** Frequency tier within the card's own JLPT level, 1-based (spec §3.1 of
+   *  the tiered-vocabulary spec). Stamped by the build pipeline; absent for
+   *  custom cards. The engine itself never reads it. */
+  tier?: number;
   source: 'jlpt' | 'custom';
   sentence?: { ja: string; en: string };
   kanjiParts?: { char: string; meaning: string }[];

@@ -10,10 +10,11 @@ import { join } from 'node:path';
 import { isKana } from 'wanakana';
 import { levelFileSchema } from '../src/data/schema.ts';
 import type { Card } from '../src/engine/types.ts';
+import { PLAN } from '../server/planConfig.ts';
 
 const RAW_DIR = 'data/raw';
 const OUT_DIR = 'public/data';
-const LIST_VERSION = 'jlpt-tanos-jmdict-3.6.2-v1';
+const LIST_VERSION = 'jlpt-tanos-jmdict-3.6.2-v2';
 const GLOSS_MAX = 28;
 const MIN_MATCH_RATE = 0.85;
 const LEVEL_BY_TAG: Record<string, 2 | 3 | 4 | 5> = { N5: 5, N4: 4, N3: 3, N2: 2 };
@@ -21,10 +22,10 @@ const LEVEL_BY_TAG: Record<string, 2 | 3 | 4 | 5> = { N5: 5, N4: 4, N3: 3, N2: 2
 type MetaEntry = [string, string, { reading: string; frequency: { displayValue: string } }];
 interface JlptEntry { term: string; reading: string; level: 2 | 3 | 4 | 5 }
 
-interface JmdictKana { text: string; appliesToKanji: string[] }
+interface JmdictKana { text: string; appliesToKanji: string[]; common: boolean }
 interface JmdictGloss { lang: string; text: string }
 interface JmdictSense { partOfSpeech: string[]; appliesToKanji: string[]; gloss: JmdictGloss[] }
-interface JmdictWord { id: string; kanji: { text: string }[]; kana: JmdictKana[]; sense: JmdictSense[] }
+interface JmdictWord { id: string; kanji: { text: string; common: boolean }[]; kana: JmdictKana[]; sense: JmdictSense[] }
 
 function readJlptEntries(): JlptEntry[] {
   const byKey = new Map<string, JlptEntry>();
@@ -140,6 +141,9 @@ interface Hook {
 interface SentenceIndex {
   standalone: Map<string, Hook>;
   embedded: Map<string, Hook>;
+  /** Qualifying sentences containing the key (standalone OR embedded),
+   *  counted once per sentence — the corpus frequency the ranking uses. */
+  counts: Map<string, number>;
 }
 
 const KANJI_RANGE = /[\u4e00-\u9fff\u3400-\u4dbf]/;
@@ -173,6 +177,7 @@ function buildSentenceIndex(keys: Set<string>): SentenceIndex {
 
   const standalone = new Map<string, Hook>();
   const embedded = new Map<string, Hook>();
+  const counts = new Map<string, number>();
   const raw = readFileSync(join(RAW_DIR, 'tatoeba-jpn-eng.tsv'), 'utf8');
   for (const line of raw.split('\n')) {
     const parts = line.split('\t');
@@ -193,6 +198,8 @@ function buildSentenceIndex(keys: Set<string>): SentenceIndex {
         const already = seenHere.get(candidate);
         if (already === true) continue;
 
+        if (already === undefined) counts.set(candidate, (counts.get(candidate) ?? 0) + 1);
+
         const standaloneHere = isStandaloneOccurrence(ja, i, len);
         if (already === false && !standaloneHere) continue;
         seenHere.set(candidate, standaloneHere);
@@ -205,7 +212,7 @@ function buildSentenceIndex(keys: Set<string>): SentenceIndex {
       }
     }
   }
-  return { standalone, embedded };
+  return { standalone, embedded, counts };
 }
 
 /** Primary English meaning per kanji, only for characters the corpus uses. */
@@ -231,8 +238,9 @@ function buildKanjiMeanings(used: Set<string>): Map<string, string> {
   return meanings;
 }
 
-/** Attaches sentence + kanjiParts in place. Both fields stay optional. */
-function attachHooks(cardsByLevel: Map<2 | 3 | 4 | 5, Card[]>): void {
+/** Attaches sentence + kanjiParts in place. Both fields stay optional.
+ *  Returns the per-key sentence counts for tier ranking (§5.1). */
+function attachHooks(cardsByLevel: Map<2 | 3 | 4 | 5, Card[]>): Map<string, number> {
   const all = [...cardsByLevel.values()].flat();
 
   const keys = new Set<string>();
@@ -242,7 +250,7 @@ function attachHooks(cardsByLevel: Map<2 | 3 | 4 | 5, Card[]>): void {
     for (const ch of card.kanji ?? '') if (KANJI_RANGE.test(ch)) usedKanji.add(ch);
   }
 
-  const { standalone, embedded } = buildSentenceIndex(keys);
+  const { standalone, embedded, counts } = buildSentenceIndex(keys);
   const meanings = buildKanjiMeanings(usedKanji);
 
   let withSentence = 0;
@@ -272,6 +280,36 @@ function attachHooks(cardsByLevel: Map<2 | 3 | 4 | 5, Card[]>): void {
   console.log(
     `hooks: ${withSentence}/${all.length} sentences (${standaloneCount} standalone, ${embeddedCount} embedded), ${withParts} cards with kanji parts`,
   );
+  return counts;
+}
+
+/**
+ * Ranks each level descending by (sentence count, jmdict common flag, id) —
+ * a TOTAL key, so two builds of identical inputs produce byte-identical
+ * tiers — and stamps tier = floor(rank / tierSize) + 1 over the 0-based
+ * rank. The common tiebreak exists for the tail: N2 leaves ~640 cards tied
+ * at zero count, and `common` splits them meaningfully instead of collapsing
+ * to arbitrary id order (§5.1).
+ */
+function assignTiers(
+  cardsByLevel: Map<2 | 3 | 4 | 5, Card[]>,
+  counts: Map<string, number>,
+  commonById: Map<string, boolean>,
+): void {
+  for (const cards of cardsByLevel.values()) {
+    const ranked = [...cards].sort((a, b) => {
+      const countDiff =
+        (counts.get(b.kanji ?? b.kana[0]) ?? 0) - (counts.get(a.kanji ?? a.kana[0]) ?? 0);
+      if (countDiff !== 0) return countDiff;
+      const commonDiff =
+        Number(commonById.get(b.id) ?? false) - Number(commonById.get(a.id) ?? false);
+      if (commonDiff !== 0) return commonDiff;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
+    ranked.forEach((card, rank) => {
+      card.tier = Math.floor(rank / PLAN.tierSize) + 1;
+    });
+  }
 }
 
 function main(): void {
@@ -281,6 +319,7 @@ function main(): void {
 
   const cardsByLevel = new Map<2 | 3 | 4 | 5, Card[]>([[5, []], [4, []], [3, []], [2, []]]);
   const cardById = new Map<string, Card>();
+  const commonById = new Map<string, boolean>();
   const unmatched: JlptEntry[] = [];
   const mergedReadings: string[] = [];
   let duplicatesSkipped = 0;
@@ -314,6 +353,12 @@ function main(): void {
       continue;
     }
     cardById.set(card.id, card);
+    // word is non-null whenever card is: card is null either because word is
+    // null (ternary above) or because toCard(entry, word) returned null, and
+    // the latter already continued via the `card === null` branch above — so
+    // by construction word is non-null here. TS can't see the correlation
+    // across the two independently-typed variables, hence the assertion.
+    commonById.set(card.id, word!.kanji.some((k) => k.common) || word!.kana.some((k) => k.common));
     cardsByLevel.get(entry.level)!.push(card);
   }
 
@@ -321,7 +366,8 @@ function main(): void {
   const entryCounts = new Map<number, number>([[5, 0], [4, 0], [3, 0], [2, 0]]);
   for (const e of entries) entryCounts.set(e.level, (entryCounts.get(e.level) ?? 0) + 1);
 
-  attachHooks(cardsByLevel);
+  const counts = attachHooks(cardsByLevel);
+  assignTiers(cardsByLevel, counts, commonById);
 
   for (const [level, cards] of cardsByLevel) {
     const rate = cards.length / (entryCounts.get(level) || 1);

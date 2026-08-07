@@ -3,7 +3,7 @@ import type { Card } from '../../engine/types';
 import { clearDataCache, DataLoadError, loadPool, POOL_LABELS } from '../loader';
 
 const card = (id: string, jlpt: 5 | 4 | 3 | 2): Card => ({
-  id, kanji: '字', kana: ['かな'], gloss: 'g', pos: 'n', jlpt, source: 'jlpt',
+  id, kanji: '字', kana: ['かな'], gloss: 'g', pos: 'n', jlpt, source: 'jlpt', tier: 1,
 });
 
 const levelPayload = (level: 5 | 4 | 3 | 2, ids: string[]) => ({

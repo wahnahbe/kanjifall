@@ -8,6 +8,9 @@ export const cardSchema = z.object({
   gloss: z.string().min(1).max(28),
   pos: z.string().min(1),
   jlpt: z.union([z.literal(5), z.literal(4), z.literal(3), z.literal(2), z.null()]),
+  // Required, not optional: the pipeline guarantees it, and a missing tier
+  // should fail loudly at load rather than silently degrade the gate (§4.1).
+  tier: z.number().int().positive(),
   source: z.union([z.literal('jlpt'), z.literal('custom')]),
   sentence: z.object({ ja: z.string().min(1), en: z.string().min(1) }).optional(),
   kanjiParts: z.array(z.object({ char: z.string().min(1), meaning: z.string().min(1) })).optional(),
