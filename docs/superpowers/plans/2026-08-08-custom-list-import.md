@@ -356,11 +356,11 @@ export function parseListText(text: string, index: CardIndex): ParseResult {
         const listing = resolved.candidates
           .map((c) => `${c.kanji ?? c.kana[0]} (${c.gloss})`)
           .join(', ');
-        push({ status: 'error', error: `ambiguous — ${listing}; supply word\tkana\tgloss` });
+        push({ status: 'error', error: `ambiguous — ${listing}; supply word‹TAB›kana‹TAB›gloss` });
       } else {
         push({
           status: 'error',
-          error: 'not in the built-in N5–N2 data — supply word\tkana\tgloss',
+          error: 'not in the built-in N5–N2 data — supply word‹TAB›kana‹TAB›gloss',
         });
       }
       continue;
@@ -429,6 +429,8 @@ Expected: PASS. Then `npm run check` — green.
 git add server/listImport.ts server/__tests__/listImport.test.ts
 git commit -m "feat: pure list-import parser with index-backed resolution"
 ```
+
+(Amended after review: resolution must ALSO consult a paste-local overlay of the cards created earlier in the same paste — `resolveBare`/`resolveFull` take the union of index and overlay candidates, so a later bare word duplicating a full line's creation yields `duplicate of line N` instead of "not in the built-in data". The parser never mutates the caller's index. Error strings use the visible `‹TAB›` marker, never a literal tab control character, and the tests assert the visible form with `toContain`.)
 
 ---
 
