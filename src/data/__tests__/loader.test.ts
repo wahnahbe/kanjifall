@@ -165,4 +165,15 @@ describe('loadPool — list pools', () => {
     fetchMock.mockResolvedValue(fail(404));
     await expect(loadPool('list:9')).rejects.toBeInstanceOf(DataLoadError);
   });
+
+  it('a level-file failure during hydration is re-tagged with the list pool', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      const u = String(url);
+      if (u === '/api/lists/3/cards') return Promise.resolve(ok(listBody(['w5'])));
+      return Promise.resolve(fail(500)); // every level file fails (and retries fail too)
+    });
+    const error = await loadPool('list:3').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(DataLoadError);
+    expect((error as DataLoadError).level).toBe('list:3');
+  });
 });

@@ -101,7 +101,6 @@ async function loadListPool(pool: ListPoolId): Promise<LoadedPool> {
       listVersion: `list-${body.list.id}@${body.list.updatedAt}`,
     };
   } catch (error: unknown) {
-    if (error instanceof DataLoadError) throw error;
     throw new DataLoadError(pool, error);
   }
 }
