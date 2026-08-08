@@ -170,6 +170,16 @@ export default function App() {
     try {
       const [{ cards, listVersion }, fetched] =
         await Promise.all([loadPool(pool), fetchRunPlan(pool, mode)]);
+      // A zero-card pool would loop wave-cleared forever in the engine, same
+      // failure mode as the all-kana reading case just below it — reachable
+      // via a custom list whose only members are jlpt ids the loader
+      // couldn't resolve (custom-list-import spec §5.4, final-review fix 2).
+      // Checked before the reading-only guard below because it can happen in
+      // EITHER mode, not just reading.
+      if (cards.length === 0) {
+        setLoadError('This list has no playable words.');
+        return;
+      }
       if (mode === 'reading' && cards.every((c) => c.kanji === null)) {
         // An empty reading pool would loop wave-cleared forever in the
         // engine — reachable only via all-kana custom lists, so block it

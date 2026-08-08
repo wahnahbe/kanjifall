@@ -10,6 +10,8 @@ afterEach(() => vi.unstubAllGlobals());
 
 const ok = (body: unknown) =>
   ({ ok: true, status: 200, json: () => Promise.resolve(body) }) as Response;
+const failed = (status: number, body: unknown) =>
+  ({ ok: false, status, json: () => Promise.resolve(body) }) as Response;
 
 describe('listsClient', () => {
   it('fetchLists parses summaries and nulls on failure', async () => {
@@ -24,15 +26,27 @@ describe('listsClient', () => {
       lines: [{ line: 1, raw: '犬', status: 'jlpt', cardId: 'jm-1' }],
       summary: { total: 1, resolved: 1, customNew: 0, errors: 0 },
     }));
-    const preview = await previewList('犬');
-    expect(preview?.summary.resolved).toBe(1);
+    const result = await previewList('犬');
+    if (!result.ok) throw new Error('expected previewList to succeed');
+    expect(result.value.summary.resolved).toBe(1);
     const [url, init] = fetchMock.mock.calls[0];
     expect(String(url)).toBe('/api/lists/preview');
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({ text: '犬' });
   });
 
-  it('saveList returns null on a 400 so the screen can show its own error', async () => {
-    fetchMock.mockResolvedValueOnce({ ok: false, status: 400, json: () => Promise.resolve({}) } as Response);
-    expect(await saveList('x', 'bad')).toBeNull();
+  it('saveList falls back to a generic message on a 400 with no error body', async () => {
+    fetchMock.mockResolvedValueOnce(failed(400, {}));
+    expect(await saveList('x', 'bad')).toEqual({
+      ok: false, message: 'Request failed — is the server running?',
+    });
+  });
+
+  // Final-review fix 1: a 400 the server explains (e.g. a caps rejection)
+  // must surface its own message instead of collapsing into the generic
+  // fallback above — that's what previously misdiagnosed a caps rejection as
+  // "is the server running?".
+  it('previewList surfaces the error message the server sent on a 400', async () => {
+    fetchMock.mockResolvedValueOnce(failed(400, { error: 'too many lines (max 1000)' }));
+    expect(await previewList('x')).toEqual({ ok: false, message: 'too many lines (max 1000)' });
   });
 });

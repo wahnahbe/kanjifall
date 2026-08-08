@@ -116,19 +116,26 @@ test('import a list and play it: ceremony, kill, persistence', async ({ page }) 
   // Back on setup with the new list preselected; reading mode is the default.
   await expect(page.getByTestId('setup')).toBeVisible();
 
-  // The reading-mode plan must offer exactly the resolved built-in card; the
-  // kana-only custom is mode-unreachable and must be absent — this is the
-  // assertion that turns red if the exclusion ever regresses. (Without it,
-  // clearCeremony would simply type through however many cards appear and
-  // the closing poll only checks seenCards.length > 0, so a regression here
-  // would stay silently green.) listId is fetched once, here, and reused
-  // below for the persistence poll rather than fetched twice.
+  // The reading-mode plan must never offer the kana-only custom — it's
+  // mode-unreachable (computeListRunPlan, server/plan.ts, excludes it
+  // outright while unmet, and moves it to seenCards rather than newCardIds
+  // once met) — so `every` below turns red if that exclusion ever regresses,
+  // regardless of how many ids are present. (Without it, clearCeremony would
+  // simply type through however many cards appear and the closing poll only
+  // checks seenCards.length > 0, so a regression here would stay silently
+  // green.) The length check is a non-triviality floor, not a structural
+  // guarantee — list pools carry no tier gate at all (computeListRunPlan
+  // always returns tiers: []), so nothing here turns on tier assignments; it
+  // only assumes 犬 hasn't already been met by another spec sharing the e2e
+  // DB, true here because global-setup.ts wipes that DB once at the very
+  // start of the run. listId is fetched once, here, and reused below for the
+  // persistence poll rather than fetched twice.
   const listId = ((await (await page.request.get('/api/lists')).json()) as { id: number }[])[0].id;
   const readingPlan = (await (
     await page.request.get(`/api/plan?pool=list:${listId}&mode=reading`)
   ).json()) as ListPlanResponse;
-  expect(readingPlan.newCardIds).toHaveLength(1);
-  expect(readingPlan.newCardIds[0]).not.toMatch(/^custom-/);
+  expect(readingPlan.newCardIds.every((id) => !id.startsWith('custom-'))).toBe(true);
+  expect(readingPlan.newCardIds.length).toBeGreaterThanOrEqual(1); // 犬 unmet on a fresh DB
 
   await page.getByTestId('begin-button').click();
 

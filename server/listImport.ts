@@ -112,7 +112,10 @@ function resolveBare(word: string, index: CardIndex, overlay?: { byKanji: Map<st
 /** Full lines resolve only on a UNIQUE match; any ambiguity creates instead —
  *  a full line carries everything needed to stand alone (spec §3.3 rule 5). */
 function resolveFull(word: string, kana: string, index: CardIndex, overlay?: { byKanji: Map<string, CardIndexEntry[]>; byKana: Map<string, CardIndexEntry[]> }): CardIndexEntry | null {
-  const kanaOnly = word === kana || isKana(word);
+  // kana is already validated pure-kana by the caller before this runs, so
+  // word === kana would imply isKana(word) anyway — isKana(word) alone
+  // covers both cases (final-review fix 7; behavior-neutral).
+  const kanaOnly = isKana(word);
   const candidates = kanaOnly
     ? [
       ...(index.byKana.get(kana) ?? []).filter((c) => c.kanji === null),

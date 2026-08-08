@@ -7,7 +7,7 @@ export const createRunSchema = z.object({
   id: z.uuid(),
   startedAt: z.number().int().positive(),
   mode: gameModeSchema,
-  pool: z.string().min(1), // n5|n4|n3|n2|mixed|revenge
+  pool: z.string().min(1), // n5|n4|n3|n2|mixed|revenge|list:<id>
   appVersion: z.string().min(1),
   listVersion: z.string().min(1),
 });
@@ -124,10 +124,12 @@ export const runPlanSchema = z.object({
 });
 export type RunPlan = z.infer<typeof runPlanSchema>;
 
-export const previewRequestSchema = z.object({ text: z.string().min(1) });
+export const previewRequestSchema = z.object({
+  text: z.string().min(1).max(250_000), // 1,000 lines × 200 chars + slack; caps proper still produce the friendly per-dimension messages
+});
 export const listSaveRequestSchema = z.object({
   name: z.string().trim().min(1).max(60),
-  text: z.string().min(1),
+  text: z.string().min(1).max(250_000), // 1,000 lines × 200 chars + slack; caps proper still produce the friendly per-dimension messages
 });
 
 export const parsedLineSchema = z.object({

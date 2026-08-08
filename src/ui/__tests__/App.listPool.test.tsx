@@ -96,4 +96,53 @@ describe('App list pools', () => {
     });
     expect(start).not.toHaveBeenCalled();
   });
+
+  // Final-review fix 2: the empty-pool guard must fire in EITHER mode, not
+  // just reading. This list's only jlpt member resolves to an id the level
+  // files don't contain, so loadListPool's byId lookup misses and skips it
+  // (src/data/loader.ts) — with no custom members either, the pool ends up
+  // genuinely empty. Mode is 'recall' specifically so this can't be mistaken
+  // for the reading×all-kana block above, which never even runs for recall.
+  it('blocks either mode on an empty list (all jlpt ids unknown, no customs) with the plain message', async () => {
+    window.history.pushState({}, '', '/?mode=recall&pool=list:9');
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      const u = String(url);
+      if (u === '/api/lists/9/cards') {
+        return Promise.resolve({
+          ok: true, status: 200,
+          json: () => Promise.resolve({
+            list: { id: 9, name: 'empty-list', updatedAt: 5 },
+            customCards: [],
+            jlptCardIds: ['jlpt-unknown-id'],
+          }),
+        } as Response);
+      }
+      if (u.includes('/api/plan')) {
+        return Promise.resolve({
+          ok: true, status: 200,
+          json: () => Promise.resolve({ newCardIds: [], seenCards: [], runBudget: 0, tiers: [] }),
+        } as Response);
+      }
+      // Same unconditional four-file hydration shortcut as the test above —
+      // this list's one jlpt id ('jlpt-unknown-id') doesn't match the dummy
+      // card either, so the loader skips it and the pool is genuinely empty.
+      if (u.includes('/data/jlpt-')) {
+        return Promise.resolve({
+          ok: true, status: 200,
+          json: () => Promise.resolve({
+            listVersion: 'v1', level: 5,
+            cards: [{ id: 'jlpt-dummy', kanji: '字', kana: ['じ'], gloss: 'x', pos: 'n', jlpt: 5, tier: 1, source: 'jlpt' }],
+          }),
+        } as Response);
+      }
+      return Promise.reject(new Error(`unhandled fetch: ${u}`));
+    }));
+    render(<App />);
+    await userEvent.click(screen.getByTestId('start-button'));
+    await waitFor(() => {
+      const el = screen.getByTestId('load-error');
+      expect(el.textContent).toBe('This list has no playable words.');
+    });
+    expect(start).not.toHaveBeenCalled();
+  });
 });

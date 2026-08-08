@@ -65,8 +65,12 @@ export function ImportScreen({ onSaved, onBack }: ImportScreenProps) {
     const result = await previewList(text);
     if (disposedRef.current) return;
     if (previewTokenRef.current === token) {
-      if (result === null) setError('Preview failed — is the server running?');
-      setPreview(result);
+      if (result.ok) {
+        setPreview(result.value);
+      } else {
+        setError(result.message);
+        setPreview(null);
+      }
     } // else: stale — the text changed since this request was sent, so its
       // result (success or failure) no longer describes what's on screen.
     setBusy(false);
@@ -75,14 +79,14 @@ export function ImportScreen({ onSaved, onBack }: ImportScreenProps) {
   const doSave = async () => {
     setBusy(true);
     setError(null);
-    const saved = await saveList(name.trim(), text);
+    const result = await saveList(name.trim(), text);
     if (disposedRef.current) return;
     setBusy(false);
-    if (saved === null) {
-      setError('Could not save the list — check the lines and try again.');
+    if (!result.ok) {
+      setError(result.message);
       return;
     }
-    onSaved({ id: saved.id, name: saved.name });
+    onSaved({ id: result.value.id, name: result.value.name });
   };
 
   return (
@@ -90,7 +94,7 @@ export function ImportScreen({ onSaved, onBack }: ImportScreenProps) {
       <h2>Import a word list</h2>
       <p className="hint">
         One word per line — bare words resolve against the built-in N5–N2 data;
-        anything else needs word&#9;kana&#9;gloss. Lines starting with # are ignored.
+        anything else needs word‹TAB›kana‹TAB›gloss (or comma-separated). Lines starting with # are ignored.
       </p>
       <label htmlFor="import-name">List name</label>
       <input

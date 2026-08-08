@@ -112,7 +112,30 @@ describe('ImportScreen', () => {
     await userEvent.click(screen.getByTestId('preview-button'));
     await waitFor(() => expect(screen.getByTestId('save-button')).toBeEnabled());
     await userEvent.click(screen.getByTestId('save-button'));
-    await waitFor(() => expect(screen.getByTestId('import-error')).toHaveTextContent(/could not save/i));
+    await waitFor(() =>
+      expect(screen.getByTestId('import-error')).toHaveTextContent('Request failed — is the server running?'),
+    );
+  });
+
+  // Final-review fix 1: a 400 the server explains (e.g. a caps rejection)
+  // must render its own message verbatim, not the generic fallback above —
+  // that's what previously misdiagnosed a caps rejection as "is the server
+  // running?".
+  it('a failed preview renders the error message from a 400 response body verbatim', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url) === '/api/lists/preview') {
+        return Promise.resolve({
+          ok: false, status: 400, json: () => Promise.resolve({ error: 'too many lines (max 1000)' }),
+        } as Response);
+      }
+      return Promise.reject(new Error(`unhandled fetch: ${url}`));
+    });
+    render(<ImportScreen onSaved={() => {}} onBack={() => {}} />);
+    await userEvent.type(screen.getByTestId('import-text'), '犬');
+    await userEvent.click(screen.getByTestId('preview-button'));
+    await waitFor(() => {
+      expect(screen.getByTestId('import-error').textContent).toBe('too many lines (max 1000)');
+    });
   });
 
   // The four tests above only ever exercise valid=1/skipped=1 (both
