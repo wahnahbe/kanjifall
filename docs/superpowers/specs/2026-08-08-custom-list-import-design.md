@@ -1,7 +1,7 @@
 # Custom List Import — Design Spec
 
 **Date:** 2026-08-08
-**Status:** Approved pending final user review
+**Status:** Implemented — see docs/superpowers/plans/2026-08-08-custom-list-import.md
 **Scope:** M4 sub-project B. Independent of C (the juice pass).
 **Amends:** main spec's file map (§4): `src/data/importParser.ts` is superseded by a server-side parser — resolution requires the DB (see §9)
 **Builds on:** `2026-07-24-word-introduction-v2-design.md` (M4-A) and `2026-07-27-tiered-vocabulary-design.md` (M4-D); list pools consume both

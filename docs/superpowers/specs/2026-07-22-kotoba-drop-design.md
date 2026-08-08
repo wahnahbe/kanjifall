@@ -112,7 +112,7 @@ kotoba-drop/
       types.ts            # Card, AirborneWord, GameEvent, ModeConfig
     data/
       loader.ts           # fetch per-level JSON chunks; schema-validate
-      importParser.ts     # TSV/CSV parsing with per-line errors
+      importParser.ts     # superseded: parsing lives server-side (server/listImport.ts) — see 2026-08-08-custom-list-import-design.md §9
       outbox.ts           # localStorage fallback queue for failed event flushes
     render/               # Pixi layer — dumb, event-driven, no game logic
       PixiStage.ts        # app init, resize, context-loss pause, font-ready gate
