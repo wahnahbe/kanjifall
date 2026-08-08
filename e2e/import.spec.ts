@@ -3,6 +3,7 @@ import { toRomaji } from 'wanakana';
 
 /** Shape of GET /api/plan?pool=list:<id> that this spec cares about (server/plan.ts). */
 interface ListPlanResponse {
+  newCardIds: string[];
   seenCards: { id: string }[];
 }
 
@@ -95,7 +96,8 @@ async function clearRestOfWave(page: Page): Promise<void> {
  *  against the bundled data, one full-line custom that cannot — then play it
  *  in reading mode: the resolved word gets its ceremony and an attempt lands
  *  (custom-list-import spec §8). The kana-only custom is deliberately
- *  unreachable in reading mode, exercising the mode-aware exclusion. */
+ *  unreachable in reading mode — hard-asserted against the mode-scoped plan
+ *  right after save, not just relied on implicitly via the ceremony. */
 test('import a list and play it: ceremony, kill, persistence', async ({ page }) => {
   // Clearing the rest of wave 1 (this list's single playable card, repeated
   // to fill the wave — see clearRestOfWave) plus the DB-flush poll below
@@ -113,10 +115,26 @@ test('import a list and play it: ceremony, kill, persistence', async ({ page }) 
 
   // Back on setup with the new list preselected; reading mode is the default.
   await expect(page.getByTestId('setup')).toBeVisible();
+
+  // The reading-mode plan must offer exactly the resolved built-in card; the
+  // kana-only custom is mode-unreachable and must be absent — this is the
+  // assertion that turns red if the exclusion ever regresses. (Without it,
+  // clearCeremony would simply type through however many cards appear and
+  // the closing poll only checks seenCards.length > 0, so a regression here
+  // would stay silently green.) listId is fetched once, here, and reused
+  // below for the persistence poll rather than fetched twice.
+  const listId = ((await (await page.request.get('/api/lists')).json()) as { id: number }[])[0].id;
+  const readingPlan = (await (
+    await page.request.get(`/api/plan?pool=list:${listId}&mode=reading`)
+  ).json()) as ListPlanResponse;
+  expect(readingPlan.newCardIds).toHaveLength(1);
+  expect(readingPlan.newCardIds[0]).not.toMatch(/^custom-/);
+
   await page.getByTestId('begin-button').click();
 
   // Wave intro (spec §3.6) shows the resolved word's ceremony; the kana-only
-  // custom never reaches it (excluded from reading mode's plan entirely).
+  // custom never reaches it (excluded from reading mode's plan entirely —
+  // hard-asserted above).
   await clearCeremony(page);
 
   // Kill the airborne word: proves the client-side attempt lands immediately
@@ -130,7 +148,6 @@ test('import a list and play it: ceremony, kill, persistence', async ({ page }) 
   await clearRestOfWave(page);
 
   // The list's plan sees the member as met once the batch lands.
-  const listId = ((await (await page.request.get('/api/lists')).json()) as { id: number }[])[0].id;
   await expect
     .poll(
       async () => {
