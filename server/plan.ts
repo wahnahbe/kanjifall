@@ -113,7 +113,7 @@ function resolveActiveTier(
  */
 export function computeRunPlan(handle: DbHandle, pool: string, nowMs: number): RunPlan {
   const levels = POOL_LEVELS[pool];
-  if (!levels) return { newCardIds: [], seenCardIds: [], seenCards: [], runBudget: 0, tiers: [] };
+  if (!levels) return { newCardIds: [], seenCards: [], runBudget: 0, tiers: [] };
 
   const placeholders = levels.map(() => '?').join(',');
   const poolCards = handle.sqlite
@@ -150,12 +150,10 @@ export function computeRunPlan(handle: DbHandle, pool: string, nowMs: number): R
   }
 
   const newCardIds: string[] = [];
-  const seenCardIds: string[] = [];
   const seenCards: { id: string; weight: number }[] = [];
   for (const { id } of poolCards) {
     const group = grouped.get(id);
     if (group !== undefined || introduced.has(id)) {
-      seenCardIds.push(id);
       seenCards.push({ id, weight: cardWeight(group, nowMs) });
     } else if (activeTierIds.has(id)) {
       newCardIds.push(id);
@@ -172,5 +170,5 @@ export function computeRunPlan(handle: DbHandle, pool: string, nowMs: number): R
     )?.n ?? 0;
 
   const runBudget = Math.max(0, Math.min(goal - introducedToday, PLAN.perRunNewCap));
-  return { newCardIds, seenCardIds, seenCards, runBudget, tiers };
+  return { newCardIds, seenCards, runBudget, tiers };
 }

@@ -38,7 +38,6 @@ function stubFetch(
   pool: Card[],
   plan: {
     newCardIds: string[];
-    seenCardIds: string[];
     seenCards: { id: string; weight: number }[];
     tiers: {
       level: number;
@@ -108,7 +107,7 @@ describe('App replay wiring never lets an un-introduced card spawn', () => {
 
     window.history.pushState({}, '', '/?mode=reading&pool=n5');
     stubFetch(pool, {
-      newCardIds: ['never-c'], seenCardIds: ['seen-a', 'seen-b'],
+      newCardIds: ['never-c'],
       seenCards: [{ id: 'seen-a', weight: 1 }, { id: 'seen-b', weight: 1 }],
       tiers: [{ level: 5, index: 1, totalTiers: 1, size: 1, solid: 0, amnestied: 0 }],
       runBudget: 1,
@@ -146,7 +145,7 @@ describe('App replay wiring never lets an un-introduced card spawn', () => {
 
     window.history.pushState({}, '', '/?mode=reading&pool=n5');
     stubFetch(pool, {
-      newCardIds: ['never-c'], seenCardIds: ['seen-x'],
+      newCardIds: ['never-c'],
       seenCards: [{ id: 'seen-x', weight: 1 }],
       tiers: [{ level: 5, index: 1, totalTiers: 1, size: 1, solid: 0, amnestied: 0 }],
       runBudget: 1,
@@ -196,7 +195,7 @@ describe('App replay wiring never lets an un-introduced card spawn', () => {
     window.history.pushState({}, '', '/?mode=reading&pool=n5');
     stubFetch(pool, {
       // A genuinely first-ever run for this pool: nothing met yet.
-      newCardIds: ['new-a', 'new-b'], seenCardIds: [],
+      newCardIds: ['new-a', 'new-b'],
       seenCards: [],
       tiers: [{ level: 5, index: 1, totalTiers: 1, size: 2, solid: 0, amnestied: 0 }],
       runBudget: 2,

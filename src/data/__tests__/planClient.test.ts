@@ -17,7 +17,7 @@ describe('fetchRunPlan', () => {
   it('maps a valid plan onto the engine shape', async () => {
     fetchMock.mockResolvedValueOnce(
       ok({
-        newCardIds: ['a', 'b'], seenCardIds: ['c'],
+        newCardIds: ['a', 'b'],
         seenCards: [{ id: 'c', weight: 1 }],
         tiers: [{ level: 5, index: 1, totalTiers: 64, size: 10, solid: 0, amnestied: 0 }],
         runBudget: 4,

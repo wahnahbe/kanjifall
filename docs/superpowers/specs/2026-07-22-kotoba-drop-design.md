@@ -8,7 +8,7 @@
 
 A standalone falling-words typing game for learning Japanese vocabulary. JLPT-tagged words fall from the top of the screen; the player types the Japanese (as romaji, converted live to kana) and presses Enter to destroy them before they hit the ground. Every attempt is recorded to a local database that powers a personal analytics profile: words learned per direction, a vocab-only JLPT level estimate, and pace tracking against the December 2026 N2 exam date.
 
-The game is a **reinforcement** tool. Arcade speed pressure cements half-known words; it is weak for first exposure. First exposure and scheduling remain the job of the owner's SRS (n2-prep / FSRS). This app deliberately does not implement its own SRS.
+The game is a **reinforcement** tool. Arcade speed pressure cements half-known words; it is weak for first exposure. First exposure and scheduling remain the job of the owner's SRS (n2-prep / FSRS). The game does not schedule reviews — no due dates, intervals, or ease factors, and no card-level scheduling state. It does *prioritize* them: intake is gated to a frequency-ordered tier, and the review draw is weighted by how weak and how stale each card is (see `2026-07-27-tiered-vocabulary-design.md`). Scheduling proper remains n2-prep's job.
 
 ### Non-goals (out of scope for v1)
 
@@ -16,7 +16,7 @@ The game is a **reinforcement** tool. Arcade speed pressure cements half-known w
 - Real Windows IME input mode (composition-based typing). Romaji-to-kana only.
 - Listening mode (audio falls, type what you hear) — possible future mode.
 - Cloud sync, accounts, multi-user, hosted deployment.
-- Any spaced-repetition scheduling. Analytics are descriptive, not prescriptive.
+- Any spaced-repetition *scheduling* — no due dates, intervals, or ease factors. Review is prioritized (weakness × staleness), never scheduled; see the tiered-vocabulary spec.
 - Grammar, reading passages, listening — the level estimate is vocab-only and labeled as such.
 
 ## 2. Decisions log

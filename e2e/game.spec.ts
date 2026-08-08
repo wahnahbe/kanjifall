@@ -8,7 +8,7 @@ interface StatsOverviewResponse {
 /** Shape of GET /api/plan?pool=... that matters to these specs (server/plan.ts). */
 interface PlanResponse {
   newCardIds: string[];
-  seenCardIds: string[];
+  seenCards: { id: string; weight: number }[];
 }
 
 /**
@@ -112,7 +112,7 @@ test('reading mode: intro → dismiss → type reading → kill scores', async (
   // Captured before any card is introduced, so the persistence proof below
   // has a known-empty baseline to move away from.
   const before = (await (await page.request.get('/api/plan?pool=n5')).json()) as PlanResponse;
-  expect(before.seenCardIds).toHaveLength(0); // globalSetup wiped the e2e DB
+  expect(before.seenCards).toHaveLength(0); // globalSetup wiped the e2e DB
 
   await dismissIntroAndKillFirstWord(page);
 
@@ -140,7 +140,7 @@ test('reading mode: intro → dismiss → type reading → kill scores', async (
   // There is no introductions endpoint, but /api/plan observes the same
   // table (server/plan.ts): a card that has been introduced (typed through
   // or escaped past in the ceremony) must move out of newCardIds and into
-  // seenCardIds. Same flush this poll rides as the overview one above —
+  // seenCards. Same flush this poll rides as the overview one above —
   // both wait on RunRecorder's waveCleared-triggered batch landing in SQLite.
   await expect
     .poll(
@@ -148,7 +148,7 @@ test('reading mode: intro → dismiss → type reading → kill scores', async (
         const res = await page.request.get('/api/plan?pool=n5');
         if (!res.ok()) return 0;
         const plan = (await res.json()) as PlanResponse;
-        return plan.seenCardIds.length;
+        return plan.seenCards.length;
       },
       { timeout: 15_000 },
     )

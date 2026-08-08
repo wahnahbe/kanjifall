@@ -86,7 +86,6 @@ describe('computeRunPlan — tier gate', () => {
     const { t, tierIds } = setup();
     const plan = computeRunPlan(t.handle, 'n5', NOW);
     expect(plan.seenCards).toHaveLength(0);
-    expect(plan.seenCardIds).toHaveLength(0);
     expect([...plan.newCardIds].sort()).toEqual([...tierIds(5, 1)].sort());
     expect(plan.newCardIds).toHaveLength(10);
     expect(plan.tiers).toHaveLength(1);
@@ -153,7 +152,7 @@ describe('computeRunPlan — tier gate', () => {
   it('an unknown pool yields the empty plan', () => {
     const { t } = setup();
     const unknown = computeRunPlan(t.handle, 'nope', NOW);
-    expect(unknown).toEqual({ newCardIds: [], seenCardIds: [], seenCards: [], runBudget: 0, tiers: [] });
+    expect(unknown).toEqual({ newCardIds: [], seenCards: [], runBudget: 0, tiers: [] });
   });
 });
 
@@ -209,7 +208,6 @@ describe('computeRunPlan — review weights', () => {
     const plan = computeRunPlan(t.handle, 'n5', NOW);
     expect(plan.newCardIds).not.toContain(a);
     expect(plan.newCardIds).not.toContain(b);
-    expect(plan.seenCardIds).toEqual(expect.arrayContaining([a, b]));
     expect(plan.seenCards.map((s) => s.id)).toEqual(expect.arrayContaining([a, b]));
   });
 });

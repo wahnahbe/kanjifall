@@ -111,9 +111,6 @@ export type TierProgress = z.infer<typeof tierProgressSchema>;
 
 export const runPlanSchema = z.object({
   newCardIds: z.array(z.string()),
-  /** Transitional (M4-D rollout): superseded by seenCards, removed once the
-   *  client and e2e read the weighted list. */
-  seenCardIds: z.array(z.string()),
   seenCards: z.array(z.object({ id: z.string(), weight: z.number().positive() })),
   runBudget: z.number().int().nonnegative(),
   tiers: z.array(tierProgressSchema),

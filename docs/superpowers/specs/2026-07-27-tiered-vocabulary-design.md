@@ -1,7 +1,7 @@
 # Tiered Vocabulary — Design Spec
 
 **Date:** 2026-07-27
-**Status:** Approved pending final user review
+**Status:** Implemented — see docs/superpowers/plans/2026-08-07-tiered-vocabulary.md
 **Scope:** M4 sub-project D. Independent of B (custom list import) and C (the juice pass); no ordering constraint between them.
 **Amends:** main spec §1's "no spaced-repetition scheduling" non-goal (see §9)
 **Builds on:** `2026-07-24-word-introduction-v2-design.md` (M4-A), which this composes with rather than replaces

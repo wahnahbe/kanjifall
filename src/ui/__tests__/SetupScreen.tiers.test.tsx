@@ -21,7 +21,7 @@ function stubPlanFetch(tiersByPool: Record<string, unknown[]>) {
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ newCardIds: [], seenCardIds: [], seenCards: [], runBudget: 0, tiers }),
+        json: () => Promise.resolve({ newCardIds: [], seenCards: [], runBudget: 0, tiers }),
       } as Response);
     }
     return Promise.reject(new Error(`unhandled fetch: ${u}`));
