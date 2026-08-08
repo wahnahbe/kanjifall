@@ -22,6 +22,13 @@
       "when": 1786205158006,
       "tag": "0002_romantic_scarlet_spider",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1786218924891,
+      "tag": "0003_steep_captain_flint",
+      "breakpoints": true
     }
   ]
 }

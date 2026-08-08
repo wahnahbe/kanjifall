@@ -1,4 +1,4 @@
-import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { integer, primaryKey, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 export const cards = sqliteTable('cards', {
   id: text('id').primaryKey(),
@@ -75,3 +75,16 @@ export const introductions = sqliteTable('introductions', {
   runId: text('run_id').notNull(),
   introducedAt: integer('introduced_at').notNull(),
 });
+
+export const lists = sqliteTable('lists', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull().unique(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const listCards = sqliteTable('list_cards', {
+  listId: integer('list_id').notNull().references(() => lists.id),
+  cardId: text('card_id').notNull(),
+  position: integer('position').notNull(),
+}, (t) => [primaryKey({ columns: [t.listId, t.cardId] })]);

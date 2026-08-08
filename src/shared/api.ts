@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { cardSchema } from '../data/schema';
 
 export const gameModeSchema = z.union([z.literal('reading'), z.literal('recall')]);
 
@@ -122,3 +123,68 @@ export const runPlanSchema = z.object({
   tiers: z.array(tierProgressSchema),
 });
 export type RunPlan = z.infer<typeof runPlanSchema>;
+
+export const previewRequestSchema = z.object({ text: z.string().min(1) });
+export const listSaveRequestSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  text: z.string().min(1),
+});
+
+export const parsedLineSchema = z.object({
+  /** 1-based line number in the original paste (blanks/comments counted, not returned). */
+  line: z.number().int().positive(),
+  raw: z.string(),
+  status: z.union([
+    z.literal('jlpt'), z.literal('custom-existing'), z.literal('custom-new'), z.literal('error'),
+  ]),
+  cardId: z.string().optional(),
+  display: z.object({
+    kanji: z.string().nullable(), kana: z.string(), gloss: z.string(),
+  }).optional(),
+  error: z.string().optional(),
+});
+
+export const previewResponseSchema = z.object({
+  lines: z.array(parsedLineSchema),
+  summary: z.object({
+    total: z.number().int().nonnegative(),
+    resolved: z.number().int().nonnegative(),
+    customNew: z.number().int().nonnegative(),
+    errors: z.number().int().nonnegative(),
+  }),
+});
+
+export const listSummarySchema = z.object({
+  id: z.number().int().positive(),
+  name: z.string(),
+  cardCount: z.number().int().nonnegative(),
+  updatedAt: z.number().int().positive(),
+});
+
+/** Custom cards ship whole from the DB — same shape as a level-file card
+ *  minus the tier the pipeline stamps (custom cards have none). */
+export const customCardSchema = cardSchema
+  .omit({ tier: true })
+  .extend({ jlpt: z.null(), source: z.literal('custom') });
+
+export const listCardsResponseSchema = z.object({
+  list: z.object({
+    id: z.number().int().positive(),
+    name: z.string(),
+    updatedAt: z.number().int().positive(),
+  }),
+  customCards: z.array(customCardSchema),
+  jlptCardIds: z.array(z.string()),
+});
+
+export const listSaveResponseSchema = z.object({
+  id: z.number().int().positive(),
+  name: z.string(),
+  cardCount: z.number().int().nonnegative(),
+  replaced: z.boolean(),
+});
+
+export type PreviewResponse = z.infer<typeof previewResponseSchema>;
+export type ListSummary = z.infer<typeof listSummarySchema>;
+export type ListCardsResponse = z.infer<typeof listCardsResponseSchema>;
+export type ListSaveResponse = z.infer<typeof listSaveResponseSchema>;
