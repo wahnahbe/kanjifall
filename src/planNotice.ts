@@ -28,16 +28,18 @@ export function noticeFor(fetched: FetchedPlan | null): string | null {
 
   if (!hasNew) {
     if (fetched.tiers.length === 0) return null; // defensive: no tier info at all
-    const gated = fetched.tiers.find((t) => t.index !== null);
+    // The server emits tiers in pool order, but that is an implementation
+    // detail — sort by level so "first gated" means the earliest-learned
+    // level (N5 before N2) whatever order the array arrived in.
+    const byLevel = [...fetched.tiers].sort((a, b) => b.level - a.level);
+    const gated = byLevel.find((t) => t.index !== null);
     if (gated === undefined) {
-      // Every level in the pool has cleared every tier.
       const label =
-        fetched.tiers.length === 1 ? `every N${fetched.tiers[0].level} tier` : 'every tier in this pool';
+        byLevel.length === 1 ? `every N${byLevel[0].level} tier` : 'every tier in this pool';
       return `You've cleared ${label} — this run is review.`;
     }
-    // Active tier fully introduced but not yet solid.
     const where =
-      fetched.tiers.length === 1 ? `Tier ${gated.index}` : `N${gated.level} tier ${gated.index}`;
+      byLevel.length === 1 ? `Tier ${gated.index}` : `N${gated.level} tier ${gated.index}`;
     return `${where} isn't solid yet — this run is review.`;
   }
 

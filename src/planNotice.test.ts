@@ -87,4 +87,21 @@ describe('noticeFor (spec §5.4)', () => {
     });
     expect(noticeFor(plan)).toBe("N4 tier 2 isn't solid yet — this run is review.");
   });
+
+  it('tier gated in mixed is level-ordered regardless of array order', () => {
+    // Deliberately N2→N5 (reverse of the server's usual pool order): an
+    // unsorted `.find()` would name N2 (the first array entry with a
+    // non-null index) instead of N4, so this fails unless noticeFor sorts
+    // by level before scanning.
+    const plan = fetchedOf({
+      seenCards: [{ id: 'b', weight: 1 }],
+      tiers: [
+        tier({ level: 2, index: 1 }),
+        tier({ level: 3, index: 1 }),
+        tier({ level: 4, index: 2 }),
+        tier({ level: 5, index: null, size: 0 }),
+      ],
+    });
+    expect(noticeFor(plan)).toBe("N4 tier 2 isn't solid yet — this run is review.");
+  });
 });
