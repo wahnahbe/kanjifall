@@ -19,11 +19,11 @@ describe('fetchRunPlan', () => {
       ok({
         newCardIds: ['a', 'b'],
         seenCards: [{ id: 'c', weight: 1 }],
-        tiers: [{ level: 5, index: 1, totalTiers: 64, size: 10, solid: 0, amnestied: 0 }],
+        tiers: [{ level: 5, index: 1, totalTiers: 64, size: 10, solid: 0, amnestied: 0, unreachable: 0 }],
         runBudget: 4,
       }),
     );
-    const plan = await fetchRunPlan('n5');
+    const plan = await fetchRunPlan('n5', 'reading');
     expect(plan).not.toBeNull();
     expect(plan!.newCardIds).toEqual(['a', 'b']);
     expect(plan!.runBudget).toBe(4);
@@ -32,14 +32,27 @@ describe('fetchRunPlan', () => {
     // §3.2, §7) and the engine (Spawner's seen pool, spec §5.3) see the
     // weighted list untouched.
     expect(plan!.seenCards).toEqual([{ id: 'c', weight: 1 }]);
-    expect(fetchMock).toHaveBeenCalledWith('/api/plan?pool=n5');
+    // The fetched URL must carry the caller's mode (final-review Fix 1) —
+    // otherwise the server can't exclude reading-mode kana-only cards.
+    expect(fetchMock).toHaveBeenCalledWith('/api/plan?pool=n5&mode=reading');
+  });
+
+  it('carries recall mode in the URL too', async () => {
+    fetchMock.mockResolvedValueOnce(
+      ok({
+        newCardIds: [], seenCards: [], runBudget: 0,
+        tiers: [{ level: 5, index: 1, totalTiers: 64, size: 10, solid: 0, amnestied: 0, unreachable: 0 }],
+      }),
+    );
+    await fetchRunPlan('n5', 'recall');
+    expect(fetchMock).toHaveBeenCalledWith('/api/plan?pool=n5&mode=recall');
   });
 
   it('toEnginePlan narrows away tiers', () => {
     const engine = toEnginePlan({
       newCardIds: ['a'],
       seenCards: [{ id: 'b', weight: 0.5 }],
-      tiers: [{ level: 5, index: 1, totalTiers: 64, size: 10, solid: 0, amnestied: 0 }],
+      tiers: [{ level: 5, index: 1, totalTiers: 64, size: 10, solid: 0, amnestied: 0, unreachable: 0 }],
       runBudget: 1,
       perWaveNewCap: 2,
     });
@@ -51,13 +64,13 @@ describe('fetchRunPlan', () => {
 
   it('returns null when the server is unreachable', async () => {
     fetchMock.mockRejectedValueOnce(new Error('offline'));
-    await expect(fetchRunPlan('n5')).resolves.toBeNull();
+    await expect(fetchRunPlan('n5', 'reading')).resolves.toBeNull();
   });
 
   it('returns null on an error status or an invalid payload', async () => {
     fetchMock.mockResolvedValueOnce(fail(503));
-    await expect(fetchRunPlan('n5')).resolves.toBeNull();
+    await expect(fetchRunPlan('n5', 'reading')).resolves.toBeNull();
     fetchMock.mockResolvedValueOnce(ok({ nope: true }));
-    await expect(fetchRunPlan('n5')).resolves.toBeNull();
+    await expect(fetchRunPlan('n5', 'reading')).resolves.toBeNull();
   });
 });

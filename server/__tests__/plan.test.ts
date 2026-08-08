@@ -23,6 +23,12 @@ function setup() {
     (t.handle.sqlite
       .prepare(`SELECT id FROM cards WHERE source = 'jlpt' AND jlpt = ? AND tier = ? ORDER BY id`)
       .all(level, tier) as { id: string }[]).map((r) => r.id);
+  const kanaOnlyTierIds = (level: number, tier: number): string[] =>
+    (t.handle.sqlite
+      .prepare(
+        `SELECT id FROM cards WHERE source = 'jlpt' AND jlpt = ? AND tier = ? AND kanji IS NULL ORDER BY id`,
+      )
+      .all(level, tier) as { id: string }[]).map((r) => r.id);
   const insertRun = t.handle.sqlite.prepare(
     `INSERT OR IGNORE INTO runs (id, started_at, mode, pool, app_version, list_version)
      VALUES (?, ?, 'reading', 'n5', 'test', 'test')`,
@@ -53,7 +59,10 @@ function setup() {
     expect(entry, cardId).toBeDefined();
     return entry!.weight;
   };
-  return { t, ids: n5Ids.map((r) => r.id), tierIds, attempt, introduce, makeSolid, makeAmnestied, weightOf };
+  return {
+    t, ids: n5Ids.map((r) => r.id), tierIds, kanaOnlyTierIds, attempt, introduce, makeSolid,
+    makeAmnestied, weightOf,
+  };
 }
 
 describe('computeRunPlan — M4-A budget (unchanged)', () => {
@@ -209,5 +218,92 @@ describe('computeRunPlan — review weights', () => {
     expect(plan.newCardIds).not.toContain(a);
     expect(plan.newCardIds).not.toContain(b);
     expect(plan.seenCards.map((s) => s.id)).toEqual(expect.arrayContaining([a, b]));
+  });
+});
+
+describe('computeRunPlan — mode-aware plan (reading excludes kana-only cards)', () => {
+  it('reading mode excludes kana-only cards from newCardIds; the pooled (no-mode) view still includes them', () => {
+    const { t, kanaOnlyTierIds } = setup();
+    const kanaOnly = new Set(kanaOnlyTierIds(5, 1));
+    expect(kanaOnly.size).toBeGreaterThan(0); // N5 tier 1 ships 2 kana-only cards
+
+    const reading = computeRunPlan(t.handle, 'n5', NOW, 'reading');
+    for (const id of reading.newCardIds) expect(kanaOnly.has(id), id).toBe(false);
+
+    const pooled = computeRunPlan(t.handle, 'n5', NOW);
+    for (const id of kanaOnly) expect(pooled.newCardIds, id).toContain(id);
+  });
+
+  it('a kana-heavy tier gate: reading mode passes on kanji-only mastery while the pooled view still holds', () => {
+    // N5 tier 2 (4 kana-only / 6 kanji-bearing) is the fix's own motivating
+    // example: max 6/10 pooled = 0.6 < 0.8 is a PERMANENT stall for a
+    // reading-only player under the pooled gate, whereas under mode:'reading'
+    // the 4 kana-only cards leave the denominator entirely (6/6 = 1.0).
+    // NOTE: the brief's test-2 hint names "tier 1 (2 kana-only)" for this
+    // case, but tier 1's 8 kanji-bearing cards land exactly on the 8/10 =
+    // 0.8 threshold, which the existing (unchanged) `>=` gate already PASSES
+    // pooled — verified 8/10 === 0.8 in IEEE754, and the pre-existing "8/10
+    // solid passes the gate" test proves the same boundary is inclusive. So
+    // tier 1 cannot demonstrate a pooled "holds" outcome from kanji-only
+    // mastery; tier 2 is the tier whose numbers actually produce the
+    // described contrast, and it matches the fix's own worked example
+    // verbatim. Flagged in the final report rather than silently ignored.
+    const { t, tierIds, kanaOnlyTierIds, makeSolid } = setup();
+    const tier2 = tierIds(5, 2);
+    const kanaOnly2 = new Set(kanaOnlyTierIds(5, 2));
+    const kanjiBearing2 = tier2.filter((id) => !kanaOnly2.has(id));
+    expect(kanaOnly2.size).toBe(4);
+    expect(kanjiBearing2).toHaveLength(6);
+
+    // Tier 1 must already be passed (pooled AND reading) so tier 2 becomes
+    // active in both modes — otherwise tier 1 itself would be reported.
+    for (const id of tierIds(5, 1)) makeSolid(id);
+    for (const id of kanjiBearing2) makeSolid(id);
+
+    const reading = computeRunPlan(t.handle, 'n5', NOW, 'reading');
+    expect(reading.tiers[0]).toMatchObject({ index: 3, level: 5 }); // tier 2 passed too
+
+    const pooled = computeRunPlan(t.handle, 'n5', NOW);
+    expect(pooled.tiers[0]).toMatchObject({ index: 2, level: 5, solid: 6, unreachable: 0 });
+  });
+
+  it('a solid kana-only card counts toward the reading-mode solid count, and can help the tier pass', () => {
+    const { t, tierIds, kanaOnlyTierIds, makeSolid } = setup();
+    const tier1 = tierIds(5, 1);
+    const kanaOnly1 = kanaOnlyTierIds(5, 1);
+    const kanjiBearing1 = tier1.filter((id) => !kanaOnly1.includes(id));
+    expect(kanaOnly1).toHaveLength(2);
+    expect(kanjiBearing1).toHaveLength(8);
+
+    makeSolid(kanaOnly1[0]);
+    for (const id of kanjiBearing1.slice(0, 6)) makeSolid(id);
+    // 7 solid (1 kana + 6 kanji) / denominator 9 (size 10 − 1 remaining
+    // unreachable kana card) ≈ 0.778 < 0.8: tier 1 still holds. If the kana
+    // card's solidity weren't counted, solid would read 6, not 7.
+    const mid = computeRunPlan(t.handle, 'n5', NOW, 'reading');
+    expect(mid.tiers[0]).toMatchObject({ index: 1, solid: 7, unreachable: 1 });
+
+    makeSolid(kanjiBearing1[6]);
+    // 8 solid (1 kana + 7 kanji) / 9 ≈ 0.889 >= 0.8: now it passes.
+    const after = computeRunPlan(t.handle, 'n5', NOW, 'reading');
+    expect(after.tiers[0].index).toBe(2);
+  });
+
+  it('tiers[0].unreachable reports the not-solid kana-only count under reading, and 0 without mode', () => {
+    const { t, kanaOnlyTierIds } = setup();
+    const kanaOnly = kanaOnlyTierIds(5, 1);
+
+    const reading = computeRunPlan(t.handle, 'n5', NOW, 'reading');
+    expect(reading.tiers[0]).toMatchObject({ index: 1, unreachable: kanaOnly.length });
+
+    const pooled = computeRunPlan(t.handle, 'n5', NOW);
+    expect(pooled.tiers[0]).toMatchObject({ index: 1, unreachable: 0 });
+  });
+
+  it('recall mode leaves nothing unreachable (kana-only cards are fully reachable in recall)', () => {
+    const { t } = setup();
+    const recall = computeRunPlan(t.handle, 'n5', NOW, 'recall');
+    expect(recall.tiers[0]).toMatchObject({ index: 1, unreachable: 0, size: 10 });
+    expect(recall.newCardIds).toHaveLength(10);
   });
 });

@@ -139,7 +139,8 @@ export default function App() {
     // recorded by a PRIOR run/replay chain must not leak into this one.
     introducedIdsRef.current = new Set();
     try {
-      const [{ cards, listVersion }, fetched] = await Promise.all([loadPool(pool), fetchRunPlan(pool)]);
+      const [{ cards, listVersion }, fetched] =
+        await Promise.all([loadPool(pool), fetchRunPlan(pool, mode)]);
       const plan = fetched === null ? null : toEnginePlan(fetched);
       lastPlanRef.current = plan;
       const notice = noticeFor(fetched);

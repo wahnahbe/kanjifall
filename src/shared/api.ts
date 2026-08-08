@@ -102,10 +102,16 @@ export const tierProgressSchema = z.object({
   /** Active tier for the level, or null when every tier passes. */
   index: z.number().int().positive().nullable(),
   totalTiers: z.number().int().nonnegative(),
-  /** size/solid/amnestied describe the ACTIVE tier; all 0 when index is null. */
+  /** size/solid/amnestied/unreachable describe the ACTIVE tier; all 0 when
+   *  index is null. */
   size: z.number().int().nonnegative(),
   solid: z.number().int().nonnegative(),
   amnestied: z.number().int().nonnegative(),
+  /** Cards this run's mode can never introduce (currently: kana-only cards
+   *  under mode 'reading'). They leave the gate's denominator, same as
+   *  amnesty — 0 whenever mode is absent or 'recall' (tiered-vocab spec,
+   *  final-review Fix 1). */
+  unreachable: z.number().int().nonnegative(),
 });
 export type TierProgress = z.infer<typeof tierProgressSchema>;
 

@@ -1,4 +1,4 @@
-import type { EnginePlan, SeenCardRef } from '../engine/types';
+import type { EnginePlan, GameMode, SeenCardRef } from '../engine/types';
 import { runPlanSchema, type TierProgress } from '../shared/api';
 
 /**
@@ -28,10 +28,18 @@ export interface FetchedPlan {
  * The run plan, or null when it can't be had. Never throws and never blocks
  * play: a null plan means "nothing is new", i.e. no ceremonies and ordinary
  * gameplay (spec §7).
+ *
+ * `mode` is REQUIRED (not optional): both call sites (App's fresh-run fetch,
+ * SetupScreen's display-only preview) always know the run's mode, and a
+ * mode-less request would silently fall back to the pooled view — which is
+ * exactly the stall Fix 1 closes (reading mode's kana-only cards must leave
+ * the gate's denominator). The server treats the param itself as optional
+ * for other callers (e.g. e2e's direct GETs, which want the pooled view on
+ * purpose) — see server/routes/plan.ts.
  */
-export async function fetchRunPlan(pool: string): Promise<FetchedPlan | null> {
+export async function fetchRunPlan(pool: string, mode: GameMode): Promise<FetchedPlan | null> {
   try {
-    const response = await fetch(`/api/plan?pool=${pool}`);
+    const response = await fetch(`/api/plan?pool=${pool}&mode=${mode}`);
     if (!response.ok) return null;
     const plan = runPlanSchema.parse(await response.json());
     return {

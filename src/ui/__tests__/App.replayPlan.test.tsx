@@ -46,6 +46,7 @@ function stubFetch(
       size: number;
       solid: number;
       amnestied: number;
+      unreachable: number;
     }[];
     runBudget: number;
   },
@@ -109,7 +110,7 @@ describe('App replay wiring never lets an un-introduced card spawn', () => {
     stubFetch(pool, {
       newCardIds: ['never-c'],
       seenCards: [{ id: 'seen-a', weight: 1 }, { id: 'seen-b', weight: 1 }],
-      tiers: [{ level: 5, index: 1, totalTiers: 1, size: 1, solid: 0, amnestied: 0 }],
+      tiers: [{ level: 5, index: 1, totalTiers: 1, size: 1, solid: 0, amnestied: 0, unreachable: 0 }],
       runBudget: 1,
     });
     mockSnapshot = snap({ status: 'playing' });
@@ -147,7 +148,7 @@ describe('App replay wiring never lets an un-introduced card spawn', () => {
     stubFetch(pool, {
       newCardIds: ['never-c'],
       seenCards: [{ id: 'seen-x', weight: 1 }],
-      tiers: [{ level: 5, index: 1, totalTiers: 1, size: 1, solid: 0, amnestied: 0 }],
+      tiers: [{ level: 5, index: 1, totalTiers: 1, size: 1, solid: 0, amnestied: 0, unreachable: 0 }],
       runBudget: 1,
     });
     mockSnapshot = snap({ status: 'playing' });
@@ -197,7 +198,7 @@ describe('App replay wiring never lets an un-introduced card spawn', () => {
       // A genuinely first-ever run for this pool: nothing met yet.
       newCardIds: ['new-a', 'new-b'],
       seenCards: [],
-      tiers: [{ level: 5, index: 1, totalTiers: 1, size: 2, solid: 0, amnestied: 0 }],
+      tiers: [{ level: 5, index: 1, totalTiers: 1, size: 2, solid: 0, amnestied: 0, unreachable: 0 }],
       runBudget: 2,
     });
     // Simulate wave 1 pausing on its ceremony with new-a as the only card to

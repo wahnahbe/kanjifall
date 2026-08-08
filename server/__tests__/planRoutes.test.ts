@@ -35,4 +35,20 @@ describe('GET /api/plan', () => {
     const res = await buildApp(t.handle).request('/api/plan?pool=nope');
     expect(res.status).toBe(400);
   });
+
+  it('rejects an unknown mode', async () => {
+    const t = makeTestDb();
+    cleanup = t.cleanup;
+    const res = await buildApp(t.handle).request('/api/plan?pool=n5&mode=nope');
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts a known mode and returns a schema-valid, mode-filtered plan', async () => {
+    const t = makeTestDb();
+    cleanup = t.cleanup;
+    const res = await buildApp(t.handle).request('/api/plan?pool=n5&mode=reading');
+    expect(res.status).toBe(200);
+    const parsed = runPlanSchema.parse(await res.json());
+    expect(parsed.tiers[0]).toMatchObject({ index: 1 });
+  });
 });

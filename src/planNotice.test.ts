@@ -4,7 +4,7 @@ import type { TierProgress } from './shared/api';
 import { noticeFor } from './planNotice';
 
 const tier = (over: Partial<TierProgress> = {}): TierProgress => ({
-  level: 5, index: 1, totalTiers: 64, size: 10, solid: 0, amnestied: 0, ...over,
+  level: 5, index: 1, totalTiers: 64, size: 10, solid: 0, amnestied: 0, unreachable: 0, ...over,
 });
 
 const fetchedOf = (over: Partial<FetchedPlan> = {}): FetchedPlan => ({

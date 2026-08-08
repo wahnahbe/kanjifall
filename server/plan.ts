@@ -28,16 +28,36 @@ interface PoolCardRow {
   /** Non-null for every source='jlpt' row: seedCards backfills the column
    *  from the committed data on every boot, before any route exists. */
   tier: number;
+  /** Null for kana-only words. Drives mode-unreachability below. */
+  kanji: string | null;
 }
 
 const HOUR_MS = 3_600_000;
 
+type Mode = 'reading' | 'recall';
+
+/** A card this run's mode can never introduce — currently just kana-only
+ *  cards under 'reading' (the engine's own mode filter drops them from the
+ *  spawn pool, GameEngine.ts). Absent mode or 'recall': nothing is
+ *  unreachable (final-review Fix 1). */
+function isModeUnreachable(card: PoolCardRow, mode: Mode | undefined): boolean {
+  return mode === 'reading' && card.kanji === null;
+}
+
 /** Card-level knowledge over POOLED attempts (§3.2): one learned-gate pass
  *  over the combined bucket — deliberately the same rule the Stats screen
- *  uses, so the gate and Stats can never disagree about knowing a word. */
-function classifyCard(group: CardAttemptGroup | undefined): 'solid' | 'amnestied' | 'neither' {
-  if (group === undefined) return 'neither';
+ *  uses, so the gate and Stats can never disagree about knowing a word.
+ *  Classification order is significant (final-review Fix 1): a card made
+ *  solid by past play counts as solid regardless of this run's mode — it IS
+ *  known — and only a NOT-solid mode-unreachable card leaves the
+ *  denominator ahead of amnesty. */
+function classifyCard(
+  group: CardAttemptGroup | undefined,
+  unreachable: boolean,
+): 'solid' | 'unreachable' | 'amnestied' | 'neither' {
+  if (group === undefined) return unreachable ? 'unreachable' : 'neither';
   if (evaluateDirection(group.all).learned) return 'solid';
+  if (unreachable) return 'unreachable';
   if (group.all.length >= PLAN.amnestyMinEncounters) return 'amnestied';
   return 'neither';
 }
@@ -61,12 +81,14 @@ function cardWeight(group: CardAttemptGroup | undefined, nowMs: number): number 
 }
 
 /** The active tier is DERIVED on every request (§3.3): the lowest tier that
- *  fails the mastery gate. Amnestied cards leave the denominator and never
- *  enter the numerator; a fully amnestied tier (denominator 0) passes. */
+ *  fails the mastery gate. Amnestied AND mode-unreachable cards leave the
+ *  denominator and never enter the numerator (unless solid — see
+ *  classifyCard); a fully amnestied/unreachable tier (denominator 0) passes. */
 function resolveActiveTier(
   levelCards: readonly PoolCardRow[],
   grouped: ReadonlyMap<string, CardAttemptGroup>,
   level: Level,
+  mode: Mode | undefined,
 ): { progress: TierProgress; activeCardIds: string[] } {
   const byTier = new Map<number, PoolCardRow[]>();
   for (const card of levelCards) {
@@ -81,44 +103,56 @@ function resolveActiveTier(
     const cards = byTier.get(t)!;
     let solid = 0;
     let amnestied = 0;
+    let unreachable = 0;
     for (const card of cards) {
-      const kind = classifyCard(grouped.get(card.id));
+      const kind = classifyCard(grouped.get(card.id), isModeUnreachable(card, mode));
       if (kind === 'solid') solid += 1;
+      else if (kind === 'unreachable') unreachable += 1;
       else if (kind === 'amnestied') amnestied += 1;
     }
     // Gate uses the tier's ACTUAL size (the last tier runs short), never the
     // tierSize constant (§7).
-    const denominator = cards.length - amnestied;
+    const denominator = cards.length - unreachable - amnestied;
     const passes = denominator === 0 || solid / denominator >= PLAN.tierMasteryThreshold;
     if (!passes) {
       return {
-        progress: { level, index: t, totalTiers, size: cards.length, solid, amnestied },
+        progress: { level, index: t, totalTiers, size: cards.length, solid, amnestied, unreachable },
         activeCardIds: cards.map((c) => c.id),
       };
     }
   }
   // Every tier passes: the level is complete and produces no new cards.
-  // size/solid/amnestied describe the active tier, and there isn't one (§4.3).
+  // size/solid/amnestied/unreachable describe the active tier, and there
+  // isn't one (§4.3).
   return {
-    progress: { level, index: null, totalTiers, size: 0, solid: 0, amnestied: 0 },
+    progress: { level, index: null, totalTiers, size: 0, solid: 0, amnestied: 0, unreachable: 0 },
     activeCardIds: [],
   };
 }
 
 /**
  * What this run may introduce and review. "New" means in an active tier AND
- * never attempted AND never introduced. Every met card returns in seenCards
- * with a review weight; cards in neither list are locked and must not spawn
- * (§5.3). The daily budget is unchanged from M4-A.
+ * never attempted AND never introduced AND reachable in this mode. Every met
+ * card returns in seenCards with a review weight (mode-unreachable or not —
+ * seenCards stays mode-agnostic, since a card once met is met regardless of
+ * which mode meets it); cards in neither list are locked and must not spawn
+ * (§5.3). `mode` is optional: absent means the pooled view used by e2e's
+ * direct plan reads and any caller that hasn't opted in (final-review Fix 1).
+ * The daily budget is unchanged from M4-A.
  */
-export function computeRunPlan(handle: DbHandle, pool: string, nowMs: number): RunPlan {
+export function computeRunPlan(
+  handle: DbHandle,
+  pool: string,
+  nowMs: number,
+  mode?: Mode,
+): RunPlan {
   const levels = POOL_LEVELS[pool];
   if (!levels) return { newCardIds: [], seenCards: [], runBudget: 0, tiers: [] };
 
   const placeholders = levels.map(() => '?').join(',');
   const poolCards = handle.sqlite
     .prepare(
-      `SELECT id, jlpt, tier FROM cards WHERE source = 'jlpt' AND jlpt IN (${placeholders}) ORDER BY id`,
+      `SELECT id, jlpt, tier, kanji FROM cards WHERE source = 'jlpt' AND jlpt IN (${placeholders}) ORDER BY id`,
     )
     .all(...levels) as PoolCardRow[];
 
@@ -144,21 +178,24 @@ export function computeRunPlan(handle: DbHandle, pool: string, nowMs: number): R
   const activeTierIds = new Set<string>();
   for (const level of levels) {
     const levelCards = poolCards.filter((c) => c.jlpt === level);
-    const { progress, activeCardIds } = resolveActiveTier(levelCards, grouped, level);
+    const { progress, activeCardIds } = resolveActiveTier(levelCards, grouped, level, mode);
     tiers.push(progress);
     for (const id of activeCardIds) activeTierIds.add(id);
   }
 
   const newCardIds: string[] = [];
   const seenCards: { id: string; weight: number }[] = [];
-  for (const { id } of poolCards) {
+  for (const card of poolCards) {
+    const { id } = card;
     const group = grouped.get(id);
     if (group !== undefined || introduced.has(id)) {
       seenCards.push({ id, weight: cardWeight(group, nowMs) });
-    } else if (activeTierIds.has(id)) {
+    } else if (activeTierIds.has(id) && !isModeUnreachable(card, mode)) {
       newCardIds.push(id);
     }
-    // Neither met nor in an active tier: locked (§5.3) — in no list at all.
+    // Neither met, in an active tier and reachable, is locked (§5.3) — in no
+    // list at all. Mode-unreachable cards can never be introduced in this
+    // mode, so they never enter newCardIds even while their tier is active.
   }
 
   const goal =
