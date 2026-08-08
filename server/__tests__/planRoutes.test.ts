@@ -16,7 +16,9 @@ describe('GET /api/plan', () => {
     const res = await buildApp(t.handle).request('/api/plan?pool=n5');
     expect(res.status).toBe(200);
     const parsed = runPlanSchema.parse(await res.json());
-    expect(parsed.newCardIds.length).toBeGreaterThan(600);
+    expect(parsed.newCardIds).toHaveLength(10); // tier 1 of N5 — the gate is on
+    expect(parsed.tiers).toHaveLength(1);
+    expect(parsed.tiers[0].index).toBe(1);
     expect(parsed.runBudget).toBeGreaterThan(0);
   });
 

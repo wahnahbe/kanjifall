@@ -97,9 +97,25 @@ export const statsOverviewSchema = z.object({
 });
 export type StatsOverview = z.infer<typeof statsOverviewSchema>;
 
+export const tierProgressSchema = z.object({
+  level: z.union([z.literal(5), z.literal(4), z.literal(3), z.literal(2)]),
+  /** Active tier for the level, or null when every tier passes. */
+  index: z.number().int().positive().nullable(),
+  totalTiers: z.number().int().nonnegative(),
+  /** size/solid/amnestied describe the ACTIVE tier; all 0 when index is null. */
+  size: z.number().int().nonnegative(),
+  solid: z.number().int().nonnegative(),
+  amnestied: z.number().int().nonnegative(),
+});
+export type TierProgress = z.infer<typeof tierProgressSchema>;
+
 export const runPlanSchema = z.object({
   newCardIds: z.array(z.string()),
+  /** Transitional (M4-D rollout): superseded by seenCards, removed once the
+   *  client and e2e read the weighted list. */
   seenCardIds: z.array(z.string()),
+  seenCards: z.array(z.object({ id: z.string(), weight: z.number().positive() })),
   runBudget: z.number().int().nonnegative(),
+  tiers: z.array(tierProgressSchema),
 });
 export type RunPlan = z.infer<typeof runPlanSchema>;

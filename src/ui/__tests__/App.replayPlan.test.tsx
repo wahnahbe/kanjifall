@@ -28,7 +28,23 @@ const snap = (over: Partial<EngineSnapshot>): EngineSnapshot => ({
   lockedIds: [], missed: [], timeMs: 0, ...over,
 });
 
-function stubFetch(pool: Card[], plan: { newCardIds: string[]; seenCardIds: string[]; runBudget: number }) {
+function stubFetch(
+  pool: Card[],
+  plan: {
+    newCardIds: string[];
+    seenCardIds: string[];
+    seenCards: { id: string; weight: number }[];
+    tiers: {
+      level: number;
+      index: number | null;
+      totalTiers: number;
+      size: number;
+      solid: number;
+      amnestied: number;
+    }[];
+    runBudget: number;
+  },
+) {
   vi.stubGlobal('fetch', vi.fn((url: string) => {
     const u = String(url);
     if (u.includes('/api/plan')) {
@@ -80,7 +96,12 @@ describe('App replay wiring never lets an un-introduced card spawn', () => {
     const pool = [seenA, seenB, neverC];
 
     window.history.pushState({}, '', '/?mode=reading&pool=n5');
-    stubFetch(pool, { newCardIds: ['never-c'], seenCardIds: ['seen-a', 'seen-b'], runBudget: 1 });
+    stubFetch(pool, {
+      newCardIds: ['never-c'], seenCardIds: ['seen-a', 'seen-b'],
+      seenCards: [{ id: 'seen-a', weight: 1 }, { id: 'seen-b', weight: 1 }],
+      tiers: [{ level: 5, index: 1, totalTiers: 1, size: 1, solid: 0, amnestied: 0 }],
+      runBudget: 1,
+    });
     mockSnapshot = snap({ status: 'playing' });
 
     const { rerender } = render(<App />);
@@ -113,7 +134,12 @@ describe('App replay wiring never lets an un-introduced card spawn', () => {
     const pool = [seenX, neverC];
 
     window.history.pushState({}, '', '/?mode=reading&pool=n5');
-    stubFetch(pool, { newCardIds: ['never-c'], seenCardIds: ['seen-x'], runBudget: 1 });
+    stubFetch(pool, {
+      newCardIds: ['never-c'], seenCardIds: ['seen-x'],
+      seenCards: [{ id: 'seen-x', weight: 1 }],
+      tiers: [{ level: 5, index: 1, totalTiers: 1, size: 1, solid: 0, amnestied: 0 }],
+      runBudget: 1,
+    });
     mockSnapshot = snap({ status: 'playing' });
 
     const { rerender } = render(<App />);

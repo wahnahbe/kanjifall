@@ -16,7 +16,12 @@ afterEach(() => vi.unstubAllGlobals());
 describe('fetchRunPlan', () => {
   it('maps a valid plan onto the engine shape', async () => {
     fetchMock.mockResolvedValueOnce(
-      ok({ newCardIds: ['a', 'b'], seenCardIds: ['c'], runBudget: 4 }),
+      ok({
+        newCardIds: ['a', 'b'], seenCardIds: ['c'],
+        seenCards: [{ id: 'c', weight: 1 }],
+        tiers: [{ level: 5, index: 1, totalTiers: 64, size: 10, solid: 0, amnestied: 0 }],
+        runBudget: 4,
+      }),
     );
     const plan = await fetchRunPlan('n5');
     expect(plan).not.toBeNull();
