@@ -110,3 +110,59 @@ describe('loadPool', () => {
     expect((error as DataLoadError).name).toBe('DataLoadError');
   });
 });
+
+describe('loadPool — list pools', () => {
+  const listBody = (jlptCardIds: string[]) => ({
+    list: { id: 3, name: 'leeches', updatedAt: 1_700_000_000_000 },
+    customCards: [{
+      id: 'custom-abc123def456', kanji: '狛犬', kana: ['こまいぬ'], gloss: 'guardian dog',
+      pos: 'unclassified', jlpt: null, source: 'custom',
+    }],
+    jlptCardIds,
+  });
+
+  it('hydrates jlpt members from the static files and appends customs', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      const u = String(url);
+      if (u === '/api/lists/3/cards') return Promise.resolve(ok(listBody(['w5'])));
+      const level = Number(u.match(/n(\d)/)?.[1]) as 5 | 4 | 3 | 2;
+      return Promise.resolve(ok(levelPayload(level, [`w${level}`])));
+    });
+    const { cards, listVersion } = await loadPool('list:3');
+    expect(cards.map((c) => c.id)).toEqual(['custom-abc123def456', 'w5']);
+    expect(cards[1].gloss).toBe('g'); // hydrated from the level file, hooks intact
+    expect(listVersion).toBe('list-3@1700000000000');
+  });
+
+  it('skips a jlpt id the level files no longer contain', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    fetchMock.mockImplementation((url: string) => {
+      const u = String(url);
+      if (u === '/api/lists/3/cards') return Promise.resolve(ok(listBody(['gone-id'])));
+      const level = Number(u.match(/n(\d)/)?.[1]) as 5 | 4 | 3 | 2;
+      return Promise.resolve(ok(levelPayload(level, [`w${level}`])));
+    });
+    const { cards } = await loadPool('list:3');
+    expect(cards.map((c) => c.id)).toEqual(['custom-abc123def456']);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('membership is never cached: two loads fetch the list twice', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      const u = String(url);
+      if (u === '/api/lists/3/cards') return Promise.resolve(ok(listBody([])));
+      const level = Number(u.match(/n(\d)/)?.[1]) as 5 | 4 | 3 | 2;
+      return Promise.resolve(ok(levelPayload(level, [`w${level}`])));
+    });
+    await loadPool('list:3');
+    await loadPool('list:3');
+    const listFetches = fetchMock.mock.calls.filter(([u]) => String(u).includes('/api/lists/'));
+    expect(listFetches).toHaveLength(2);
+  });
+
+  it('a failed list fetch surfaces as DataLoadError', async () => {
+    fetchMock.mockResolvedValue(fail(404));
+    await expect(loadPool('list:9')).rejects.toBeInstanceOf(DataLoadError);
+  });
+});
