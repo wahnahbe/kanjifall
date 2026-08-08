@@ -35,17 +35,32 @@ function runFromUrl(): { mode: GameMode; pool: PoolId } | null {
 
 /**
  * A zero-budget plan preserving the ORIGINAL run's newCardIds AND weighted
- * seenCards. Spawner keys both its pools off the plan (src/engine/Spawner.ts):
- * newCardIds parks genuinely-unmet cards out of reach (the CRITICAL replay
- * bug M4-A fixed), and seenCards is now the ONLY source of the review pool —
- * cards in neither list are locked (tiered-vocab spec §5.3), so a replay
- * must restate the original seen list or nothing could spawn at all.
+ * seenCards, unioned with whatever this run itself introduced. Spawner keys
+ * both its pools off the plan (src/engine/Spawner.ts): newCardIds parks
+ * genuinely-unmet cards out of reach (the CRITICAL replay bug M4-A fixed),
+ * and seenCards is now the ONLY source of the review pool — cards in neither
+ * list are locked (tiered-vocab spec §5.3), so a replay must restate the
+ * original seen list or nothing could spawn at all.
+ *
+ * The union with introducedThisRun matters even beyond that: the run-START
+ * snapshot (lastPlanRef) predates every ceremony this run actually ran. A
+ * first-ever run starts with an empty seenCards, and once it introduces a
+ * few cards, replaying with just that stale snapshot would leave the seen
+ * pool empty - the starved fallback would then draw uniformly from ALL of
+ * newCardIds, including cards this run never reached, burning their
+ * acquisition ceremony forever the instant they fall and get an attempt
+ * (spec §4.2).
  *
  * A null original means the original run itself had no plan (server down):
  * every pool card was review-eligible at uniform weight, and the replay
- * keeps exactly that.
+ * keeps exactly that - introducedThisRun is moot there, since nothing was
+ * ever locked to begin with.
  */
-function replayPlan(original: EnginePlan | null, pool: readonly Card[]): EnginePlan {
+function replayPlan(
+  original: EnginePlan | null,
+  pool: readonly Card[],
+  introducedThisRun: ReadonlySet<string>,
+): EnginePlan {
   if (original === null) {
     return {
       newCardIds: [],
@@ -54,9 +69,19 @@ function replayPlan(original: EnginePlan | null, pool: readonly Card[]): EngineP
       perWaveNewCap: 0,
     };
   }
+  // Cards introduced DURING the run are genuinely met — the run-start
+  // snapshot predates them, and without this union a first-ever run's
+  // replay has an empty seen pool and the starved fallback burns the
+  // ceremonies of the cards it never reached. Weight 1: a fresh plan
+  // reweights them properly server-side; here they just need to be
+  // ordinarily drawable.
+  const alreadySeen = new Set(original.seenCards.map((s) => s.id));
+  const introduced = [...introducedThisRun]
+    .filter((id) => !alreadySeen.has(id))
+    .map((id) => ({ id, weight: 1 }));
   return {
     newCardIds: original.newCardIds,
-    seenCards: original.seenCards,
+    seenCards: [...original.seenCards, ...introduced],
     runBudget: 0,
     perWaveNewCap: 0,
   };
@@ -72,6 +97,13 @@ export default function App() {
   // replays never overwrite this), so a replay can still name the original
   // run's genuinely-unmet cards even though it hands the engine zero budget.
   const lastPlanRef = useRef<EnginePlan | null>(null);
+  // Cards introduced (ceremony completed OR skipped - both count, spec §3.1)
+  // during the CURRENT fresh run. Reset only when a fresh run actually
+  // begins (beginFromPool) - replays never touch it, so replaying a replay
+  // still remembers everything introduced across the whole chain. Folded
+  // into replayPlan's seen list so a replay never starves cards this run
+  // itself introduced (see replayPlan's doc comment).
+  const introducedIdsRef = useRef<Set<string>>(new Set());
   const recorderRef = useRef<RunRecorder | null>(null);
   const [planNotice, setPlanNotice] = useState<string | null>(null);
   const { snapshot, hostRef, start, resume, introCards } = useEngine();
@@ -103,6 +135,9 @@ export default function App() {
   const beginFromPool = useCallback(async (mode: GameMode, pool: PoolId) => {
     setLoading(true);
     setLoadError(null);
+    // A genuinely fresh run: nothing has been introduced yet, and anything
+    // recorded by a PRIOR run/replay chain must not leak into this one.
+    introducedIdsRef.current = new Set();
     try {
       const [{ cards, listVersion }, fetched] = await Promise.all([loadPool(pool), fetchRunPlan(pool)]);
       const plan = fetched === null ? null : toEnginePlan(fetched);
@@ -143,7 +178,10 @@ export default function App() {
         hostRef={hostRef}
         introCards={introCards}
         planNotice={planNotice}
-        onIntroduced={(cardId) => recorderRef.current?.recordIntroduction(cardId)}
+        onIntroduced={(cardId) => {
+          introducedIdsRef.current.add(cardId);
+          recorderRef.current?.recordIntroduction(cardId);
+        }}
         onIntroComplete={resume}
         onRevenge={(missed) => lastRunRef.current
           && beginRun(
@@ -157,7 +195,7 @@ export default function App() {
             // neither can silently un-introduce a fresh card if that
             // invariant about missed cards ever stops holding (see
             // replayPlan's doc comment for the failure this guards against).
-            replayPlan(lastPlanRef.current, missed),
+            replayPlan(lastPlanRef.current, missed, introducedIdsRef.current),
             REPLAY_NOTICE,
           )}
         onPlayAgain={() => lastRunRef.current
@@ -171,7 +209,7 @@ export default function App() {
             // doc comment: this is the fix for the CRITICAL "Play again"
             // bug, where a null plan let un-introduced cards spawn and burn
             // their acquisition moment forever.
-            replayPlan(lastPlanRef.current, lastRunRef.current.cards),
+            replayPlan(lastPlanRef.current, lastRunRef.current.cards, introducedIdsRef.current),
             REPLAY_NOTICE,
           )}
         onTitle={() => setScreen('title')}
