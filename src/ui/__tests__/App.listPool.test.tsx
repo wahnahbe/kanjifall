@@ -85,8 +85,15 @@ describe('App list pools', () => {
     // stays 'list:3' regardless of clicking through Title before or after
     // the background fetch resolves.
     await userEvent.click(screen.getByTestId('start-button'));
-    await waitFor(() =>
-      expect(screen.getByTestId('load-error')).toHaveTextContent(/no kanji words/i));
+    // Exact equality, not toHaveTextContent (which normalizes whitespace and
+    // substring-matches): the render must be the bare mandated string with
+    // nothing appended — the asset-serving hint belongs to DataLoadError
+    // only, not to this content-validity block (see App.tsx's beginFromPool
+    // catch block).
+    await waitFor(() => {
+      const el = screen.getByTestId('load-error');
+      expect(el.textContent).toBe('This list has no kanji words — Reading mode unavailable.');
+    });
     expect(start).not.toHaveBeenCalled();
   });
 });

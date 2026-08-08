@@ -130,9 +130,7 @@ export function SetupScreen(
         </div>
       )}
       {error !== null && (
-        <p className="load-error" data-testid="load-error">
-          {error} — is the app serving /data/? Try again.
-        </p>
+        <p className="load-error" data-testid="load-error">{error}</p>
       )}
       <div className="picker-row">
         <button data-testid="begin-button" disabled={loading} onClick={() => onBegin(mode, pool)}>

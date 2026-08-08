@@ -183,7 +183,17 @@ export default function App() {
       const notice = noticeFor(fetched);
       beginRun(mode, cards, listVersion, pool, plan, notice);
     } catch (error: unknown) {
-      setLoadError(error instanceof DataLoadError ? error.message : 'unexpected load failure');
+      // The suffix belongs here, not in the renderer: it's asset-serving
+      // guidance specific to a DataLoadError, and SetupScreen's load-error
+      // paragraph must otherwise render exactly what it's given (the
+      // reading-mode guard above hands it a complete, self-contained
+      // message that this hint would only muddy — custom-list-import spec
+      // §5.4).
+      setLoadError(
+        error instanceof DataLoadError
+          ? `${error.message} — is the app serving /data/? Try again.`
+          : 'unexpected load failure',
+      );
     } finally {
       setLoading(false);
     }
