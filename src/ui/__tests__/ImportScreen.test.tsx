@@ -1,8 +1,20 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImportScreen } from '../screens/ImportScreen';
+
+/** A fetch stand-in the test resolves by hand, for proving behavior that
+ *  depends on state changing WHILE a request is still in flight (stale-
+ *  preview race, busy-while-saving). `resolveFetch` starts as a no-op so
+ *  the binding is always callable even before the executor runs. */
+function deferredResponse() {
+  let resolveFetch: (value: Response) => void = () => {};
+  const promise = new Promise<Response>((resolve) => {
+    resolveFetch = resolve;
+  });
+  return { promise, resolveFetch: (value: Response) => resolveFetch(value) };
+}
 
 let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
@@ -166,5 +178,122 @@ describe('ImportScreen', () => {
 
     expect(screen.queryByTestId('preview-table')).not.toBeInTheDocument();
     expect(screen.getByTestId('save-button')).toBeDisabled();
+  });
+
+  // Review fix #1 (Important): the name input was placeholder-only and the
+  // textarea had nothing, so neither had an accessible name. Every other
+  // test here queries by data-testid, which doesn't care whether a label
+  // exists — only an accessible-name query proves the fix.
+  it('exposes accessible names for the name and text fields', () => {
+    render(<ImportScreen onSaved={() => {}} onBack={() => {}} />);
+    expect(screen.getByLabelText('List name')).toBe(screen.getByTestId('import-name'));
+    expect(screen.getByLabelText('Words')).toBe(screen.getByTestId('import-text'));
+  });
+
+  // Review fix #2 (Important): stale-preview race. Click Preview for text
+  // T0, then edit the text to T1 BEFORE T0's response arrives. T0's result
+  // must never be shown once the text has moved on — otherwise the table
+  // and the Save copy describe words that Save would not actually post
+  // (Save always ships the live textarea value, per the advisory-preview
+  // constraint).
+  it('discards a stale preview response when the text changes before it resolves', async () => {
+    const deferred = deferredResponse();
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url) === '/api/lists/preview') return deferred.promise;
+      return Promise.reject(new Error(`unhandled fetch: ${url}`));
+    });
+
+    render(<ImportScreen onSaved={() => {}} onBack={() => {}} />);
+    await userEvent.type(screen.getByTestId('import-text'), '犬');
+    await userEvent.click(screen.getByTestId('preview-button'));
+    // T0's request ('犬') is still in flight; edit the text before it
+    // resolves. Both buttons stay disabled (busy) until T0 settles.
+    await userEvent.type(screen.getByTestId('import-text'), '猫');
+    expect(screen.getByTestId('preview-button')).toBeDisabled();
+
+    await act(async () => {
+      deferred.resolveFetch(ok({
+        lines: [{ line: 1, raw: '犬', status: 'jlpt', cardId: 'jm-1', display: { kanji: '犬', kana: 'いぬ', gloss: 'dog' } }],
+        summary: { total: 1, resolved: 1, customNew: 0, errors: 0 },
+      }));
+      await deferred.promise;
+    });
+
+    // busy releases once T0 settles (Preview becomes clickable again for
+    // the new text), but T0's now-stale result must never have applied.
+    await waitFor(() => expect(screen.getByTestId('preview-button')).toBeEnabled());
+    expect(screen.queryByTestId('preview-table')).not.toBeInTheDocument();
+    expect(screen.getByTestId('save-button')).not.toHaveTextContent('Save 1 word');
+  });
+
+  // Review fix #3 (Important), half 1: Back must not be clickable mid-save
+  // — Task 6 unmounts this screen on Back, and a save resolving after that
+  // would otherwise call onSaved on a screen the user already left.
+  it('disables Back while a save is in flight, then still calls onSaved once it resolves', async () => {
+    const onSaved = vi.fn();
+    const deferred = deferredResponse();
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url) === '/api/lists/preview') {
+        return Promise.resolve(ok({
+          lines: [{ line: 1, raw: '犬', status: 'jlpt', cardId: 'jm-1', display: { kanji: '犬', kana: 'いぬ', gloss: 'dog' } }],
+          summary: { total: 1, resolved: 1, customNew: 0, errors: 0 },
+        }));
+      }
+      if (String(url) === '/api/lists') return deferred.promise;
+      return Promise.reject(new Error(`unhandled fetch: ${url}`));
+    });
+
+    render(<ImportScreen onSaved={onSaved} onBack={() => {}} />);
+    await userEvent.type(screen.getByTestId('import-name'), 'leeches');
+    await userEvent.type(screen.getByTestId('import-text'), '犬');
+    await userEvent.click(screen.getByTestId('preview-button'));
+    await waitFor(() => expect(screen.getByTestId('save-button')).toBeEnabled());
+
+    await userEvent.click(screen.getByTestId('save-button'));
+    expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled();
+
+    await act(async () => {
+      deferred.resolveFetch(ok({ id: 7, name: 'leeches', cardCount: 1, replaced: false }));
+      await deferred.promise;
+    });
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith({ id: 7, name: 'leeches' }));
+    expect(screen.getByRole('button', { name: 'Back' })).toBeEnabled();
+  });
+
+  // Review fix #3 (Important), half 2: the disposedRef guard itself. Back
+  // being disabled closes off the direct route, but this proves the guard
+  // that actually matters — if the screen unmounts by any other means
+  // while a save is in flight, the resolving response must not call
+  // onSaved (or touch state) on a screen that's already gone.
+  it('does not call onSaved if the screen unmounts before a save resolves', async () => {
+    const onSaved = vi.fn();
+    const deferred = deferredResponse();
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url) === '/api/lists/preview') {
+        return Promise.resolve(ok({
+          lines: [{ line: 1, raw: '犬', status: 'jlpt', cardId: 'jm-1', display: { kanji: '犬', kana: 'いぬ', gloss: 'dog' } }],
+          summary: { total: 1, resolved: 1, customNew: 0, errors: 0 },
+        }));
+      }
+      if (String(url) === '/api/lists') return deferred.promise;
+      return Promise.reject(new Error(`unhandled fetch: ${url}`));
+    });
+
+    const { unmount } = render(<ImportScreen onSaved={onSaved} onBack={() => {}} />);
+    await userEvent.type(screen.getByTestId('import-name'), 'leeches');
+    await userEvent.type(screen.getByTestId('import-text'), '犬');
+    await userEvent.click(screen.getByTestId('preview-button'));
+    await waitFor(() => expect(screen.getByTestId('save-button')).toBeEnabled());
+    await userEvent.click(screen.getByTestId('save-button'));
+
+    unmount();
+
+    await act(async () => {
+      deferred.resolveFetch(ok({ id: 7, name: 'leeches', cardCount: 1, replaced: false }));
+      await deferred.promise;
+    });
+
+    expect(onSaved).not.toHaveBeenCalled();
   });
 });
