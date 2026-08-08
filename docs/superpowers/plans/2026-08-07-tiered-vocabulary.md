@@ -1865,6 +1865,14 @@ git commit -m "chore: drop transitional seenCardIds; e2e through the gate; spec 
 
 ---
 
+## Post-review amendments (final whole-branch review, 2026-08-08)
+
+Three review-driven changes shipped after Task 7, approved by the owner:
+
+1. **Mode-aware plan (Critical fix).** Reading mode filters kana-only cards out of the engine pool, so under the original design they could never be met and permanently held the gate shut (N5 tier 2: 4/10 kana-only → max 6/10 solid, a silent stall). `GET /api/plan` now takes an optional `mode` (`reading`|`recall`; unknown values 400): under `mode=reading`, NOT-solid kana-only cards leave the gate denominator (solid ones — earned via recall play — count normally) and are excluded from `newCardIds`; `tierProgressSchema` gained a required `unreachable` count; both client fetch sites pass the run's mode; the setup screen shows the reachable denominator plus a `· N kana-only` suffix. Absent mode keeps the pooled behavior (the e2e's direct fetches are unchanged).
+2. **Tier-advance results line (spec §5.4 as promised).** Pure `src/tierAdvance.ts` compares the run-start tiers against a post-run re-fetch; `ResultsScreen` renders one plain line (`N5 tier 4 cleared — tier 5 is next.` / `N5 complete — every tier cleared.`). The comparison baseline REBASELINES after each results screen, so replays repeat nothing; revenge runs and failed re-fetches show nothing. The celebration proper still belongs to sub-project C.
+3. **Replay introductions fold-in (Task 5 fix round).** `replayPlan` unions the cards introduced during the run into the replay's seen list (tracked via `onIntroduced`), closing the pre-existing M4-A hole where a first-ever run's replay starved into the fallback and burned un-introduced ceremonies.
+
 ## Spec coverage map (self-review)
 
 | Spec section | Where |
