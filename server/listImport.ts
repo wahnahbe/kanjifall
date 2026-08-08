@@ -91,12 +91,18 @@ type Resolution =
   | { kind: 'none' }
   | { kind: 'many'; candidates: CardIndexEntry[] };
 
-function resolveBare(word: string, index: CardIndex): Resolution {
-  const kanjiMatches = index.byKanji.get(word) ?? [];
+function resolveBare(word: string, index: CardIndex, overlay?: { byKanji: Map<string, CardIndexEntry[]>; byKana: Map<string, CardIndexEntry[]> }): Resolution {
+  const kanjiMatches = [
+    ...(index.byKanji.get(word) ?? []),
+    ...(overlay?.byKanji.get(word) ?? []),
+  ];
   if (kanjiMatches.length === 1) return { kind: 'one', entry: kanjiMatches[0] };
   if (kanjiMatches.length > 1) return { kind: 'many', candidates: kanjiMatches };
   if (isKana(word)) {
-    const kanaMatches = index.byKana.get(word) ?? [];
+    const kanaMatches = [
+      ...(index.byKana.get(word) ?? []),
+      ...(overlay?.byKana.get(word) ?? []),
+    ];
     if (kanaMatches.length === 1) return { kind: 'one', entry: kanaMatches[0] };
     if (kanaMatches.length > 1) return { kind: 'many', candidates: kanaMatches };
   }
@@ -105,11 +111,17 @@ function resolveBare(word: string, index: CardIndex): Resolution {
 
 /** Full lines resolve only on a UNIQUE match; any ambiguity creates instead —
  *  a full line carries everything needed to stand alone (spec §3.3 rule 5). */
-function resolveFull(word: string, kana: string, index: CardIndex): CardIndexEntry | null {
+function resolveFull(word: string, kana: string, index: CardIndex, overlay?: { byKanji: Map<string, CardIndexEntry[]>; byKana: Map<string, CardIndexEntry[]> }): CardIndexEntry | null {
   const kanaOnly = word === kana || isKana(word);
   const candidates = kanaOnly
-    ? (index.byKana.get(kana) ?? []).filter((c) => c.kanji === null)
-    : (index.byKanji.get(word) ?? []).filter((c) => c.kana.includes(kana));
+    ? [
+      ...(index.byKana.get(kana) ?? []).filter((c) => c.kanji === null),
+      ...(overlay?.byKana.get(kana) ?? []).filter((c) => c.kanji === null),
+    ]
+    : [
+      ...(index.byKanji.get(word) ?? []).filter((c) => c.kana.includes(kana)),
+      ...(overlay?.byKanji.get(word) ?? []).filter((c) => c.kana.includes(kana)),
+    ];
   return candidates.length === 1 ? candidates[0] : null;
 }
 
@@ -117,6 +129,24 @@ export function parseListText(text: string, index: CardIndex): ParseResult {
   const lines: ParsedLine[] = [];
   const firstLineByCard = new Map<string, number>();
   const rawLines = text.split('\n');
+
+  // Paste-local overlay: tracks cards created within this paste for duplicate detection
+  const overlay: { byKanji: Map<string, CardIndexEntry[]>; byKana: Map<string, CardIndexEntry[]> } = {
+    byKanji: new Map(),
+    byKana: new Map(),
+  };
+  const pushToOverlay = (entry: CardIndexEntry) => {
+    if (entry.kanji !== null) {
+      const list = overlay.byKanji.get(entry.kanji);
+      if (list) list.push(entry);
+      else overlay.byKanji.set(entry.kanji, [entry]);
+    }
+    for (const reading of entry.kana) {
+      const list = overlay.byKana.get(reading);
+      if (list) list.push(entry);
+      else overlay.byKana.set(reading, [entry]);
+    }
+  };
 
   for (let i = 0; i < rawLines.length; i++) {
     const lineNo = i + 1;
@@ -138,7 +168,7 @@ export function parseListText(text: string, index: CardIndex): ParseResult {
     const fields = splitFields(raw);
     if (fields.length === 1) {
       const word = fields[0];
-      const resolved = resolveBare(word, index);
+      const resolved = resolveBare(word, index, overlay);
       if (resolved.kind === 'one') {
         pushResolved({
           status: statusOf(resolved.entry),
@@ -149,11 +179,11 @@ export function parseListText(text: string, index: CardIndex): ParseResult {
         const listing = resolved.candidates
           .map((c) => `${c.kanji ?? c.kana[0]} (${c.gloss})`)
           .join(', ');
-        push({ status: 'error', error: `ambiguous — ${listing}; supply word\tkana\tgloss` });
+        push({ status: 'error', error: `ambiguous — ${listing}; supply word‹TAB›kana‹TAB›gloss` });
       } else {
         push({
           status: 'error',
-          error: 'not in the built-in N5–N2 data — supply word\tkana\tgloss',
+          error: 'not in the built-in N5–N2 data — supply word‹TAB›kana‹TAB›gloss',
         });
       }
       continue;
@@ -174,7 +204,7 @@ export function parseListText(text: string, index: CardIndex): ParseResult {
       continue;
     }
 
-    const existing = resolveFull(word, kana, index);
+    const existing = resolveFull(word, kana, index, overlay);
     if (existing !== null) {
       pushResolved({ status: statusOf(existing), cardId: existing.id, display: displayOf(existing) });
       continue;
@@ -191,6 +221,16 @@ export function parseListText(text: string, index: CardIndex): ParseResult {
       jlpt: null,
       source: 'custom',
     };
+    // Register the new card to the overlay for duplicate detection
+    const overlayEntry: CardIndexEntry = {
+      id: newCard.id,
+      kanji: newCard.kanji,
+      kana: newCard.kana,
+      gloss: newCard.gloss,
+      source: newCard.source,
+    };
+    pushToOverlay(overlayEntry);
+
     pushResolved({
       status: 'custom-new',
       cardId: id,

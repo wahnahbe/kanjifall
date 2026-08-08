@@ -36,7 +36,8 @@ describe('parseListText — line shapes', () => {
   it('two fields is a per-line error', () => {
     const r = parseListText('犬\tいぬ', INDEX);
     expect(r.lines[0].status).toBe('error');
-    expect(r.lines[0].error).toMatch(/1 .*or 3/);
+    expect(r.lines[0].error).toContain('1');
+    expect(r.lines[0].error).toContain('3');
   });
 
   it('splits on TAB when present, else on the first two commas (gloss keeps its commas)', () => {
@@ -69,7 +70,7 @@ describe('parseListText — bare-word resolution', () => {
   it('an unknown bare word tells you to supply the full form', () => {
     const r = parseListText('狛犬', INDEX);
     expect(r.lines[0].status).toBe('error');
-    expect(r.lines[0].error).toMatch(/word.+kana.+gloss/);
+    expect(r.lines[0].error).toContain('word‹TAB›kana‹TAB›gloss');
   });
 
   it('a bare word resolving to a prior custom card is custom-existing', () => {
@@ -123,5 +124,12 @@ describe('parseListText — duplicates', () => {
     const r = parseListText('狛犬\tこまいぬ\tguardian dog\n狛犬\tこまいぬ\tlion-dog', INDEX);
     expect(r.lines[1].error).toBe('duplicate of line 1');
     expect(r.summary).toEqual({ total: 2, resolved: 0, customNew: 1, errors: 1 });
+  });
+
+  it('a bare word duplicating a custom card created earlier in the same paste is flagged', () => {
+    const r = parseListText('狛犬\tこまいぬ\tguardian dog\n狛犬', INDEX);
+    expect(r.lines[0].status).toBe('custom-new');
+    expect(r.lines[1].status).toBe('error');
+    expect(r.lines[1].error).toBe('duplicate of line 1');
   });
 });
