@@ -9,6 +9,8 @@ interface GameScreenProps {
   hostRef: RefObject<HTMLDivElement | null>;
   introCards: Card[]; // this wave's newly introduced cards (waveStarting.newCards)
   planNotice: string | null;
+  /** Forwarded straight to ResultsScreen (tiered spec §5.4). */
+  tierAdvance: string | null;
   onIntroduced: (cardId: string) => void;
   onIntroComplete: () => void;
   onRevenge: (missed: Card[]) => void;
@@ -17,7 +19,8 @@ interface GameScreenProps {
 }
 
 export function GameScreen({
-  snapshot, hostRef, introCards, planNotice, onIntroduced, onIntroComplete, onRevenge, onPlayAgain, onTitle,
+  snapshot, hostRef, introCards, planNotice, tierAdvance, onIntroduced, onIntroComplete, onRevenge,
+  onPlayAgain, onTitle,
 }: GameScreenProps) {
   return (
     <div className="game-screen">
@@ -36,6 +39,7 @@ export function GameScreen({
       {snapshot.status === 'gameOver' && (
         <ResultsScreen
           snapshot={snapshot}
+          tierAdvance={tierAdvance}
           onRevenge={onRevenge}
           onPlayAgain={onPlayAgain}
           onTitle={onTitle}

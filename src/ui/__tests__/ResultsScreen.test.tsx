@@ -17,7 +17,12 @@ const base: EngineSnapshot = {
 
 describe('ResultsScreen', () => {
   it('shows score, wave, and accuracy = kills/(kills+misses+wrongSubmits)', () => {
-    render(<ResultsScreen snapshot={base} onRevenge={() => {}} onPlayAgain={() => {}} onTitle={() => {}} />);
+    render(
+      <ResultsScreen
+        snapshot={base} tierAdvance={null}
+        onRevenge={() => {}} onPlayAgain={() => {}} onTitle={() => {}}
+      />,
+    );
     expect(screen.getByTestId('final-score')).toHaveTextContent('4200');
     // 12 / (12 + 3 + 2) = 70.5… → 71%
     expect(screen.getByTestId('accuracy')).toHaveTextContent('71%');
@@ -27,6 +32,7 @@ describe('ResultsScreen', () => {
     render(
       <ResultsScreen
         snapshot={{ ...base, kills: 0, wrongSubmits: 0, missed: [] }}
+        tierAdvance={null}
         onRevenge={() => {}} onPlayAgain={() => {}} onTitle={() => {}}
       />,
     );
@@ -36,7 +42,10 @@ describe('ResultsScreen', () => {
   it('revenge passes DEDUPED missed cards and is disabled when nothing was missed', async () => {
     const onRevenge = vi.fn();
     const { rerender } = render(
-      <ResultsScreen snapshot={base} onRevenge={onRevenge} onPlayAgain={() => {}} onTitle={() => {}} />,
+      <ResultsScreen
+        snapshot={base} tierAdvance={null}
+        onRevenge={onRevenge} onPlayAgain={() => {}} onTitle={() => {}}
+      />,
     );
     await userEvent.click(screen.getByTestId('revenge-button'));
     expect(onRevenge).toHaveBeenCalledTimes(1);
@@ -45,9 +54,34 @@ describe('ResultsScreen', () => {
     rerender(
       <ResultsScreen
         snapshot={{ ...base, missed: [] }}
+        tierAdvance={null}
         onRevenge={onRevenge} onPlayAgain={() => {}} onTitle={() => {}}
       />,
     );
     expect(screen.getByTestId('revenge-button')).toBeDisabled();
+  });
+});
+
+describe('ResultsScreen tier-advance line (tiered spec §5.4, final-review Fix 2)', () => {
+  it('renders the line when a tier advanced this run', () => {
+    render(
+      <ResultsScreen
+        snapshot={base} tierAdvance="N5 tier 1 cleared — tier 2 is next."
+        onRevenge={() => {}} onPlayAgain={() => {}} onTitle={() => {}}
+      />,
+    );
+    expect(screen.getByTestId('tier-advance')).toHaveTextContent(
+      'N5 tier 1 cleared — tier 2 is next.',
+    );
+  });
+
+  it('is absent when nothing advanced', () => {
+    render(
+      <ResultsScreen
+        snapshot={base} tierAdvance={null}
+        onRevenge={() => {}} onPlayAgain={() => {}} onTitle={() => {}}
+      />,
+    );
+    expect(screen.queryByTestId('tier-advance')).toBeNull();
   });
 });

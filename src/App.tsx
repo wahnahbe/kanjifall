@@ -5,6 +5,8 @@ import { fetchRunPlan, toEnginePlan } from './data/planClient';
 import { RunRecorder } from './data/recorder';
 import type { Card, EnginePlan, GameMode } from './engine/types';
 import { noticeFor } from './planNotice';
+import type { TierProgress } from './shared/api';
+import { tierAdvanceLine } from './tierAdvance';
 import { GameScreen } from './ui/screens/GameScreen';
 import { SetupScreen } from './ui/screens/SetupScreen';
 import { StatsScreen } from './ui/screens/StatsScreen';
@@ -15,6 +17,13 @@ type Screen = 'title' | 'setup' | 'game' | 'stats';
 
 const VALID_MODES: GameMode[] = ['reading', 'recall'];
 const VALID_POOLS: PoolId[] = ['n5', 'n4', 'n3', 'n2', 'mixed'];
+
+/** 'revenge' isn't a plannable pool (it bypasses planning entirely, spec
+ *  §5.5) — this narrows lastRunRef's plain `pool: string` down to something
+ *  fetchRunPlan's tier-advance refetch can actually ask the server about. */
+function isPoolId(pool: string): pool is PoolId {
+  return (VALID_POOLS as readonly string[]).includes(pool);
+}
 
 /**
  * Replays never introduce anything, so this always replaces whatever notice
@@ -97,6 +106,13 @@ export default function App() {
   // replays never overwrite this), so a replay can still name the original
   // run's genuinely-unmet cards even though it hands the engine zero budget.
   const lastPlanRef = useRef<EnginePlan | null>(null);
+  // The tier snapshot the CURRENT run started with (fresh fetch only - same
+  // lifecycle as introducedIdsRef below: replays never overwrite this), so
+  // every results screen in a replay chain measures progress against the
+  // ORIGINAL run's baseline, not a stale mid-chain snapshot. Compared
+  // against a fresh re-fetch on gameOver to compute tierAdvance (tiered
+  // spec §5.4).
+  const lastTiersRef = useRef<readonly TierProgress[] | null>(null);
   // Cards introduced (ceremony completed OR skipped - both count, spec §3.1)
   // during the CURRENT fresh run. Reset only when a fresh run actually
   // begins (beginFromPool) - replays never touch it, so replaying a replay
@@ -106,6 +122,10 @@ export default function App() {
   const introducedIdsRef = useRef<Set<string>>(new Set());
   const recorderRef = useRef<RunRecorder | null>(null);
   const [planNotice, setPlanNotice] = useState<string | null>(null);
+  // The plain results-screen line for this run, or null (tiered spec §5.4).
+  // Reset alongside planNotice so a replay never shows a stale prior run's
+  // achievement before its own gameOver has had a chance to recompute it.
+  const [tierAdvance, setTierAdvance] = useState<string | null>(null);
   const { snapshot, hostRef, start, resume, introCards } = useEngine();
 
   // The sole place planNotice is set, for fresh starts and both replay paths
@@ -122,6 +142,7 @@ export default function App() {
     ) => {
       lastRunRef.current = { mode, cards, listVersion, pool };
       setPlanNotice(notice);
+      setTierAdvance(null);
       const recorder = new RunRecorder({ runId: crypto.randomUUID(), mode, pool, cards, listVersion });
       recorderRef.current = recorder;
       start({
@@ -143,6 +164,7 @@ export default function App() {
         await Promise.all([loadPool(pool), fetchRunPlan(pool, mode)]);
       const plan = fetched === null ? null : toEnginePlan(fetched);
       lastPlanRef.current = plan;
+      lastTiersRef.current = fetched?.tiers ?? null;
       const notice = noticeFor(fetched);
       beginRun(mode, cards, listVersion, pool, plan, notice);
     } catch (error: unknown) {
@@ -151,6 +173,25 @@ export default function App() {
       setLoading(false);
     }
   }, [beginRun]);
+
+  // Once a run ends, compare the tier snapshot it started with (lastTiersRef)
+  // against a fresh re-fetch to see whether THIS run pushed a level's active
+  // tier forward (tiered spec §5.4 — plain results-screen line only; the
+  // celebration itself is sub-project C's scope). An effect, not something
+  // computed inline at gameOver time, because the "after" side needs a fresh
+  // network round-trip that doesn't exist until the run has actually ended.
+  useEffect(() => {
+    if (snapshot.status !== 'gameOver') return;
+    const run = lastRunRef.current;
+    if (run === null || !isPoolId(run.pool)) return; // 'revenge' skips the round-trip entirely
+    let cancelled = false;
+    void fetchRunPlan(run.pool, run.mode).then((fetched) => {
+      if (!cancelled) setTierAdvance(tierAdvanceLine(lastTiersRef.current, fetched?.tiers ?? null));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [snapshot.status]);
 
   // Dev/e2e determinism: ?mode=&pool= auto-starts a run, skipping title/setup.
   const autoRun = useRef(runFromUrl());
@@ -179,6 +220,7 @@ export default function App() {
         hostRef={hostRef}
         introCards={introCards}
         planNotice={planNotice}
+        tierAdvance={tierAdvance}
         onIntroduced={(cardId) => {
           introducedIdsRef.current.add(cardId);
           recorderRef.current?.recordIntroduction(cardId);
