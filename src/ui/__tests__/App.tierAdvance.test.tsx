@@ -138,4 +138,50 @@ describe('App tier-advance wiring (final-review Fix 2)', () => {
     expect(screen.queryByTestId('tier-advance')).toBeNull();
     expect(planCalls()).toBe(planCallsBeforeRevenge);
   });
+
+  it('an immediate replay that advances nothing further shows no line (baseline rebases after each results screen)', async () => {
+    const pool = [card('a'), card('b')];
+    window.history.pushState({}, '', '/?mode=reading&pool=n5');
+    // planCalls===1 -> TIER_BEFORE, every call after that -> TIER_AFTER (see
+    // stubFetchWithTierProgression above) - so BOTH the first gameOver's
+    // re-fetch and the replay's own re-fetch observe TIER_AFTER. Without a
+    // rebase, lastTiersRef would still hold TIER_BEFORE at the replay's
+    // gameOver, and tierAdvanceLine(TIER_BEFORE, TIER_AFTER) would wrongly
+    // repeat "N5 tier 1 cleared - tier 2 is next." on a run that advanced
+    // nothing.
+    stubFetchWithTierProgression(pool);
+    mockSnapshot = snap({ status: 'playing' });
+
+    const { rerender } = render(<App />);
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+
+    mockSnapshot = snap({ status: 'gameOver', missed: [] });
+    rerender(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId('tier-advance')).toHaveTextContent(
+        'N5 tier 1 cleared — tier 2 is next.',
+      ),
+    );
+
+    // Play again (NOT revenge): reuses the SAME real pool ('n5'), so - unlike
+    // the revenge test above - the tier-advance effect's pool guard does NOT
+    // skip the re-fetch this time. This is the scenario the rebase has to
+    // handle.
+    await userEvent.click(await screen.findByRole('button', { name: /play again/i }));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByTestId('tier-advance')).toBeNull());
+
+    // Simulate the replay run itself playing out and ending. Status must
+    // genuinely change and change back, or the effect's dependency array
+    // never re-fires (see the revenge test's comment above for why).
+    mockSnapshot = snap({ status: 'playing' });
+    rerender(<App />);
+    mockSnapshot = snap({ status: 'gameOver', missed: [] });
+    rerender(<App />);
+
+    // No further advance happened, so nothing should (re)appear - give the
+    // effect's promise a tick, then assert it stayed absent.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByTestId('tier-advance')).toBeNull();
+  });
 });

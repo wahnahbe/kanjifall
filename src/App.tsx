@@ -106,12 +106,14 @@ export default function App() {
   // replays never overwrite this), so a replay can still name the original
   // run's genuinely-unmet cards even though it hands the engine zero budget.
   const lastPlanRef = useRef<EnginePlan | null>(null);
-  // The tier snapshot the CURRENT run started with (fresh fetch only - same
-  // lifecycle as introducedIdsRef below: replays never overwrite this), so
-  // every results screen in a replay chain measures progress against the
-  // ORIGINAL run's baseline, not a stale mid-chain snapshot. Compared
-  // against a fresh re-fetch on gameOver to compute tierAdvance (tiered
-  // spec §5.4).
+  // The tier snapshot to compare against for tierAdvance: seeded fresh in
+  // beginFromPool (same lifecycle as introducedIdsRef below - replays never
+  // overwrite it THERE), but then REBASED by the gameOver effect itself
+  // after every comparison, replay or not (see that effect). So each
+  // results screen reports only what changed since the LAST results screen
+  // (or run start, for the first one) - never re-showing a prior screen's
+  // already-reported advance. Compared against a fresh re-fetch on gameOver
+  // to compute tierAdvance (tiered spec §5.4).
   const lastTiersRef = useRef<readonly TierProgress[] | null>(null);
   // Cards introduced (ceremony completed OR skipped - both count, spec §3.1)
   // during the CURRENT fresh run. Reset only when a fresh run actually
@@ -186,7 +188,15 @@ export default function App() {
     if (run === null || !isPoolId(run.pool)) return; // 'revenge' skips the round-trip entirely
     let cancelled = false;
     void fetchRunPlan(run.pool, run.mode).then((fetched) => {
-      if (!cancelled) setTierAdvance(tierAdvanceLine(lastTiersRef.current, fetched?.tiers ?? null));
+      if (cancelled) return;
+      setTierAdvance(tierAdvanceLine(lastTiersRef.current, fetched?.tiers ?? null));
+      // Rebase to what was JUST observed, not just seeded at run start: an
+      // immediate replay that advances nothing further must compare against
+      // what its own results screen already reported, not repeat the prior
+      // screen's news. Keep the old baseline on a failed re-fetch (null)
+      // rather than erasing it - a transient server blip shouldn't make the
+      // NEXT results screen think everything since run-start just happened.
+      lastTiersRef.current = fetched?.tiers ?? lastTiersRef.current;
     });
     return () => {
       cancelled = true;
