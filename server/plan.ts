@@ -16,10 +16,13 @@ const POOL_LEVELS: Record<string, Level[]> = {
   mixed: [5, 4, 3, 2],
 };
 
+const LIST_POOL_RE = /^list:\d+$/;
+
 /** Pools the planner knows. The route rejects anything else; computeRunPlan
- *  itself stays total, returning an empty plan for an unknown pool. */
+ *  itself stays total, returning an empty plan for an unknown pool — and for
+ *  a well-formed list pool whose id doesn't exist. */
 export function isKnownPool(pool: string): boolean {
-  return Object.hasOwn(POOL_LEVELS, pool);
+  return Object.hasOwn(POOL_LEVELS, pool) || LIST_POOL_RE.test(pool);
 }
 
 interface PoolCardRow {
@@ -130,6 +133,41 @@ function resolveActiveTier(
   };
 }
 
+/** Attempts grouped per card plus the introduced set — the planning state
+ *  every pool kind derives from. */
+function loadPlanningState(handle: DbHandle, nowMs: number): {
+  grouped: Map<string, CardAttemptGroup>;
+  introduced: Set<string>;
+} {
+  const attemptRows = handle.db
+    .select()
+    .from(attempts)
+    .orderBy(asc(attempts.createdAt))
+    .all()
+    .filter((a) => a.createdAt <= nowMs);
+  const grouped = groupByCard(attemptRows);
+  const introduced = new Set<string>();
+  for (const row of handle.sqlite.prepare('SELECT card_id AS id FROM introductions').all() as {
+    id: string;
+  }[]) {
+    introduced.add(row.id);
+  }
+  return { grouped, introduced };
+}
+
+/** M4-A's daily budget, unchanged: shared across every pool kind, because
+ *  introductions are global. */
+function computeBudget(handle: DbHandle, nowMs: number): number {
+  const goal =
+    handle.db.get<{ goal: number }>(sql`SELECT daily_word_goal AS goal FROM profile WHERE id = 1`)
+      ?.goal ?? 0;
+  const introducedToday =
+    handle.db.get<{ n: number }>(
+      sql`SELECT COUNT(*) AS n FROM introductions WHERE introduced_at >= ${startOfLocalDay(nowMs)}`,
+    )?.n ?? 0;
+  return Math.max(0, Math.min(goal - introducedToday, PLAN.perRunNewCap));
+}
+
 /**
  * What this run may introduce and review. "New" means in an active tier AND
  * never attempted AND never introduced AND reachable in this mode. Every met
@@ -146,6 +184,10 @@ export function computeRunPlan(
   nowMs: number,
   mode?: Mode,
 ): RunPlan {
+  if (LIST_POOL_RE.test(pool)) {
+    return computeListRunPlan(handle, Number(pool.slice('list:'.length)), nowMs, mode);
+  }
+
   const levels = POOL_LEVELS[pool];
   if (!levels) return { newCardIds: [], seenCards: [], runBudget: 0, tiers: [] };
 
@@ -156,23 +198,7 @@ export function computeRunPlan(
     )
     .all(...levels) as PoolCardRow[];
 
-  // Full rows ascending — the shape stats.ts loads, with the same defensive
-  // <= nowMs filter: a future-dated row would give negative staleness and
-  // corrupt the learned window.
-  const attemptRows = handle.db
-    .select()
-    .from(attempts)
-    .orderBy(asc(attempts.createdAt))
-    .all()
-    .filter((a) => a.createdAt <= nowMs);
-  const grouped = groupByCard(attemptRows);
-
-  const introduced = new Set<string>();
-  for (const row of handle.sqlite.prepare('SELECT card_id AS id FROM introductions').all() as {
-    id: string;
-  }[]) {
-    introduced.add(row.id);
-  }
+  const { grouped, introduced } = loadPlanningState(handle, nowMs);
 
   const tiers: TierProgress[] = [];
   const activeTierIds = new Set<string>();
@@ -198,14 +224,47 @@ export function computeRunPlan(
     // mode, so they never enter newCardIds even while their tier is active.
   }
 
-  const goal =
-    handle.db.get<{ goal: number }>(sql`SELECT daily_word_goal AS goal FROM profile WHERE id = 1`)
-      ?.goal ?? 0;
-  const introducedToday =
-    handle.db.get<{ n: number }>(
-      sql`SELECT COUNT(*) AS n FROM introductions WHERE introduced_at >= ${startOfLocalDay(nowMs)}`,
-    )?.n ?? 0;
+  return { newCardIds, seenCards, runBudget: computeBudget(handle, nowMs), tiers };
+}
 
-  const runBudget = Math.max(0, Math.min(goal - introducedToday, PLAN.perRunNewCap));
-  return { newCardIds, seenCards, runBudget, tiers };
+/**
+ * A list pool is a curation, not a curriculum: full M4-A treatment —
+ * ceremonies via newCardIds, the shared daily budget, weighted review — but
+ * NO tier gate and tiers: [] (custom-list-import spec §5.2). The empty tiers
+ * array is load-bearing downstream: noticeFor's structural branch, the setup
+ * tier display, and tierAdvanceLine all treat it as "nothing to gate".
+ */
+function computeListRunPlan(
+  handle: DbHandle,
+  listId: number,
+  nowMs: number,
+  mode?: Mode,
+): RunPlan {
+  const listExists = handle.sqlite
+    .prepare(`SELECT id FROM lists WHERE id = ?`)
+    .get(listId) as { id: number } | undefined;
+  if (listExists === undefined) return { newCardIds: [], seenCards: [], runBudget: 0, tiers: [] };
+
+  const members = handle.sqlite
+    .prepare(
+      `SELECT c.id, c.kanji FROM list_cards lc
+       JOIN cards c ON c.id = lc.card_id
+       WHERE lc.list_id = ? ORDER BY lc.position`,
+    )
+    .all(listId) as { id: string; kanji: string | null }[];
+
+  const { grouped, introduced } = loadPlanningState(handle, nowMs);
+  const newCardIds: string[] = [];
+  const seenCards: { id: string; weight: number }[] = [];
+  for (const member of members) {
+    const group = grouped.get(member.id);
+    if (group !== undefined || introduced.has(member.id)) {
+      seenCards.push({ id: member.id, weight: cardWeight(group, nowMs) });
+    } else if (!(mode === 'reading' && member.kanji === null)) {
+      // The mode-unreachable rule (final-review Fix 1) without a gate to
+      // feed: a kana-only member simply can't be introduced in reading mode.
+      newCardIds.push(member.id);
+    }
+  }
+  return { newCardIds, seenCards, runBudget: computeBudget(handle, nowMs), tiers: [] };
 }

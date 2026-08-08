@@ -59,9 +59,24 @@ function setup() {
     expect(entry, cardId).toBeDefined();
     return entry!.weight;
   };
+  const makeList = (id: number, cardIds: string[]) => {
+    t.handle.sqlite
+      .prepare(`INSERT INTO lists (id, name, created_at, updated_at) VALUES (?, ?, 1, 1)`)
+      .run(id, `list-${id}`);
+    const insert = t.handle.sqlite
+      .prepare(`INSERT INTO list_cards (list_id, card_id, position) VALUES (?, ?, ?)`);
+    cardIds.forEach((cardId, i) => insert.run(id, cardId, i));
+  };
+  const insertCustomCard = (id: string, kanji: string | null) =>
+    t.handle.sqlite
+      .prepare(
+        `INSERT INTO cards (id, kanji, kana, gloss, pos, jlpt, tier, source, list_version)
+         VALUES (?, ?, '["よみ"]', 'g', 'unclassified', NULL, NULL, 'custom', 'custom-v1')`,
+      )
+      .run(id, kanji);
   return {
     t, ids: n5Ids.map((r) => r.id), tierIds, kanaOnlyTierIds, attempt, introduce, makeSolid,
-    makeAmnestied, weightOf,
+    makeAmnestied, weightOf, makeList, insertCustomCard,
   };
 }
 
@@ -305,5 +320,70 @@ describe('computeRunPlan — mode-aware plan (reading excludes kana-only cards)'
     const recall = computeRunPlan(t.handle, 'n5', NOW, 'recall');
     expect(recall.tiers[0]).toMatchObject({ index: 1, unreachable: 0, size: 10 });
     expect(recall.newCardIds).toHaveLength(10);
+  });
+});
+
+describe('computeRunPlan — list pools (custom-list-import spec §5.2)', () => {
+  it('an unmet member is new, a met member is weighted seen, and tiers is empty', () => {
+    const { t, ids, attempt, makeList } = setup();
+    makeList(1, [ids[0], ids[1]]);
+    attempt(ids[0], NOW - HOUR);
+    const plan = computeRunPlan(t.handle, 'list:1', NOW);
+    expect(plan.newCardIds).toEqual([ids[1]]);
+    expect(plan.seenCards.map((s) => s.id)).toEqual([ids[0]]);
+    expect(plan.tiers).toEqual([]);
+    expect(plan.runBudget).toBe(PLAN.perRunNewCap);
+  });
+
+  it('there is no gate: every unmet member is eligible at once', () => {
+    const { t, ids, makeList } = setup();
+    makeList(1, ids.slice(0, 15)); // spans far more than one tier's worth
+    const plan = computeRunPlan(t.handle, 'list:1', NOW);
+    expect(plan.newCardIds).toHaveLength(15);
+  });
+
+  it('mode=reading excludes an unmet kana-only member; recall and absent do not', () => {
+    // DEVIATION from the brief: it paired 'custom-kanaonly01' with ids[0] as
+    // the reachable member. In the real seeded N5 data, ids[0] (jm-1000050,
+    // the lowest id under `ORDER BY id`) is ITSELF kana-only — ids[0..4] all
+    // are; ids[5] is the first kanji-bearing card (verified against
+    // public/data/jlpt-n5.json). Using ids[0] made both list members
+    // unreachable under reading, collapsing newCardIds to [] and failing the
+    // first assertion — not a planner bug, a fixture-index assumption that
+    // doesn't hold. Fixed by building both members as purpose-specific
+    // custom cards, so the test no longer depends on JLPT id ordering at all.
+    const { t, makeList, insertCustomCard } = setup();
+    insertCustomCard('custom-kanji01', '漢字');
+    insertCustomCard('custom-kanaonly01', null);
+    makeList(1, ['custom-kanji01', 'custom-kanaonly01']);
+    expect(computeRunPlan(t.handle, 'list:1', NOW, 'reading').newCardIds).toEqual(['custom-kanji01']);
+    expect(computeRunPlan(t.handle, 'list:1', NOW, 'recall').newCardIds)
+      .toEqual(expect.arrayContaining(['custom-kanji01', 'custom-kanaonly01']));
+    expect(computeRunPlan(t.handle, 'list:1', NOW).newCardIds).toHaveLength(2);
+  });
+
+  it('the daily budget is shared with JLPT intake', () => {
+    const { t, ids, introduce, makeList } = setup();
+    makeList(1, [ids[19]]);
+    for (let i = 0; i < 18; i++) introduce(ids[i], NOW - HOUR);
+    expect(computeRunPlan(t.handle, 'list:1', NOW).runBudget).toBe(2); // goal 20 - 18
+  });
+
+  it('an introduced-never-attempted member carries the maximum weight', () => {
+    const { t, ids, introduce, makeList, weightOf } = setup();
+    makeList(1, [ids[0]]);
+    introduce(ids[0], NOW - HOUR);
+    const plan = computeRunPlan(t.handle, 'list:1', NOW);
+    expect(weightOf(plan, ids[0])).toBeCloseTo(
+      PLAN.reviewWeightFloor + PLAN.reviewWeaknessWeight + PLAN.reviewStalenessWeight,
+      10,
+    );
+  });
+
+  it('a nonexistent list id yields the fully empty plan', () => {
+    const { t } = setup();
+    expect(computeRunPlan(t.handle, 'list:99', NOW)).toEqual({
+      newCardIds: [], seenCards: [], runBudget: 0, tiers: [],
+    });
   });
 });
