@@ -36,9 +36,23 @@ export function ImportScreen({ onSaved, onBack }: ImportScreenProps) {
   // review fix #3). Guards every post-await continuation in doPreview and
   // doSave so a response landing after teardown never calls setState or
   // onSaved on a screen the user has already left.
+  //
+  // Regression (found in Task 7 e2e): StrictMode (src/main.tsx wraps <App>
+  // in it) double-invokes every effect in dev — setup, then a synthetic
+  // cleanup, then setup again — to surface exactly this kind of missing-
+  // reset bug. Refs survive that cycle, so without the explicit reset
+  // below, the synthetic cleanup's `disposedRef.current = true` would
+  // never get undone, permanently poisoning the guard and turning Preview
+  // and Save into silent no-ops for the rest of the component's real
+  // lifetime. Resetting to false on every setup is the canonical fix: a
+  // REAL unmount only ever runs the cleanup once, with no following setup,
+  // so the flag still ends up (and stays) true exactly when it should.
   const disposedRef = useRef(false);
-  useEffect(() => () => {
-    disposedRef.current = true;
+  useEffect(() => {
+    disposedRef.current = false;
+    return () => {
+      disposedRef.current = true;
+    };
   }, []);
 
   const valid = preview === null ? 0 : preview.summary.total - preview.summary.errors;

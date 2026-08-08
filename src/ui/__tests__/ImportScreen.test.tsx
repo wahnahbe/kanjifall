@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImportScreen } from '../screens/ImportScreen';
 
@@ -295,5 +296,26 @@ describe('ImportScreen', () => {
     });
 
     expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  // Regression (Important, found in Task 7 e2e): src/main.tsx renders the
+  // whole app through <StrictMode>, which in dev double-invokes every
+  // effect (setup → cleanup → setup) on mount to surface missing-cleanup
+  // bugs. The disposedRef teardown guard's cleanup sets disposedRef.current
+  // = true; nothing reset it back on the second setup, so from then on
+  // doPreview/doSave's `if (disposedRef.current) return;` silently discarded
+  // every response forever — Preview and Save became permanent no-ops in
+  // the real dev-server app. None of the tests above catch this because
+  // none of them render through StrictMode.
+  it('preview works under StrictMode (dev-mode effect double-invocation must not poison the teardown guard)', async () => {
+    stub({ '/api/lists/preview': PREVIEW });
+    render(
+      <StrictMode>
+        <ImportScreen onSaved={() => {}} onBack={() => {}} />
+      </StrictMode>,
+    );
+    await userEvent.type(screen.getByTestId('import-text'), '犬');
+    await userEvent.click(screen.getByTestId('preview-button'));
+    await waitFor(() => expect(screen.getByTestId('preview-table')).toBeInTheDocument());
   });
 });
