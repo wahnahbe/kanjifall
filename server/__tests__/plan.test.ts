@@ -178,6 +178,9 @@ describe('computeRunPlan — review weights', () => {
     expect(weightOf(plan, ids[0])).toBeGreaterThan(weightOf(plan, ids[1]));
     expect(weightOf(plan, ids[1])).toBeGreaterThan(PLAN.reviewWeightFloor);
     expect(weightOf(plan, ids[1])).toBeLessThan(0.6);
+    // Pins BOTH weighted terms: floor(0.1) + 0.6·weakness(0.01) + 0.4·staleness(1) = 0.506.
+    // Dropping either term moves this to 0.500 / 0.106 and fails.
+    expect(weightOf(plan, ids[1])).toBeCloseTo(0.506, 3);
   });
 
   it('the weight floor keeps a strong fresh card strictly positive but rare', () => {
@@ -186,6 +189,16 @@ describe('computeRunPlan — review weights', () => {
     const plan = computeRunPlan(t.handle, 'n5', NOW);
     expect(weightOf(plan, ids[2])).toBeGreaterThanOrEqual(PLAN.reviewWeightFloor);
     expect(weightOf(plan, ids[2])).toBeLessThan(0.2);
+  });
+
+  it('a weak fresh card is weighted by the weakness term (not only the floor)', () => {
+    const { t, ids, makeAmnestied, weightOf } = setup();
+    makeAmnestied(ids[3]); // 8 misses ending ~2h ago: strength 0 → weakness 1
+    const plan = computeRunPlan(t.handle, 'n5', NOW);
+    // floor + 0.6·1 + 0.4·staleness(~113min/72h ≈ 0.026) ≈ 0.7105 — dominated by
+    // the weakness term. Dropping it would collapse this to ~0.11.
+    expect(weightOf(plan, ids[3])).toBeGreaterThan(PLAN.reviewWeightFloor + PLAN.reviewWeaknessWeight);
+    expect(weightOf(plan, ids[3])).toBeLessThan(0.8);
   });
 
   it('a card with an attempt or an introduction is seen, not new (M4-A, preserved)', () => {
