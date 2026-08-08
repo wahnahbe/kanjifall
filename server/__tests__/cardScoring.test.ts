@@ -26,6 +26,9 @@ function fakeAttempt(overrides: Partial<AttemptRow> = {}): AttemptRow {
 
 describe('groupByCard', () => {
   it('buckets a recognized mode into its direction array; an unrecognized mode lands only in "all"', () => {
+    // `mode` is a plain `string` column (no DB-level CHECK constraint) — this exercises the fallthrough
+    // when neither 'reading' nor 'recall' matches, rather than assuming the zod-validated ingest path
+    // is the only way a row can ever get created.
     const known = fakeAttempt({ cardId: 'c1', mode: 'reading' });
     const corrupt = fakeAttempt({ cardId: 'c1', mode: 'listening' });
     const grouped = groupByCard([known, corrupt]);
