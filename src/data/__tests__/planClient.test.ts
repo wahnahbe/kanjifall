@@ -28,17 +28,25 @@ describe('fetchRunPlan', () => {
     expect(plan!.newCardIds).toEqual(['a', 'b']);
     expect(plan!.runBudget).toBe(4);
     expect(plan!.perWaveNewCap).toBeGreaterThan(0);
-    // Carried through (not discarded) so the UI can tell a starved pool with
-    // history from one that has never been touched at all (spec §3.2, §7) -
-    // but kept off the engine-facing shape below.
-    expect(plan!.seenCardIds).toEqual(['c']);
+    // Passed straight through so both the UI (starved-pool detection, spec
+    // §3.2, §7) and the engine (Spawner's seen pool, spec §5.3) see the
+    // weighted list untouched.
+    expect(plan!.seenCards).toEqual([{ id: 'c', weight: 1 }]);
     expect(fetchMock).toHaveBeenCalledWith('/api/plan?pool=n5');
   });
 
-  it('toEnginePlan narrows away seenCardIds', () => {
-    const engine = toEnginePlan({ newCardIds: ['a'], seenCardIds: ['b'], runBudget: 1, perWaveNewCap: 2 });
-    expect(engine).toEqual({ newCardIds: ['a'], runBudget: 1, perWaveNewCap: 2 });
-    expect(engine).not.toHaveProperty('seenCardIds');
+  it('toEnginePlan narrows away tiers', () => {
+    const engine = toEnginePlan({
+      newCardIds: ['a'],
+      seenCards: [{ id: 'b', weight: 0.5 }],
+      tiers: [{ level: 5, index: 1, totalTiers: 64, size: 10, solid: 0, amnestied: 0 }],
+      runBudget: 1,
+      perWaveNewCap: 2,
+    });
+    expect(engine).toEqual({
+      newCardIds: ['a'], seenCards: [{ id: 'b', weight: 0.5 }], runBudget: 1, perWaveNewCap: 2,
+    });
+    expect(engine).not.toHaveProperty('tiers');
   });
 
   it('returns null when the server is unreachable', async () => {

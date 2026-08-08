@@ -34,23 +34,32 @@ function runFromUrl(): { mode: GameMode; pool: PoolId } | null {
 }
 
 /**
- * A zero-budget plan whose newCardIds is still the ORIGINAL run's list of
- * genuinely-unmet cards. Used for both replay paths (onPlayAgain, onRevenge)
- * instead of `null`: Spawner keys its newPool/seenPool split entirely off
- * `plan.newCardIds` (src/engine/Spawner.ts), so a null/empty plan makes it
- * treat every card as already seen, including ones the player has truly
- * never met. That silently spawns them with no ceremony - and the server
- * marks a card seen the instant it gets an attempt, with no way back, so
- * this destroys that word's acquisition moment forever (the CRITICAL replay
- * bug this type guards against).
+ * A zero-budget plan preserving the ORIGINAL run's newCardIds AND weighted
+ * seenCards. Spawner keys both its pools off the plan (src/engine/Spawner.ts):
+ * newCardIds parks genuinely-unmet cards out of reach (the CRITICAL replay
+ * bug M4-A fixed), and seenCards is now the ONLY source of the review pool —
+ * cards in neither list are locked (tiered-vocab spec §5.3), so a replay
+ * must restate the original seen list or nothing could spawn at all.
  *
- * Naming the original newCardIds here (with zero budget/cap) keeps those
- * cards correctly parked in the un-introduced pool - unreachable unless the
- * seen pool is itself empty (Spawner's documented starved-pool fallback,
- * which is the one case where a replay pool can't avoid it either).
+ * A null original means the original run itself had no plan (server down):
+ * every pool card was review-eligible at uniform weight, and the replay
+ * keeps exactly that.
  */
-function replayPlan(newCardIds: readonly string[]): EnginePlan {
-  return { newCardIds, runBudget: 0, perWaveNewCap: 0 };
+function replayPlan(original: EnginePlan | null, pool: readonly Card[]): EnginePlan {
+  if (original === null) {
+    return {
+      newCardIds: [],
+      seenCards: pool.map((c) => ({ id: c.id, weight: 1 })),
+      runBudget: 0,
+      perWaveNewCap: 0,
+    };
+  }
+  return {
+    newCardIds: original.newCardIds,
+    seenCards: original.seenCards,
+    runBudget: 0,
+    perWaveNewCap: 0,
+  };
 }
 
 export default function App() {
@@ -98,7 +107,7 @@ export default function App() {
       const [{ cards, listVersion }, fetched] = await Promise.all([loadPool(pool), fetchRunPlan(pool)]);
       const plan = fetched === null ? null : toEnginePlan(fetched);
       lastPlanRef.current = plan;
-      const notice = noticeFor(plan, fetched !== null && fetched.seenCardIds.length === 0);
+      const notice = noticeFor(plan, fetched !== null && fetched.seenCards.length === 0);
       beginRun(mode, cards, listVersion, pool, plan, notice);
     } catch (error: unknown) {
       setLoadError(error instanceof DataLoadError ? error.message : 'unexpected load failure');
@@ -148,7 +157,7 @@ export default function App() {
             // neither can silently un-introduce a fresh card if that
             // invariant about missed cards ever stops holding (see
             // replayPlan's doc comment for the failure this guards against).
-            replayPlan(lastPlanRef.current?.newCardIds ?? []),
+            replayPlan(lastPlanRef.current, missed),
             REPLAY_NOTICE,
           )}
         onPlayAgain={() => lastRunRef.current
@@ -162,7 +171,7 @@ export default function App() {
             // doc comment: this is the fix for the CRITICAL "Play again"
             // bug, where a null plan let un-introduced cards spawn and burn
             // their acquisition moment forever.
-            replayPlan(lastPlanRef.current?.newCardIds ?? []),
+            replayPlan(lastPlanRef.current, lastRunRef.current.cards),
             REPLAY_NOTICE,
           )}
         onTitle={() => setScreen('title')}

@@ -27,7 +27,7 @@ const FAST = {
 // Both cards flagged new with budget/cap enough for one per wave: introCards
 // (sourced from waveStarting.newCards, not all wave cards) has length 1 at
 // wave 1 AND wave 2, which is what this test actually needs to observe.
-const PLAN: EnginePlan = { newCardIds: ['neko', 'inu'], runBudget: 2, perWaveNewCap: 2 };
+const PLAN: EnginePlan = { newCardIds: ['neko', 'inu'], seenCards: [], runBudget: 2, perWaveNewCap: 2 };
 
 const pressKeys = (keys: string[]) => {
   for (const key of keys) {

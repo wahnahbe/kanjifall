@@ -16,9 +16,20 @@ export interface Card {
 
 export type GameMode = 'reading' | 'recall';
 
-/** What this run may introduce. Injected — the engine never derives it. */
+/** A reviewable card and its draw weight, computed by the server (§3.4).
+ *  Weights are relative odds; the engine never interprets their scale. */
+export interface SeenCardRef {
+  id: string;
+  weight: number;
+}
+
+/** What this run may introduce and review. Injected — the engine never derives it. */
 export interface EnginePlan {
   newCardIds: readonly string[];
+  /** The complete reviewable set. Pool cards in NEITHER list are locked and
+   *  must never spawn (§5.3): with a tier gate, "not new" no longer implies
+   *  "met". */
+  seenCards: readonly SeenCardRef[];
   runBudget: number;
   perWaveNewCap: number;
 }

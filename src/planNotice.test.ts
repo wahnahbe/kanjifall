@@ -3,7 +3,7 @@ import type { EnginePlan } from './engine/types';
 import { noticeFor } from './planNotice';
 
 const planOf = (newCardIds: string[], runBudget: number): EnginePlan => ({
-  newCardIds, runBudget, perWaveNewCap: 2,
+  newCardIds, seenCards: [], runBudget, perWaveNewCap: 2,
 });
 
 describe('noticeFor', () => {

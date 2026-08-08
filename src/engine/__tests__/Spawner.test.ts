@@ -2,15 +2,26 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG, LANES } from '../constants';
 import { mulberry32 } from '../rng';
 import { Spawner } from '../Spawner';
-import type { Card, EnginePlan } from '../types';
+import type { Card, EnginePlan, SeenCardRef } from '../types';
 
 const pool: Card[] = Array.from({ length: 20 }, (_, i) => ({
   id: `c${i}`, kanji: `字${i}`, kana: [`かな${i}`], gloss: 'g', pos: 'noun',
   jlpt: 5, source: 'jlpt',
 }));
 
-const planOf = (newIds: string[], runBudget: number, perWaveNewCap = 2): EnginePlan => ({
+const planOf = (
+  newIds: string[],
+  runBudget: number,
+  perWaveNewCap = 2,
+  // Default preserves M4-A semantics for existing tests: everything not new
+  // is seen at uniform weight. New tests pass explicit subsets to create
+  // locked cards.
+  seen: SeenCardRef[] = pool
+    .filter((c) => !newIds.includes(c.id))
+    .map((c) => ({ id: c.id, weight: 1 })),
+): EnginePlan => ({
   newCardIds: newIds,
+  seenCards: seen,
   runBudget,
   perWaveNewCap,
 });
@@ -174,5 +185,58 @@ describe('Spawner run-plan composition', () => {
     const b = makeWithPlan(planOf(allNew, 4, 2), 7);
     expect(a.planWave(1).cards.map((c) => c.id)).toEqual(b.planWave(1).cards.map((c) => c.id));
     expect(a.planWave(2).cards.map((c) => c.id)).toEqual(b.planWave(2).cards.map((c) => c.id));
+  });
+});
+
+describe('Spawner tier-gate composition (M4-D)', () => {
+  it('cards in neither newCardIds nor seenCards are locked and never spawn', () => {
+    const s = makeWithPlan(
+      planOf(['c0', 'c1'], 6, 2, [{ id: 'c2', weight: 1 }, { id: 'c3', weight: 1 }]),
+    );
+    const allowed = new Set(['c0', 'c1', 'c2', 'c3']);
+    for (let w = 1; w <= 20; w++) {
+      for (const card of s.planWave(w).cards) {
+        expect(allowed.has(card.id), card.id).toBe(true);
+      }
+    }
+  });
+
+  it('the starved fallback draws only from the active tier, never from locked cards', () => {
+    // Zero budget, nothing seen, and 18 locked cards: the fallback may only
+    // surface the plan's new (active-tier) cards (spec §7).
+    const s = makeWithPlan(planOf(['c0', 'c1'], 0, 2, []));
+    const wave = s.planWave(1);
+    expect(wave.newCards).toHaveLength(0);
+    expect(wave.cards.length).toBeGreaterThan(0);
+    for (const card of wave.cards) expect(['c0', 'c1']).toContain(card.id);
+  });
+
+  it('the weighted draw favors a heavy card over any light card across many seeded waves', () => {
+    const seen = pool.map((c, i) => ({ id: c.id, weight: i === 0 ? 1.1 : 0.1 }));
+    const s = makeWithPlan(planOf([], 0, 2, seen), 7);
+    let heavyWaves = 0;
+    const lightWaves = new Map<string, number>();
+    const ROUNDS = 200;
+    for (let i = 0; i < ROUNDS; i++) {
+      const ids = new Set(s.planWave(1).cards.map((c) => c.id)); // wave 1: 5 draws from 20
+      if (ids.has('c0')) heavyWaves += 1;
+      for (const id of ids) {
+        if (id !== 'c0') lightWaves.set(id, (lightWaves.get(id) ?? 0) + 1);
+      }
+    }
+    // 11x weight → inclusion should dominate every uniform-light competitor.
+    for (const [id, count] of lightWaves) {
+      expect(heavyWaves, `c0 vs ${id}`).toBeGreaterThan(2 * count);
+    }
+    expect(heavyWaves).toBeGreaterThan(ROUNDS / 2);
+  });
+
+  it('weighted determinism: same seed and same weighted plan produce identical waves', () => {
+    const seen = pool.map((c, i) => ({ id: c.id, weight: 0.1 + (i % 5) * 0.25 }));
+    const a = makeWithPlan(planOf(['c0'], 1, 1, seen), 11);
+    const b = makeWithPlan(planOf(['c0'], 1, 1, seen), 11);
+    for (let w = 1; w <= 3; w++) {
+      expect(a.planWave(w).cards.map((c) => c.id)).toEqual(b.planWave(w).cards.map((c) => c.id));
+    }
   });
 });

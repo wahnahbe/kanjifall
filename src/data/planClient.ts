@@ -1,5 +1,5 @@
-import type { EnginePlan } from '../engine/types';
-import { runPlanSchema } from '../shared/api';
+import type { EnginePlan, SeenCardRef } from '../engine/types';
+import { runPlanSchema, type TierProgress } from '../shared/api';
 
 /**
  * Mirrors `PLAN.perWaveNewCap` in server/planConfig.ts, which is the source of
@@ -10,16 +10,16 @@ const PER_WAVE_NEW_CAP = 2;
 
 /**
  * Everything the plan endpoint gives the client: the engine's plan shape
- * (`newCardIds`/`runBudget`/`perWaveNewCap`) plus `seenCardIds`, which the
- * engine has no use for (Spawner derives "seen" as "pool minus new") but the
- * UI needs to tell a genuinely-starved pool from ordinary review (spec §3.2,
- * §7 — see `noticeFor` in src/planNotice.ts). Kept separate from
+ * (`newCardIds`/`seenCards`/`runBudget`/`perWaveNewCap`) plus `tiers`, which
+ * the engine has no use for but the UI needs for the setup screen's tier
+ * progress and the run notice (tiered-vocab spec §5.4). Kept separate from
  * `EnginePlan` so the engine's contract stays exactly what Spawner needs and
  * nothing more.
  */
 export interface FetchedPlan {
   newCardIds: readonly string[];
-  seenCardIds: readonly string[];
+  seenCards: readonly SeenCardRef[];
+  tiers: readonly TierProgress[];
   runBudget: number;
   perWaveNewCap: number;
 }
@@ -36,7 +36,8 @@ export async function fetchRunPlan(pool: string): Promise<FetchedPlan | null> {
     const plan = runPlanSchema.parse(await response.json());
     return {
       newCardIds: plan.newCardIds,
-      seenCardIds: plan.seenCardIds,
+      seenCards: plan.seenCards,
+      tiers: plan.tiers,
       runBudget: plan.runBudget,
       perWaveNewCap: PER_WAVE_NEW_CAP,
     };
@@ -49,6 +50,7 @@ export async function fetchRunPlan(pool: string): Promise<FetchedPlan | null> {
 export function toEnginePlan(fetched: FetchedPlan): EnginePlan {
   return {
     newCardIds: fetched.newCardIds,
+    seenCards: fetched.seenCards,
     runBudget: fetched.runBudget,
     perWaveNewCap: fetched.perWaveNewCap,
   };

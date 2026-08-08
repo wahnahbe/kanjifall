@@ -457,7 +457,7 @@ describe('wave intro, hints, counters (M2)', () => {
       mode: 'reading',
       seed: 1,
       config: introConfig,
-      plan: { newCardIds: cards.map((c) => c.id), runBudget: 1, perWaveNewCap: 1 },
+      plan: { newCardIds: cards.map((c) => c.id), seenCards: [], runBudget: 1, perWaveNewCap: 1 },
     });
     const starts: { wave: number; newCards: number }[] = [];
     engine.subscribe((e) => {

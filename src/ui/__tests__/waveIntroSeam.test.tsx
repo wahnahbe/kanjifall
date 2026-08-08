@@ -25,7 +25,7 @@ const CARDS = [neko, inu];
 // introduces both, with newCards leading the wave's composition — the exact
 // shape (Spawner) that exposes the Critical (an un-introduced word spawning
 // first because its ceremony never got its turn).
-const PLAN: EnginePlan = { newCardIds: ['neko', 'inu'], runBudget: 2, perWaveNewCap: 2 };
+const PLAN: EnginePlan = { newCardIds: ['neko', 'inu'], seenCards: [], runBudget: 2, perWaveNewCap: 2 };
 const FAST = {
   baseWaveSize: 2, waveSizeGrowth: 0, maxWaveSize: 2, maxAirborne: 2,
   baseFallSpeed: 0.01, baseSpawnIntervalMs: 50, minSpawnIntervalMs: 10,

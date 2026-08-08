@@ -123,7 +123,7 @@ describe('App replay wiring never lets an un-introduced card spawn', () => {
       pool,
       mulberry32(1),
       DEFAULT_CONFIG,
-      replayPlan ?? { newCardIds: [], runBudget: 0, perWaveNewCap: 0 },
+      replayPlan ?? { newCardIds: [], seenCards: [], runBudget: 0, perWaveNewCap: 0 },
     );
     expect(spawner.planWave(1).cards.map((c) => c.id)).not.toContain('never-c');
   });
@@ -160,7 +160,7 @@ describe('App replay wiring never lets an un-introduced card spawn', () => {
       pool,
       mulberry32(1),
       DEFAULT_CONFIG,
-      replayPlan ?? { newCardIds: [], runBudget: 0, perWaveNewCap: 0 },
+      replayPlan ?? { newCardIds: [], seenCards: [], runBudget: 0, perWaveNewCap: 0 },
     );
     expect(spawner.planWave(1).cards.map((c) => c.id)).not.toContain('never-c');
   });

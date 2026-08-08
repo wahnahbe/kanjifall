@@ -52,9 +52,15 @@ export class GameEngine {
     const pool = this.mode === 'reading'
       ? opts.cards.filter((c) => c.kanji !== null)
       : opts.cards;
-    // No plan (server unavailable) means nothing counts as new: no ceremonies,
-    // no budget, ordinary play. Gameplay never depends on the API.
-    const plan: EnginePlan = opts.plan ?? { newCardIds: [], runBudget: 0, perWaveNewCap: 0 };
+    // No plan (server unavailable) means nothing counts as new AND nothing is
+    // locked: every card is review-eligible at uniform weight — no ceremonies,
+    // no budget, no gate, ordinary play. Gameplay never depends on the API (§7).
+    const plan: EnginePlan = opts.plan ?? {
+      newCardIds: [],
+      seenCards: pool.map((c) => ({ id: c.id, weight: 1 })),
+      runBudget: 0,
+      perWaveNewCap: 0,
+    };
     this.spawner = new Spawner(pool, mulberry32(opts.seed), this.config, plan);
   }
 
