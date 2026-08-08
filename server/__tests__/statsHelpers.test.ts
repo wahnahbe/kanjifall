@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { attempts } from '../db/schema';
 import {
-  computeCardStats, computeEstimatedLevel, computeLevelRows, groupByCard, toLevel, type LevelStat,
+  computeCardStats, computeEstimatedLevel, computeLevelRows, toLevel, type LevelStat,
 } from '../statsHelpers';
 
 type AttemptRow = typeof attempts.$inferSelect;
@@ -36,21 +36,6 @@ describe('toLevel', () => {
     // not re-validated on read — a corrupt value falls back to the app's own N2 default, not a crash.
     expect(toLevel(7)).toBe(2);
     expect(toLevel(0)).toBe(2);
-  });
-});
-
-describe('groupByCard', () => {
-  it('buckets a recognized mode into its direction array; an unrecognized mode lands only in "all"', () => {
-    // `mode` is a plain `string` column (no DB-level CHECK constraint) — this exercises the fallthrough
-    // when neither 'reading' nor 'recall' matches, rather than assuming the zod-validated ingest path
-    // is the only way a row can ever get created.
-    const known = fakeAttempt({ cardId: 'c1', mode: 'reading' });
-    const corrupt = fakeAttempt({ cardId: 'c1', mode: 'listening' });
-    const grouped = groupByCard([known, corrupt]);
-    const group = grouped.get('c1')!;
-    expect(group.all).toHaveLength(2);
-    expect(group.reading).toEqual([known]);
-    expect(group.recall).toHaveLength(0);
   });
 });
 

@@ -1,9 +1,10 @@
 import { asc, eq } from 'drizzle-orm';
 import type { DbHandle } from './db/connect';
 import { attempts, cards, profile } from './db/schema';
+import { groupByCard } from './cardScoring';
 import {
   computeCardStats, computeEstimatedLevel, computeLeeches, computeLevelRows, computePace,
-  computeTrendAndStreak, groupByCard, toLevel, type Level,
+  computeTrendAndStreak, toLevel, type Level,
 } from './statsHelpers';
 import type { StatsOverview } from '../src/shared/api';
 
