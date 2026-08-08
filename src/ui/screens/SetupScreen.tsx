@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { POOL_LABELS, type PoolId } from '../../data/loader';
+import { fetchRunPlan } from '../../data/planClient';
 import type { GameMode } from '../../engine/types';
+import type { TierProgress } from '../../shared/api';
 
 interface SetupScreenProps {
   loading: boolean;
@@ -18,6 +20,20 @@ const POOLS: PoolId[] = ['n5', 'n4', 'n3', 'n2', 'mixed'];
 export function SetupScreen({ loading, error, onBegin, onBack }: SetupScreenProps) {
   const [mode, setMode] = useState<GameMode>('reading');
   const [pool, setPool] = useState<PoolId>('n5');
+
+  // Display-only tier progress for the highlighted pool (spec §5.4). Begin
+  // re-fetches the authoritative plan; server-down simply shows nothing.
+  const [tiers, setTiers] = useState<readonly TierProgress[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setTiers(null);
+    void fetchRunPlan(pool).then((fetched) => {
+      if (!cancelled) setTiers(fetched?.tiers ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pool]);
 
   return (
     <div className="screen-center" data-testid="setup">
@@ -47,6 +63,17 @@ export function SetupScreen({ loading, error, onBegin, onBack }: SetupScreenProp
           </button>
         ))}
       </div>
+      {tiers !== null && tiers.length > 0 && (
+        <div className="tier-progress" data-testid="tier-progress">
+          {tiers.map((t) => (
+            <p key={t.level} className="hint">
+              {t.index === null
+                ? `N${t.level} · All ${t.totalTiers} tiers cleared`
+                : `N${t.level} · Tier ${t.index} of ${t.totalTiers} — ${t.solid}/${t.size} solid`}
+            </p>
+          ))}
+        </div>
+      )}
       {error !== null && (
         <p className="load-error" data-testid="load-error">
           {error} — is the app serving /data/? Try again.

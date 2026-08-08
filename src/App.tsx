@@ -142,7 +142,7 @@ export default function App() {
       const [{ cards, listVersion }, fetched] = await Promise.all([loadPool(pool), fetchRunPlan(pool)]);
       const plan = fetched === null ? null : toEnginePlan(fetched);
       lastPlanRef.current = plan;
-      const notice = noticeFor(plan, fetched !== null && fetched.seenCards.length === 0);
+      const notice = noticeFor(fetched);
       beginRun(mode, cards, listVersion, pool, plan, notice);
     } catch (error: unknown) {
       setLoadError(error instanceof DataLoadError ? error.message : 'unexpected load failure');
