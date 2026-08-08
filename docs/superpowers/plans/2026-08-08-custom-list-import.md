@@ -1271,7 +1271,10 @@ async function loadListPool(pool: ListPoolId): Promise<LoadedPool> {
       listVersion: `list-${body.list.id}@${body.list.updatedAt}`,
     };
   } catch (error: unknown) {
-    if (error instanceof DataLoadError) throw error;
+    // Unconditional re-tag: even a nested loadLevel failure must surface as
+    // the LIST pool the player was loading, not the level file that broke
+    // underneath — the inner error survives via `cause`. (Amended after
+    // review: the earlier instanceof-passthrough leaked the level tag.)
     throw new DataLoadError(pool, error);
   }
 }
@@ -1662,6 +1665,8 @@ export function ImportScreen({ onSaved, onBack }: ImportScreenProps) {
   );
 }
 ```
+
+(Amended after review: both fields carry real `<label htmlFor>`/`id` pairs per the codebase's ProfileForm idiom; `doPreview` uses a request token so a stale in-flight response can never overwrite a fresh edit's invalidation; the Back button is `disabled={busy}` and both async handlers check a `disposedRef` after every await so nothing fires into a torn-down screen — each property pinned by a deferred-promise test.)
 
 - [ ] **Step 5: Run to verify pass**
 
