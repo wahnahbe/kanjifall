@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DataLoadError, loadPool, type PoolId } from './data/loader';
+import { DataLoadError, isListPool, loadPool, type PlayablePool, type PoolId } from './data/loader';
 import { drainOutbox } from './data/outbox';
 import { fetchRunPlan, toEnginePlan } from './data/planClient';
 import { RunRecorder } from './data/recorder';
@@ -8,21 +8,21 @@ import { noticeFor } from './planNotice';
 import type { TierProgress } from './shared/api';
 import { tierAdvanceLine } from './tierAdvance';
 import { GameScreen } from './ui/screens/GameScreen';
+import { ImportScreen } from './ui/screens/ImportScreen';
 import { SetupScreen } from './ui/screens/SetupScreen';
 import { StatsScreen } from './ui/screens/StatsScreen';
 import { TitleScreen } from './ui/screens/TitleScreen';
 import { useEngine } from './ui/useEngine';
 
-type Screen = 'title' | 'setup' | 'game' | 'stats';
+type Screen = 'title' | 'setup' | 'game' | 'stats' | 'import';
 
 const VALID_MODES: GameMode[] = ['reading', 'recall'];
 const VALID_POOLS: PoolId[] = ['n5', 'n4', 'n3', 'n2', 'mixed'];
 
 /** 'revenge' isn't a plannable pool (it bypasses planning entirely, spec
- *  §5.5) — this narrows lastRunRef's plain `pool: string` down to something
- *  fetchRunPlan's tier-advance refetch can actually ask the server about. */
-function isPoolId(pool: string): pool is PoolId {
-  return (VALID_POOLS as readonly string[]).includes(pool);
+ *  §5.5); JLPT pools and list pools both are. */
+function isPlannablePool(pool: string): pool is PlayablePool {
+  return (VALID_POOLS as readonly string[]).includes(pool) || isListPool(pool);
 }
 
 /**
@@ -32,12 +32,13 @@ function isPoolId(pool: string): pool is PoolId {
  */
 const REPLAY_NOTICE = 'Replay — review only, no new words this run.';
 
-function runFromUrl(): { mode: GameMode; pool: PoolId } | null {
+function runFromUrl(): { mode: GameMode; pool: PlayablePool } | null {
   const params = new URLSearchParams(window.location.search);
   const mode = params.get('mode') as GameMode | null;
-  const pool = params.get('pool') as PoolId | null;
-  if (mode !== null && pool !== null && VALID_MODES.includes(mode) && VALID_POOLS.includes(pool)) {
-    return { mode, pool };
+  const pool = params.get('pool');
+  if (mode === null || pool === null || !VALID_MODES.includes(mode)) return null;
+  if ((VALID_POOLS as readonly string[]).includes(pool) || isListPool(pool)) {
+    return { mode, pool: pool as PlayablePool };
   }
   return null;
 }
@@ -100,6 +101,11 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('title');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // The list the import screen most recently saved, so Setup can preselect
+  // it on return (spec §5.3). A ref, not state: it only ever needs to be
+  // read once, at SetupScreen's next mount, and never itself drives a
+  // re-render of App.
+  const importedListRef = useRef<{ id: number; name: string } | null>(null);
   const lastRunRef =
     useRef<{ mode: GameMode; cards: Card[]; listVersion: string; pool: string } | null>(null);
   // The plan the CURRENT run was actually started with (fresh fetch only -
@@ -155,7 +161,7 @@ export default function App() {
     [start],
   );
 
-  const beginFromPool = useCallback(async (mode: GameMode, pool: PoolId) => {
+  const beginFromPool = useCallback(async (mode: GameMode, pool: PlayablePool) => {
     setLoading(true);
     setLoadError(null);
     // A genuinely fresh run: nothing has been introduced yet, and anything
@@ -164,6 +170,13 @@ export default function App() {
     try {
       const [{ cards, listVersion }, fetched] =
         await Promise.all([loadPool(pool), fetchRunPlan(pool, mode)]);
+      if (mode === 'reading' && cards.every((c) => c.kanji === null)) {
+        // An empty reading pool would loop wave-cleared forever in the
+        // engine — reachable only via all-kana custom lists, so block it
+        // here with a plain message (custom-list-import spec §5.4).
+        setLoadError('This list has no kanji words — Reading mode unavailable.');
+        return;
+      }
       const plan = fetched === null ? null : toEnginePlan(fetched);
       lastPlanRef.current = plan;
       lastTiersRef.current = fetched?.tiers ?? null;
@@ -185,7 +198,7 @@ export default function App() {
   useEffect(() => {
     if (snapshot.status !== 'gameOver') return;
     const run = lastRunRef.current;
-    if (run === null || !isPoolId(run.pool)) return; // 'revenge' skips the round-trip entirely
+    if (run === null || !isPlannablePool(run.pool)) return; // 'revenge' skips the round-trip entirely
     let cancelled = false;
     void fetchRunPlan(run.pool, run.mode).then((fetched) => {
       if (cancelled) return;
@@ -269,6 +282,17 @@ export default function App() {
       />
     );
   }
+  if (screen === 'import') {
+    return (
+      <ImportScreen
+        onSaved={(list) => {
+          importedListRef.current = list;
+          setScreen('setup');
+        }}
+        onBack={() => setScreen('setup')}
+      />
+    );
+  }
   if (screen === 'setup') {
     return (
       <SetupScreen
@@ -276,6 +300,8 @@ export default function App() {
         error={loadError}
         onBegin={(mode, pool) => void beginFromPool(mode, pool)}
         onBack={() => setScreen('title')}
+        onImport={() => setScreen('import')}
+        initialListSelection={importedListRef.current}
       />
     );
   }

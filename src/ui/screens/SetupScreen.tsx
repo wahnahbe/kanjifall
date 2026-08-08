@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
-import { POOL_LABELS, type PoolId } from '../../data/loader';
+import { isListPool, POOL_LABELS, type PlayablePool, type PoolId } from '../../data/loader';
+import { fetchLists } from '../../data/listsClient';
 import { fetchRunPlan } from '../../data/planClient';
 import type { GameMode } from '../../engine/types';
-import type { TierProgress } from '../../shared/api';
+import type { ListSummary, TierProgress } from '../../shared/api';
 
 interface SetupScreenProps {
   loading: boolean;
   error: string | null;
-  onBegin: (mode: GameMode, pool: PoolId) => void;
+  onBegin: (mode: GameMode, pool: PlayablePool) => void;
   onBack: () => void;
+  onImport: () => void;
+  /** A list just saved by the import screen: preselect it (spec §5.3). */
+  initialListSelection: { id: number; name: string } | null;
 }
 
 const MODES: { id: GameMode; label: string; blurb: string }[] = [
@@ -17,9 +21,13 @@ const MODES: { id: GameMode; label: string; blurb: string }[] = [
 ];
 const POOLS: PoolId[] = ['n5', 'n4', 'n3', 'n2', 'mixed'];
 
-export function SetupScreen({ loading, error, onBegin, onBack }: SetupScreenProps) {
+export function SetupScreen(
+  { loading, error, onBegin, onBack, onImport, initialListSelection }: SetupScreenProps,
+) {
   const [mode, setMode] = useState<GameMode>('reading');
-  const [pool, setPool] = useState<PoolId>('n5');
+  const [pool, setPool] = useState<PlayablePool>(
+    initialListSelection ? `list:${initialListSelection.id}` : 'n5',
+  );
 
   // Display-only tier progress for the highlighted pool AND mode (spec
   // §5.4; final-review Fix 1: reading excludes kana-only cards from the
@@ -36,6 +44,26 @@ export function SetupScreen({ loading, error, onBegin, onBack }: SetupScreenProp
       cancelled = true;
     };
   }, [pool, mode]);
+
+  // The player's lists, or null while unknown/unavailable. Server down →
+  // row absent, same posture as tier progress (spec §5.3).
+  const [listRow, setListRow] = useState<readonly ListSummary[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchLists().then((lists) => {
+      if (!cancelled) setListRow(lists);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // A selected list that no longer exists (deleted elsewhere) falls back to N5.
+  useEffect(() => {
+    if (listRow === null || !isListPool(pool)) return;
+    const id = Number(pool.slice('list:'.length));
+    if (!listRow.some((l) => l.id === id)) setPool('n5');
+  }, [listRow, pool]);
 
   return (
     <div className="screen-center" data-testid="setup">
@@ -65,6 +93,26 @@ export function SetupScreen({ loading, error, onBegin, onBack }: SetupScreenProp
           </button>
         ))}
       </div>
+      {listRow !== null && (
+        <div className="picker-row" data-testid="list-row">
+          {listRow.map((l) => (
+            <button
+              key={l.id}
+              className={pool === `list:${l.id}` ? 'picker selected' : 'picker'}
+              data-testid={`pool-list-${l.id}`}
+              onClick={() => setPool(`list:${l.id}`)}
+            >
+              {l.name} <span className="hint">({l.cardCount})</span>
+            </button>
+          ))}
+          <button data-testid="import-button" onClick={onImport}>Import…</button>
+        </div>
+      )}
+      {listRow === null && (
+        <div className="picker-row">
+          <button data-testid="import-button" onClick={onImport}>Import…</button>
+        </div>
+      )}
       {tiers !== null && tiers.length > 0 && (
         <div className="tier-progress" data-testid="tier-progress">
           {/* Sorted by level descending (N5 first) so the line order never

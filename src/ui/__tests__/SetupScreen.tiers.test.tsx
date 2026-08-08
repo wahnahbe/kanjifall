@@ -16,6 +16,9 @@ const noop = () => {};
 function stubPlanFetch(tiersByPool: Record<string, unknown[]>) {
   const fetchMock = vi.fn((url: string) => {
     const u = String(url);
+    if (u === '/api/lists') {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) } as Response);
+    }
     if (u.includes('/api/plan')) {
       const pool = new URL(u, 'http://localhost').searchParams.get('pool');
       const tiers = pool === null ? undefined : tiersByPool[pool];
@@ -39,7 +42,10 @@ describe('SetupScreen tier progress (spec §5.4)', () => {
     stubPlanFetch({
       n5: [{ level: 5, index: 4, totalTiers: 64, size: 10, solid: 6, amnestied: 0, unreachable: 0 }],
     });
-    render(<SetupScreen loading={false} error={null} onBegin={noop} onBack={noop} />);
+    render(
+      <SetupScreen loading={false} error={null} onBegin={noop} onBack={noop}
+        onImport={noop} initialListSelection={null} />,
+    );
     await waitFor(() =>
       expect(screen.getByTestId('tier-progress')).toHaveTextContent('N5 · Tier 4 of 64 — 6/10 solid'),
     );
@@ -49,7 +55,10 @@ describe('SetupScreen tier progress (spec §5.4)', () => {
     stubPlanFetch({
       n5: [{ level: 5, index: null, totalTiers: 64, size: 0, solid: 0, amnestied: 0, unreachable: 0 }],
     });
-    render(<SetupScreen loading={false} error={null} onBegin={noop} onBack={noop} />);
+    render(
+      <SetupScreen loading={false} error={null} onBegin={noop} onBack={noop}
+        onImport={noop} initialListSelection={null} />,
+    );
     await waitFor(() =>
       expect(screen.getByTestId('tier-progress')).toHaveTextContent('N5 · All 64 tiers cleared'),
     );
@@ -74,7 +83,8 @@ describe('SetupScreen tier progress (spec §5.4)', () => {
       ],
     });
     const { getByTestId } = render(
-      <SetupScreen loading={false} error={null} onBegin={noop} onBack={noop} />,
+      <SetupScreen loading={false} error={null} onBegin={noop} onBack={noop}
+        onImport={noop} initialListSelection={null} />,
     );
     // Establish the n5-only render first so the post-click assertion below
     // can only pass via a genuine re-fetch, not a payload that was already
@@ -96,7 +106,10 @@ describe('SetupScreen tier progress (spec §5.4)', () => {
 
   it('shows nothing when the plan cannot be fetched (server down never blocks setup)', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))));
-    render(<SetupScreen loading={false} error={null} onBegin={noop} onBack={noop} />);
+    render(
+      <SetupScreen loading={false} error={null} onBegin={noop} onBack={noop}
+        onImport={noop} initialListSelection={null} />,
+    );
     await waitFor(() => expect(screen.queryByTestId('tier-progress')).toBeNull());
   });
 });
@@ -106,7 +119,10 @@ describe('SetupScreen kana-only tier progress (final-review Fix 1)', () => {
     stubPlanFetch({
       n5: [{ level: 5, index: 2, totalTiers: 64, size: 10, solid: 3, amnestied: 0, unreachable: 4 }],
     });
-    render(<SetupScreen loading={false} error={null} onBegin={noop} onBack={noop} />);
+    render(
+      <SetupScreen loading={false} error={null} onBegin={noop} onBack={noop}
+        onImport={noop} initialListSelection={null} />,
+    );
     await waitFor(() =>
       expect(screen.getByTestId('tier-progress')).toHaveTextContent(
         'N5 · Tier 2 of 64 — 3/6 solid · 4 kana-only',
@@ -118,7 +134,10 @@ describe('SetupScreen kana-only tier progress (final-review Fix 1)', () => {
     stubPlanFetch({
       n5: [{ level: 5, index: 2, totalTiers: 64, size: 10, solid: 3, amnestied: 0, unreachable: 0 }],
     });
-    render(<SetupScreen loading={false} error={null} onBegin={noop} onBack={noop} />);
+    render(
+      <SetupScreen loading={false} error={null} onBegin={noop} onBack={noop}
+        onImport={noop} initialListSelection={null} />,
+    );
     await waitFor(() => {
       const text = screen.getByTestId('tier-progress').textContent ?? '';
       expect(text).toContain('N5 · Tier 2 of 64 — 3/10 solid');
@@ -132,7 +151,10 @@ describe('SetupScreen tier-preview fetch carries the selected mode (final-review
     const fetchMock = stubPlanFetch({
       n5: [{ level: 5, index: 1, totalTiers: 64, size: 10, solid: 0, amnestied: 0, unreachable: 2 }],
     });
-    render(<SetupScreen loading={false} error={null} onBegin={noop} onBack={noop} />);
+    render(
+      <SetupScreen loading={false} error={null} onBegin={noop} onBack={noop}
+        onImport={noop} initialListSelection={null} />,
+    );
     await waitFor(() => expect(screen.getByTestId('tier-progress')).toBeInTheDocument());
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('mode=reading'));
 
