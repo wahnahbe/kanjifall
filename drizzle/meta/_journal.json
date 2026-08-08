@@ -15,6 +15,13 @@
       "when": 1784937123324,
       "tag": "0001_sharp_blur",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1786205158006,
+      "tag": "0002_romantic_scarlet_spider",
+      "breakpoints": true
     }
   ]
 }

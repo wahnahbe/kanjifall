@@ -7,6 +7,9 @@ export const cards = sqliteTable('cards', {
   gloss: text('gloss').notNull(),
   pos: text('pos').notNull(),
   jlpt: integer('jlpt'),
+  // Frequency tier within the card's JLPT level (tiered-vocab spec §4.1).
+  // Nullable at the DB layer: custom cards have no tier.
+  tier: integer('tier'),
   source: text('source').notNull(),
   listVersion: text('list_version').notNull(),
 });
