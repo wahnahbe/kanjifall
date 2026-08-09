@@ -1,4 +1,5 @@
 import { Application, Container, Text, TextStyle } from 'pixi.js';
+import type { Filter } from 'pixi.js';
 import { getSettings, subscribeSettings } from '../data/settings';
 import type { AirborneWord, GameMode } from '../engine/types';
 import { buildFilters } from './filters';
@@ -32,10 +33,8 @@ export class PixiStage {
     this.particles.view.zIndex = PARTICLES_Z_INDEX;
     this.app.stage.addChild(this.particles.view);
 
-    this.app.stage.filters = buildFilters(getSettings());
-    this.unsubscribeSettings = subscribeSettings(() => {
-      this.app.stage.filters = buildFilters(getSettings());
-    });
+    this.applyFilters();
+    this.unsubscribeSettings = subscribeSettings(() => this.applyFilters());
 
     app.ticker.add(() => {
       const delta = app.ticker.deltaMS;
@@ -126,6 +125,7 @@ export class PixiStage {
 
   destroy(): void {
     this.unsubscribeSettings();
+    this.destroyFilters(this.app.stage.filters);
     this.app.destroy(true, { children: true });
     this.sprites.clear();
     this.fx = [];
@@ -182,5 +182,41 @@ export class PixiStage {
     } else {
       this.app.stage.position.set(0, 0);
     }
+  }
+
+  /** Rebuilds the stage's filter set from current settings and destroys the
+   *  outgoing instances. Container.destroy() never touches .filters elements
+   *  (verified against the installed pixi.js source: it just drops the
+   *  `_filterEffect` reference), so without this, every settings change and
+   *  every stage teardown would abandon live GPU shader programs. */
+  private applyFilters(): void {
+    const outgoing = this.app.stage.filters;
+    this.app.stage.filters = buildFilters(getSettings());
+    this.destroyFilters(outgoing);
+  }
+
+  /** `destroyPrograms: true` is required — Shader#destroy defaults it to
+   *  false, which frees bind groups but leaves glProgram/gpuProgram (the
+   *  actual compiled GPU program) alive. Safe here because every filter we
+   *  build compiles its own program rather than sharing a cached one
+   *  (verified against the installed pixi-filters source for both
+   *  AdvancedBloomFilter and CRTFilter).
+   *
+   *  `filters` is `undefined` the first time this runs (Container.filters
+   *  reads `this._filterEffect?.filters`, and `_filterEffect` starts out
+   *  null) — the installed .d.ts claims a non-nullable `readonly Filter[]`,
+   *  which is inaccurate for that pre-init state, hence the explicit guard
+   *  rather than trusting the declared type.
+   *
+   *  Known residual: AdvancedBloomFilter owns two private sub-filters
+   *  (`_extractFilter`, `_blurFilter`) that are themselves independent
+   *  Filter/Shader instances with their own compiled programs.
+   *  AdvancedBloomFilter does not override destroy() to cascade into them,
+   *  so this call frees the bloom filter's own program but not its two
+   *  sub-filters' — an upstream gap in pixi-filters, not something safely
+   *  closable from here without reaching into private fields. */
+  private destroyFilters(filters: readonly Filter[] | undefined): void {
+    if (!filters) return;
+    for (const filter of filters) filter.destroy(true);
   }
 }
