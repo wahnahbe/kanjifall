@@ -45,14 +45,26 @@ export function getSettings(): Settings {
 }
 
 export function updateSettings(partial: Partial<Settings>): Settings {
-  const next = { ...getSettings(), ...partial };
+  const candidate = { ...getSettings(), ...partial };
+  const parsed = settingsSchema.safeParse(candidate);
+  if (!parsed.success) {
+    console.warn('[settings] rejected invalid update', partial);
+    return getSettings();
+  }
+  const next = parsed.data;
   current = next;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
     // Storage unavailable (private mode, quota) — settings stay session-local.
   }
-  for (const cb of listeners) cb();
+  for (const cb of listeners) {
+    try {
+      cb();
+    } catch (error) {
+      console.warn('[settings] subscriber threw', error);
+    }
+  }
   return next;
 }
 
