@@ -84,7 +84,9 @@ A skipped word (Escape) **still counts as introduced** and still spends budget. 
 
 ### 4.2 "New" defined
 
-A card is **new** when it has **no attempt row in any direction AND no introduction row**. Including introductions in the definition means quitting before a word falls doesn't cause a second introduction, and the budget can't be spent twice on the same card.
+A card is **new** when it has **no introduction row**. Including introductions in the definition means quitting before a word falls doesn't cause a second introduction, and the budget can't be spent twice on the same card.
+
+> **Amended 2026-08-09** (was: "no attempt row in any direction AND no introduction row"). Attempts alone must not confer seen status: the ceremony-less fallbacks — §3.2's starved-pool rule, §7's no-plan run, the Spawner's starved draw — record attempts for cards that were never taught, and §3.2's promise that such cards "still get their acquisition moment on a later day" requires membership to key on introductions alone. The attempts clause was the absorption shim for pre-plan-era history; that job ended with the 2026-08-09 DB reset. See `2026-08-09-seen-requires-introduction-design.md`.
 
 ### 4.3 Card hooks (client JSON only)
 
