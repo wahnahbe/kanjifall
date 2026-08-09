@@ -1,9 +1,10 @@
 interface TitleScreenProps {
   onStart: () => void;
   onStats: () => void;
+  onSettings: () => void;
 }
 
-export function TitleScreen({ onStart, onStats }: TitleScreenProps) {
+export function TitleScreen({ onStart, onStats, onSettings }: TitleScreenProps) {
   return (
     <div className="screen-center">
       <h1>kotoba-drop</h1>
@@ -11,6 +12,7 @@ export function TitleScreen({ onStart, onStats }: TitleScreenProps) {
       <p className="hint">Keyboard: a–z romaji · Enter submit · Backspace edit · Esc clear</p>
       <button data-testid="start-button" onClick={onStart}>Start — Reading mode (N5)</button>
       <button data-testid="stats-button" onClick={onStats}>Stats</button>
+      <button data-testid="settings-button" onClick={onSettings}>Settings</button>
     </div>
   );
 }

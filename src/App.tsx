@@ -9,12 +9,13 @@ import type { TierProgress } from './shared/api';
 import { tierAdvanceLine } from './tierAdvance';
 import { GameScreen } from './ui/screens/GameScreen';
 import { ImportScreen } from './ui/screens/ImportScreen';
+import { SettingsScreen } from './ui/screens/SettingsScreen';
 import { SetupScreen } from './ui/screens/SetupScreen';
 import { StatsScreen } from './ui/screens/StatsScreen';
 import { TitleScreen } from './ui/screens/TitleScreen';
 import { useEngine } from './ui/useEngine';
 
-type Screen = 'title' | 'setup' | 'game' | 'stats' | 'import';
+type Screen = 'title' | 'setup' | 'game' | 'stats' | 'import' | 'settings';
 
 const VALID_MODES: GameMode[] = ['reading', 'recall'];
 const VALID_POOLS: PoolId[] = ['n5', 'n4', 'n3', 'n2', 'mixed'];
@@ -328,5 +329,8 @@ export default function App() {
   if (screen === 'stats') {
     return <StatsScreen onBack={() => setScreen('title')} />;
   }
-  return <TitleScreen onStart={() => setScreen('setup')} onStats={() => setScreen('stats')} />;
+  if (screen === 'settings') {
+    return <SettingsScreen onBack={() => setScreen('title')} />;
+  }
+  return <TitleScreen onStart={() => setScreen('setup')} onStats={() => setScreen('stats')} onSettings={() => setScreen('settings')} />;
 }
