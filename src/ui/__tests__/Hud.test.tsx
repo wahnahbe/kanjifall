@@ -19,4 +19,12 @@ describe('Hud', () => {
     expect(screen.getByTestId('combo')).toHaveTextContent('4');
     expect(screen.getByTestId('kana-buffer')).toHaveTextContent('べんk');
   });
+
+  it('pops the combo span (juice-pass spec §6) when combo > 0, and does not when combo is 0', () => {
+    const { rerender } = render(<Hud snapshot={snapshot} />);
+    expect(screen.getByTestId('combo').className).toContain('combo-pop');
+
+    rerender(<Hud snapshot={{ ...snapshot, combo: 0 }} />);
+    expect(screen.getByTestId('combo').className).not.toContain('combo-pop');
+  });
 });

@@ -1,9 +1,13 @@
+import { useEffect, useRef } from 'react';
+import { sfx } from '../../audio/sfx';
 import type { Card, EngineSnapshot } from '../../engine/types';
+import { useSettings } from '../useSettings';
 
 interface ResultsScreenProps {
   snapshot: EngineSnapshot;
   /** Plain line naming the tier this run advanced, or null (tiered spec
-   *  §5.4 — the celebration itself is out of scope; see src/tierAdvance.ts). */
+   *  §5.4). The celebration (banner/confetti/fanfare) built around it is
+   *  juice-pass spec §6. */
   tierAdvance: string | null;
   onRevenge: (missed: Card[]) => void;
   onPlayAgain: () => void;
@@ -29,6 +33,18 @@ export function ResultsScreen({
   const attempts = snapshot.kills + snapshot.missed.length + snapshot.wrongSubmits;
   const accuracy = attempts === 0 ? 0 : Math.round((snapshot.kills / attempts) * 100);
 
+  const settings = useSettings();
+  const playedRef = useRef(false);
+  useEffect(() => {
+    // Deliberately NOT reset on effect re-run: StrictMode's double-invocation
+    // must not double-play, and a fresh results screen is a fresh component
+    // instance with a fresh ref (the OPPOSITE of ImportScreen's disposedRef
+    // pattern — see the juice-pass plan's Global Constraints).
+    if (tierAdvance === null || playedRef.current) return;
+    playedRef.current = true;
+    sfx.tierFanfare();
+  }, [tierAdvance]);
+
   return (
     <div className="overlay" data-testid="results">
       <h2>Run over</h2>
@@ -36,7 +52,27 @@ export function ResultsScreen({
         <span data-testid="final-score">{snapshot.score}</span> pts · Wave {snapshot.wave} ·{' '}
         <span data-testid="accuracy">{accuracy}%</span> accuracy
       </p>
-      {tierAdvance !== null && (
+      {tierAdvance !== null && settings.effects !== 'off' && (
+        <div className="tier-celebration" data-testid="tier-celebration">
+          <p className="tier-advance tier-banner" data-testid="tier-advance">{tierAdvance}</p>
+          {settings.effects === 'full' && (
+            <div className="confetti" data-testid="confetti" aria-hidden="true">
+              {Array.from({ length: 24 }, (_, i) => (
+                <span
+                  key={i}
+                  className="confetti-dot"
+                  style={{
+                    left: `${(i * 41) % 100}%`,
+                    animationDelay: `${(i % 8) * 90}ms`,
+                    backgroundColor: ['#ffd166', '#9dffb0', '#7cc7ff', '#ff9de2'][i % 4],
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {tierAdvance !== null && settings.effects === 'off' && (
         <p className="tier-advance" data-testid="tier-advance">{tierAdvance}</p>
       )}
       {missed.length > 0 && (

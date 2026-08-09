@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Card } from '../../engine/types';
+
+vi.mock('../../audio/sfx', () => ({
+  sfx: { tierFanfare: vi.fn(), ceremonyChime: vi.fn() },
+}));
+import { sfx } from '../../audio/sfx';
 import { AcquisitionCeremony } from '../screens/AcquisitionCeremony';
 
 const neko: Card = {
@@ -130,5 +135,29 @@ describe('AcquisitionCeremony', () => {
     await userEvent.keyboard('a{Enter}{Escape}');
     expect(onIntroduced).toHaveBeenCalledTimes(1);
     expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ceremony chime (juice-pass spec §6)', () => {
+  beforeEach(() => {
+    vi.mocked(sfx.ceremonyChime).mockClear();
+  });
+
+  it('a correct-reading Enter plays the chime once', async () => {
+    render(<AcquisitionCeremony cards={[neko]} onIntroduced={vi.fn()} onComplete={vi.fn()} />);
+    await userEvent.keyboard('neko{Enter}');
+    expect(sfx.ceremonyChime).toHaveBeenCalledTimes(1);
+  });
+
+  it('an Escape skip does not play the chime', async () => {
+    render(<AcquisitionCeremony cards={[neko]} onIntroduced={vi.fn()} onComplete={vi.fn()} />);
+    await userEvent.keyboard('{Escape}');
+    expect(sfx.ceremonyChime).not.toHaveBeenCalled();
+  });
+
+  it('a rejected Enter (wrong reading) does not play the chime', async () => {
+    render(<AcquisitionCeremony cards={[neko]} onIntroduced={vi.fn()} onComplete={vi.fn()} />);
+    await userEvent.keyboard('inu{Enter}');
+    expect(sfx.ceremonyChime).not.toHaveBeenCalled();
   });
 });

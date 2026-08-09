@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { sfx } from '../../audio/sfx';
 import { InputBuffer } from '../../engine/InputBuffer';
 import { matchesReading } from '../../engine/matcher';
 import type { Card } from '../../engine/types';
@@ -54,8 +55,10 @@ export function AcquisitionCeremony({ cards, onIntroduced, onComplete }: Acquisi
       }
       if (e.key === 'Enter') {
         e.preventDefault();
-        if (matchesReading(buffer.commitKana(), card)) advance(card.id);
-        else {
+        if (matchesReading(buffer.commitKana(), card)) {
+          sfx.ceremonyChime();
+          advance(card.id);
+        } else {
           setRejected(true);
           buffer.clear();
           setKana('');
