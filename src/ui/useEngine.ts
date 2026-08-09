@@ -4,6 +4,10 @@ import type {
   AirborneWord, Card, EngineConfig, EnginePlan, EngineSnapshot, GameEvent, GameMode,
 } from '../engine/types';
 import { PixiStage } from '../render/PixiStage';
+import { attachSfx } from '../audio/attachSfx';
+import { sfx } from '../audio/sfx';
+
+const playSfx = attachSfx(sfx);
 
 const IDLE_SNAPSHOT: EngineSnapshot = {
   status: 'idle', mode: 'reading', score: 0, lives: 0, wave: 0, combo: 0, maxCombo: 0,
@@ -94,6 +98,7 @@ export function useEngine() {
       if (event.type === 'wordKilled') stage?.playKill(event.word);
       if (event.type === 'wordMissed') stage?.playMiss(event.word);
       if (event.type === 'waveStarting') setIntroCards(event.newCards);
+      playSfx(event);
       publish();
       onRunEventRef.current?.(event, { words: engine.getWords(), snapshot: engine.getSnapshot() });
     };
