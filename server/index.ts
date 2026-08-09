@@ -67,7 +67,7 @@ function openBrowser(url: string): void {
 let handle;
 try {
   handle = connect(dbPath);
-  console.log(`kotoba-drop api: db ready at ${dbPath}`);
+  console.log(`kanjifall api: db ready at ${dbPath}`);
 } catch (error: unknown) {
   if (!(error instanceof DbOpenError)) throw error;
   handle = error;
@@ -79,7 +79,7 @@ if (shouldServeDist) attachDistServing(app);
 
 const server = serve({ fetch: app.fetch, port, hostname: '127.0.0.1' }, () => {
   const url = `http://localhost:${port}`;
-  console.log(`kotoba-drop api listening on ${url}`);
+  console.log(`kanjifall api listening on ${url}`);
   if (shouldOpen) openBrowser(url);
 });
 
@@ -89,7 +89,7 @@ const server = serve({ fetch: app.fetch, port, hostname: '127.0.0.1' }, () => {
 // Stats screen then blames a server that appears to be "running".
 server.on('error', (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
-  console.error(`kotoba-drop api FAILED to listen on port ${port}: ${message}`);
-  console.error('Is another kotoba-drop instance (npm run dev / npm start / e2e) still running?');
+  console.error(`kanjifall api FAILED to listen on port ${port}: ${message}`);
+  console.error('Is another kanjifall instance (npm run dev / npm start / e2e) still running?');
   process.exit(1);
 });
