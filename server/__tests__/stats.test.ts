@@ -78,8 +78,8 @@ function miss(handle: DbHandle, runId: string, cardId: string, mode: Mode, creat
 type CardRow = typeof cards.$inferSelect;
 
 /**
- * Real seeded n5/n2 card ids (connect() seeds all 4,678 committed JLPT cards, including n5=633,
- * n2=1776 — the fixture's math below depends on those level TOTALS, not on which specific cards are
+ * Real seeded n5/n2 card ids (connect() seeds all 4,652 committed JLPT cards, including n5=630,
+ * n2=1774 — the fixture's math below depends on those level TOTALS, not on which specific cards are
  * chosen, per the task's binding instructions). n5 cards are additionally filtered to have a non-null
  * kanji so the leech assertion's `kanji` field check below is non-vacuous.
  */
@@ -147,15 +147,15 @@ describe('computeOverview — golden fixture', () => {
     // learned = distinct n5 cards with >=1 LEARNED direction = {A} = 1 (B and C both fail the gate).
     expect(n5Row.encountered).toBe(3);
     expect(n5Row.learned).toBe(1);
-    // coverage = encountered/total = 3/633 (real seeded n5 total, queried not hardcoded).
-    expect(n5Row.coverage).toBeCloseTo(3 / 633, 10);
+    // coverage = encountered/total = 3/630 (real seeded n5 total, queried not hardcoded).
+    expect(n5Row.coverage).toBeCloseTo(3 / 630, 10);
     // mastery = learned/encountered = 1/3.
     expect(n5Row.mastery).toBeCloseTo(1 / 3, 10);
 
     const n2Row = overview.levels.find((l) => l.level === 2)!;
     expect(n2Row.encountered).toBe(1);
     expect(n2Row.learned).toBe(1);
-    expect(n2Row.coverage).toBeCloseTo(1 / 1776, 10);
+    expect(n2Row.coverage).toBeCloseTo(1 / 1774, 10);
     expect(n2Row.mastery).toBeCloseTo(1, 10);
 
     // n4/n3: untouched by the fixture -> all-zero, and mastery's 0/0 must be guarded (not NaN).
@@ -167,20 +167,20 @@ describe('computeOverview — golden fixture', () => {
       expect(row.mastery).toBe(0);
     }
 
-    // --- estimatedLevel: neither n5 (3/633≈0.47%) nor n2 (1/1776≈0.06%) clears the 60% coverage bar. ---
+    // --- estimatedLevel: neither n5 (3/630≈0.48%) nor n2 (1/1774≈0.06%) clears the 60% coverage bar. ---
     expect(overview.estimatedLevel).toBeNull();
 
     // --- pace ---
     // learnedAt: A=days(8), D=days(1) — both inside [NOW-14d, NOW] -> 2 cards learned in the window.
     // learnRatePerDay = 2 / 14 = 0.142857...
     expect(overview.pace.learnRatePerDay).toBeCloseTo(0.142857, 5);
-    // remainingTargetWords = n2.total(1776) - n2.learned(1) = 1775.
-    expect(overview.pace.remainingTargetWords).toBe(1775);
+    // remainingTargetWords = n2.total(1774) - n2.learned(1) = 1773.
+    expect(overview.pace.remainingTargetWords).toBe(1773);
     // daysToExam: default profile exam '2026-12-06' (00:00 UTC) - NOW(2026-08-01T12:00Z)
     // = 126.5 days -> ceil = 127.
     expect(overview.pace.daysToExam).toBe(127);
-    // requiredRatePerDay = 1775 / 127 = 13.9763779...
-    expect(overview.pace.requiredRatePerDay).toBeCloseTo(13.976, 2);
+    // requiredRatePerDay = 1773 / 127 = 13.9606299...
+    expect(overview.pace.requiredRatePerDay).toBeCloseTo(13.961, 2);
     expect(overview.pace.onPace).toBe(false); // 0.142857 < 13.976
 
     // --- trend: spot-check three days that exercise distinct branches (30-day window, local date bucketed via localDateKey) ---

@@ -63,6 +63,22 @@ describe('generated JLPT data invariants', () => {
     }
   });
 
+  it('no two kanji-headed cards within a level share a kanji', () => {
+    // Reading mode displays only the kanji (WordSprite), so two same-kanji
+    // cards in one pool are indistinguishable while accepting disjoint
+    // answers. The build merges such homographs (src/data/homographs.ts);
+    // this guards against a regeneration reintroducing them.
+    for (const [level, file] of files) {
+      const seen = new Map<string, string>();
+      for (const card of file.cards) {
+        if (card.kanji === null) continue;
+        const prior = seen.get(card.kanji);
+        expect(prior, `N${level} ${card.kanji}: ${prior} vs ${card.id}`).toBeUndefined();
+        seen.set(card.kanji, card.id);
+      }
+    }
+  });
+
   it('jlpt tag matches the file level and source is jlpt', () => {
     for (const [level, file] of files) {
       for (const card of file.cards) {

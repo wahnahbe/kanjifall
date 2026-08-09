@@ -8,13 +8,14 @@
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { isKana } from 'wanakana';
+import { mergeLevelHomographs } from '../src/data/homographs.ts';
 import { levelFileSchema } from '../src/data/schema.ts';
 import type { Card } from '../src/engine/types.ts';
 import { PLAN } from '../server/planConfig.ts';
 
 const RAW_DIR = 'data/raw';
 const OUT_DIR = 'public/data';
-const LIST_VERSION = 'jlpt-tanos-jmdict-3.6.2-v2';
+const LIST_VERSION = 'jlpt-tanos-jmdict-3.6.2-v3';
 const GLOSS_MAX = 28;
 const MIN_MATCH_RATE = 0.85;
 const LEVEL_BY_TAG: Record<string, 2 | 3 | 4 | 5> = { N5: 5, N4: 4, N3: 3, N2: 2 };
@@ -362,6 +363,17 @@ function main(): void {
     cardsByLevel.get(entry.level)!.push(card);
   }
 
+  // Same-kanji cards within a level are indistinguishable as falling words
+  // (reading mode renders only the kanji) — collapse them before hooks and
+  // tiering so the survivor ranks once. Must run before attachHooks: hooks
+  // and tier counts key by card.kanji, so twins would double-count.
+  const homographMerges: string[] = [];
+  for (const [level, cards] of cardsByLevel) {
+    const merged = mergeLevelHomographs(cards, (id) => commonById.get(id) ?? false);
+    cardsByLevel.set(level, merged.cards);
+    homographMerges.push(...merged.merges);
+  }
+
   mkdirSync(OUT_DIR, { recursive: true });
   const entryCounts = new Map<number, number>([[5, 0], [4, 0], [3, 0], [2, 0]]);
   for (const e of entries) entryCounts.set(e.level, (entryCounts.get(e.level) ?? 0) + 1);
@@ -385,6 +397,8 @@ function main(): void {
   console.log(`Duplicate entries merged (new reading added): ${mergedReadings.length}`);
   console.log(`Duplicate entries skipped (reading already present): ${duplicatesSkipped}`);
   for (const m of mergedReadings.slice(0, 12)) console.log(`  ${m}`);
+  console.log(`Same-kanji homographs merged within a level: ${homographMerges.length}`);
+  for (const m of homographMerges) console.log(`  ${m}`);
 }
 
 main();

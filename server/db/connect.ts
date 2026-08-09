@@ -20,7 +20,7 @@ export class DbOpenError extends Error {
 
 const LEVELS = [5, 4, 3, 2] as const;
 
-/** Idempotent: INSERT OR REPLACE all committed cards (4,678 rows, one transaction). */
+/** Idempotent: INSERT OR REPLACE all committed cards (4,652 rows, one transaction). */
 function seedCards(handle: DbHandle): void {
   const upsert = handle.sqlite.prepare(
     `INSERT OR REPLACE INTO cards (id, kanji, kana, gloss, pos, jlpt, tier, source, list_version)

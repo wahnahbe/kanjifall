@@ -254,15 +254,13 @@ describe('computeRunPlan — mode-aware plan (reading excludes kana-only cards)'
     // example: max 6/10 pooled = 0.6 < 0.8 is a PERMANENT stall for a
     // reading-only player under the pooled gate, whereas under mode:'reading'
     // the 4 kana-only cards leave the denominator entirely (6/6 = 1.0).
-    // NOTE: the brief's test-2 hint names "tier 1 (2 kana-only)" for this
-    // case, but tier 1's 8 kanji-bearing cards land exactly on the 8/10 =
-    // 0.8 threshold, which the existing (unchanged) `>=` gate already PASSES
-    // pooled — verified 8/10 === 0.8 in IEEE754, and the pre-existing "8/10
-    // solid passes the gate" test proves the same boundary is inclusive. So
-    // tier 1 cannot demonstrate a pooled "holds" outcome from kanji-only
-    // mastery; tier 2 is the tier whose numbers actually produce the
-    // described contrast, and it matches the fix's own worked example
-    // verbatim. Flagged in the final report rather than silently ignored.
+    // NOTE: the brief's test-2 hint named "tier 1 (2 kana-only)" for this
+    // case, but against the v2 data tier 1's 8 kanji-bearing cards landed
+    // exactly on the 8/10 = 0.8 inclusive threshold and couldn't demonstrate
+    // a pooled "holds" outcome; tier 2 matched the fix's worked example
+    // verbatim, so it stays the fixture here. (Since the v3 homograph merge
+    // tier 1 is also 4 kana-only / 6 kanji-bearing, but tier 2 remains the
+    // documented example.)
     const { t, tierIds, kanaOnlyTierIds, makeSolid } = setup();
     const tier2 = tierIds(5, 2);
     const kanaOnly2 = new Set(kanaOnlyTierIds(5, 2));
@@ -287,19 +285,19 @@ describe('computeRunPlan — mode-aware plan (reading excludes kana-only cards)'
     const tier1 = tierIds(5, 1);
     const kanaOnly1 = kanaOnlyTierIds(5, 1);
     const kanjiBearing1 = tier1.filter((id) => !kanaOnly1.includes(id));
-    expect(kanaOnly1).toHaveLength(2);
-    expect(kanjiBearing1).toHaveLength(8);
+    expect(kanaOnly1).toHaveLength(4);
+    expect(kanjiBearing1).toHaveLength(6);
 
     makeSolid(kanaOnly1[0]);
-    for (const id of kanjiBearing1.slice(0, 6)) makeSolid(id);
-    // 7 solid (1 kana + 6 kanji) / denominator 9 (size 10 − 1 remaining
-    // unreachable kana card) ≈ 0.778 < 0.8: tier 1 still holds. If the kana
-    // card's solidity weren't counted, solid would read 6, not 7.
+    for (const id of kanjiBearing1.slice(0, 4)) makeSolid(id);
+    // 5 solid (1 kana + 4 kanji) / denominator 7 (size 10 − 3 remaining
+    // unreachable kana cards) ≈ 0.714 < 0.8: tier 1 still holds. If the kana
+    // card's solidity weren't counted, solid would read 4, not 5.
     const mid = computeRunPlan(t.handle, 'n5', NOW, 'reading');
-    expect(mid.tiers[0]).toMatchObject({ index: 1, solid: 7, unreachable: 1 });
+    expect(mid.tiers[0]).toMatchObject({ index: 1, solid: 5, unreachable: 3 });
 
-    makeSolid(kanjiBearing1[6]);
-    // 8 solid (1 kana + 7 kanji) / 9 ≈ 0.889 >= 0.8: now it passes.
+    makeSolid(kanjiBearing1[4]);
+    // 6 solid (1 kana + 5 kanji) / 7 ≈ 0.857 >= 0.8: now it passes.
     const after = computeRunPlan(t.handle, 'n5', NOW, 'reading');
     expect(after.tiers[0].index).toBe(2);
   });
