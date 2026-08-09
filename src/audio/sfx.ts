@@ -16,15 +16,17 @@ export function comboPitch(combo: number): number {
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
+let contextFailed = false;
 
 function ensureContext(): { ctx: AudioContext; master: GainNode } | null {
-  if (typeof AudioContext === 'undefined') return null;
+  if (contextFailed || typeof AudioContext === 'undefined') return null;
   if (ctx === null) {
     try {
       ctx = new AudioContext();
       master = ctx.createGain();
       master.connect(ctx.destination);
     } catch {
+      contextFailed = true;
       ctx = null;
       master = null;
       return null;
@@ -33,6 +35,12 @@ function ensureContext(): { ctx: AudioContext; master: GainNode } | null {
   if (ctx.state === 'suspended') void ctx.resume().catch(() => {});
   master!.gain.value = getSettings().volume;
   return { ctx, master: master! };
+}
+
+export function resetAudioForTests(): void {
+  ctx = null;
+  master = null;
+  contextFailed = false;
 }
 
 interface NoteSpec {

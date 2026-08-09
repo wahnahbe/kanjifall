@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetSettingsCache, updateSettings } from '../../data/settings';
-import { comboPitch, sfx } from '../sfx';
+import { comboPitch, resetAudioForTests, sfx } from '../sfx';
 
 beforeEach(() => {
   localStorage.clear();
   resetSettingsCache();
+  resetAudioForTests();
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -38,5 +39,20 @@ describe('sfx voices', () => {
     updateSettings({ sound: false });
     sfx.kill(1);
     expect(ctor).not.toHaveBeenCalled();
+  });
+
+  it('a throwing AudioContext is tried once, then cached as failed', () => {
+    resetAudioForTests();
+    const ctor = vi.fn(() => {
+      throw new Error('denied');
+    });
+    vi.stubGlobal('AudioContext', ctor);
+    // sound defaults to true
+    expect(() => {
+      sfx.kill(1);
+      sfx.kill(2);
+      sfx.miss();
+    }).not.toThrow();
+    expect(ctor).toHaveBeenCalledTimes(1);
   });
 });
