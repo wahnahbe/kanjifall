@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import type { Card, EngineSnapshot } from '../../engine/types';
 import { Hud } from '../hud/Hud';
+import { ImeWarning } from '../hud/ImeWarning';
 import { AcquisitionCeremony } from './AcquisitionCeremony';
 import { ResultsScreen } from './ResultsScreen';
 
@@ -26,6 +27,7 @@ export function GameScreen({
     <div className="game-screen">
       <div className="pixi-host" ref={hostRef} />
       <Hud snapshot={snapshot} />
+      <ImeWarning />
       {snapshot.status === 'playing' && planNotice !== null && (
         <p className="plan-notice" data-testid="plan-notice">{planNotice}</p>
       )}
