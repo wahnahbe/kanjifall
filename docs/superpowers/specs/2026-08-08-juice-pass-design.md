@@ -1,7 +1,7 @@
 # The Juice Pass — Design Spec
 
 **Date:** 2026-08-08
-**Status:** Approved pending final user review
+**Status:** Implemented — see docs/superpowers/plans/2026-08-08-juice-pass.md
 **Scope:** M4 sub-project C — the last M4 item. Covers the main spec's item-4 wishlist in full: SFX, particles, combo effects, bloom/CRT, settings, IME warning banner, README, plus the tier-cleared celebration deferred here by the tiered-vocabulary spec (§1, §5.4).
 **Builds on:** `2026-07-27-tiered-vocabulary-design.md` (the `tierAdvance` results line this upgrades) and the main spec's load-bearing boundary (§4): the Pixi layer, React HUD, and audio are all passive consumers of engine events.
 
