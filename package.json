@@ -7,6 +7,7 @@
     "dev:client": "vite",
     "dev:server": "tsx watch server/index.ts",
     "dev": "concurrently -k npm:dev:client npm:dev:server",
+    "dev:headless": "concurrently -k \"vite\" \"tsx server/index.ts\"",
     "dev:e2e": "concurrently -k \"vite --port 5183 --strictPort\" \"cross-env KOTOBA_DB=data/e2e.db tsx server/index.ts\"",
     "build": "tsc -b && vite build",
     "start": "npm run build && tsx server/index.ts --dist --open",

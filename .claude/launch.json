@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "kotoba-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:headless"],
+      "port": 5173
+    }
+  ]
+}
