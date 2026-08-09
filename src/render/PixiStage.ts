@@ -2,7 +2,7 @@ import { Application, Container, Text, TextStyle } from 'pixi.js';
 import type { Filter } from 'pixi.js';
 import { getSettings, subscribeSettings } from '../data/settings';
 import type { AirborneWord, GameMode } from '../engine/types';
-import { buildFilters } from './filters';
+import { buildFilters, filterKinds } from './filters';
 import { Particles } from './Particles';
 import { WordSprite } from './WordSprite';
 
@@ -25,6 +25,10 @@ export class PixiStage {
   private readonly particles: Particles;
   private readonly unsubscribeSettings: () => void;
   private shakeMs = 0;
+  // Sentinel so the FIRST applyFilters() call always applies, no matter what
+  // filterKinds(initial settings) happens to join to (including '' when
+  // neither bloom nor crt is on) — see applyFilters' doc comment.
+  private appliedFilterKinds = 'unset';
 
   private constructor(app: Application) {
     this.app = app;
@@ -188,10 +192,26 @@ export class PixiStage {
    *  outgoing instances. Container.destroy() never touches .filters elements
    *  (verified against the installed pixi.js source: it just drops the
    *  `_filterEffect` reference), so without this, every settings change and
-   *  every stage teardown would abandon live GPU shader programs. */
+   *  every stage teardown would abandon live GPU shader programs.
+   *
+   *  Guarded by a kinds-equality check: subscribeSettings() notifies on
+   *  every settings write, including audio-only ones (a volume-slider drag
+   *  fires up to ~20 in a row) that leave filterKinds() unchanged. Without
+   *  the guard, each no-op notification still tore down and rebuilt
+   *  AdvancedBloomFilter/CRTFilter — destroy()ing the bloom filter on every
+   *  one of those calls leaks its two un-cascaded sub-filters' compiled GPU
+   *  programs (see destroyFilters' doc comment) for as long as the stage
+   *  stays subscribed. `appliedFilterKinds` starts at the sentinel 'unset',
+   *  which can never equal a real join of ('bloom' | 'crt')[] (whose only
+   *  possible values are '', 'bloom', 'crt', 'bloom,crt') — so the first
+   *  call always applies regardless of what the initial settings resolve to. */
   private applyFilters(): void {
+    const settings = getSettings();
+    const kinds = filterKinds(settings).join(',');
+    if (kinds === this.appliedFilterKinds && this.app.stage.filters !== undefined) return;
+    this.appliedFilterKinds = kinds;
     const outgoing = this.app.stage.filters;
-    this.app.stage.filters = buildFilters(getSettings());
+    this.app.stage.filters = buildFilters(settings);
     this.destroyFilters(outgoing);
   }
 

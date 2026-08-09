@@ -24,6 +24,23 @@ describe('SettingsScreen (juice-pass spec §3.2)', () => {
     });
   });
 
+  it('effects picker exposes a radio role with aria-checked flipping to the selection (a11y)', async () => {
+    render(<SettingsScreen onBack={() => {}} />);
+    const full = screen.getByTestId('effects-full');
+    const reduced = screen.getByTestId('effects-reduced');
+    const off = screen.getByTestId('effects-off');
+    for (const button of [full, reduced, off]) expect(button).toHaveAttribute('role', 'radio');
+
+    await userEvent.click(off);
+    expect(off).toHaveAttribute('aria-checked', 'true');
+    expect(full).toHaveAttribute('aria-checked', 'false');
+    expect(reduced).toHaveAttribute('aria-checked', 'false');
+
+    await userEvent.click(reduced);
+    expect(reduced).toHaveAttribute('aria-checked', 'true');
+    expect(off).toHaveAttribute('aria-checked', 'false');
+  });
+
   it('volume slider is disabled while sound is off and writes when on', () => {
     render(<SettingsScreen onBack={() => {}} />);
     const slider = screen.getByTestId('volume-slider') as HTMLInputElement;

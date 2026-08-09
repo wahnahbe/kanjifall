@@ -19,6 +19,12 @@ describe('ImeWarning (main spec §7 row: IME intercepts keystrokes)', () => {
     expect(screen.getByTestId('ime-warning')).toHaveTextContent(/Win\+Space/);
   });
 
+  it('is exposed to assistive tech as an alert (a11y: spec §7 silent failure)', () => {
+    render(<ImeWarning />);
+    compose();
+    expect(screen.getByRole('alert')).toBe(screen.getByTestId('ime-warning'));
+  });
+
   it('hides 4s after the last composition event, timer reset per event', () => {
     render(<ImeWarning />);
     compose();

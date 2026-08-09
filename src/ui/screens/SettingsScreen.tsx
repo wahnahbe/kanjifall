@@ -43,6 +43,8 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
             key={level}
             data-testid={`effects-${level}`}
             className={settings.effects === level ? 'picker selected' : 'picker'}
+            role="radio"
+            aria-checked={settings.effects === level}
             onClick={() => updateSettings({ effects: level })}
           >
             {level}

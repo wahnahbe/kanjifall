@@ -24,7 +24,7 @@ export function ImeWarning() {
   }, []);
   if (!visible) return null;
   return (
-    <p className="ime-warning" data-testid="ime-warning">
+    <p className="ime-warning" data-testid="ime-warning" role="alert">
       Japanese IME is on — switch to EN input (Win+Space).
     </p>
   );

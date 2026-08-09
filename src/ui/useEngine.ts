@@ -99,7 +99,11 @@ export function useEngine() {
       if (event.type === 'wordMissed') stage?.playMiss(event.word);
       if (event.type === 'waveCleared') stage?.playWaveClear();
       if (event.type === 'waveStarting') setIntroCards(event.newCards);
-      playSfx(event);
+      try {
+        playSfx(event);
+      } catch (error) {
+        console.warn('[sfx] voice failed', error);
+      }
       publish();
       onRunEventRef.current?.(event, { words: engine.getWords(), snapshot: engine.getSnapshot() });
     };

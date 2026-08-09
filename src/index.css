@@ -132,3 +132,7 @@ button:hover { background: #24304a; }
   50% { transform: scale(1.35); }
   100% { transform: scale(1); }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .combo-pop, .tier-banner, .confetti-dot { animation: none; }
+}

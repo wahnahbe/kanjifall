@@ -4,8 +4,8 @@ A falling-words Japanese typing game. JLPT-tagged vocabulary falls from the
 top of the screen; you type the reading in romaji (converted live to kana)
 and press Enter to destroy each word before it hits the floor. Every attempt
 is recorded to a local SQLite database that powers a personal analytics
-profile — words learned per direction, a vocab-only JLPT level estimate, and
-pace tracking against an exam date.
+profile — words learned per direction, a vocab-only JLPT level estimate, a
+30-day trend and leech list, and pace tracking against an exam date.
 
 It is a **reinforcement** tool: arcade pressure cements half-known words.
 New words arrive through paced acquisition ceremonies, gated by
