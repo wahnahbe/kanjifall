@@ -95,8 +95,9 @@ export function useEngine() {
     };
 
     const onEvent = (event: GameEvent) => {
-      if (event.type === 'wordKilled') stage?.playKill(event.word);
+      if (event.type === 'wordKilled') stage?.playKill(event.word, event.combo);
       if (event.type === 'wordMissed') stage?.playMiss(event.word);
+      if (event.type === 'waveCleared') stage?.playWaveClear();
       if (event.type === 'waveStarting') setIntroCards(event.newCards);
       playSfx(event);
       publish();

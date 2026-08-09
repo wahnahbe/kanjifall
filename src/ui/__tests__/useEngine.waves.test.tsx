@@ -6,7 +6,7 @@ import type { Card, EnginePlan } from '../../engine/types';
 vi.mock('../../render/PixiStage', () => ({
   PixiStage: {
     create: vi.fn().mockResolvedValue({
-      sync: vi.fn(), playKill: vi.fn(), playMiss: vi.fn(), destroy: vi.fn(),
+      sync: vi.fn(), playKill: vi.fn(), playMiss: vi.fn(), playWaveClear: vi.fn(), destroy: vi.fn(),
     }),
   },
 }));

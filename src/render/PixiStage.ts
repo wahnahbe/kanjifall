@@ -1,5 +1,8 @@
 import { Application, Container, Text, TextStyle } from 'pixi.js';
+import { getSettings, subscribeSettings } from '../data/settings';
 import type { AirborneWord, GameMode } from '../engine/types';
+import { buildFilters } from './filters';
+import { Particles } from './Particles';
 import { WordSprite } from './WordSprite';
 
 interface Fx {
@@ -9,18 +12,37 @@ interface Fx {
   update: (view: Container, t: number) => void; // t in [0,1]
 }
 
+const PARTICLES_Z_INDEX = 10; // above word sprites and fx, which sit at the default 0
+const SHAKE_DURATION_MS = 150;
+const SHAKE_JITTER_PX = 4;
+
 /** Dumb render layer: mirrors engine words, plays kill/miss effects. */
 export class PixiStage {
   private sprites = new Map<number, WordSprite>();
   private fx: Fx[] = [];
   private readonly app: Application;
+  private readonly particles: Particles;
+  private readonly unsubscribeSettings: () => void;
+  private shakeMs = 0;
 
   private constructor(app: Application) {
     this.app = app;
+    this.app.stage.sortableChildren = true;
+    this.particles = new Particles();
+    this.particles.view.zIndex = PARTICLES_Z_INDEX;
+    this.app.stage.addChild(this.particles.view);
+
+    this.app.stage.filters = buildFilters(getSettings());
+    this.unsubscribeSettings = subscribeSettings(() => {
+      this.app.stage.filters = buildFilters(getSettings());
+    });
+
     app.ticker.add(() => {
       const delta = app.ticker.deltaMS;
       this.updateFx(delta);
       for (const sprite of this.sprites.values()) sprite.update(delta);
+      this.particles.update(delta);
+      this.updateShake(delta);
     });
   }
 
@@ -59,23 +81,51 @@ export class PixiStage {
     }
   }
 
-  /** Scale-up + fade-out at the word's last position. */
-  playKill(word: AirborneWord): void {
+  /** Scale-up + fade-out gloss tween, a kill-green particle burst that grows
+   *  with combo tier, and — every 5th combo step — a bigger burst plus a
+   *  `×N!` flash (skipped entirely at effects 'off': spec §5.1). */
+  playKill(word: AirborneWord, combo: number): void {
     this.spawnFx(word, word.card.gloss, 0x9dffb0, 350, (view, t) => {
       view.scale.set(1 + t * 0.8);
       view.alpha = 1 - t;
     });
+
+    const px = word.x * this.app.screen.width;
+    const py = Math.min(word.y, 0.95) * this.app.screen.height;
+    this.particles.killBurst(px, py, combo);
+
+    if (combo > 0 && combo % 5 === 0 && getSettings().effects !== 'off') {
+      this.spawnFx(word, `×${combo}!`, 0xffd166, 500, (view, t) => {
+        const pop = t < 0.3 ? 1 + (t / 0.3) * 0.3 : 1.3 - Math.min((t - 0.3) / 0.3, 1) * 0.3;
+        view.scale.set(pop);
+        view.alpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
+      });
+    }
   }
 
-  /** Reveal the answer where the word landed (spec §3.1: miss is a learning moment). */
+  /** Reveal the answer where the word landed (spec §3.1: miss is a learning
+   *  moment), a dim red particle puff, and — effects 'full' only — a brief
+   *  screen shake. */
   playMiss(word: AirborneWord): void {
     const reveal = `${word.card.kanji ?? ''} ${word.card.kana[0]} — ${word.card.gloss}`.trim();
     this.spawnFx(word, reveal, 0xff8f8f, 1600, (view, t) => {
       view.alpha = t < 0.15 ? 1 : 1 - (t - 0.15) / 0.85;
     });
+
+    const px = word.x * this.app.screen.width;
+    const py = Math.min(word.y, 0.95) * this.app.screen.height;
+    this.particles.missPuff(px, py);
+
+    if (getSettings().effects === 'full') this.shakeMs = SHAKE_DURATION_MS;
+  }
+
+  /** Brief confetti sweep across the top edge (spec §5.1). */
+  playWaveClear(): void {
+    this.particles.confettiSweep(this.app.screen.width);
   }
 
   destroy(): void {
+    this.unsubscribeSettings();
     this.app.destroy(true, { children: true });
     this.sprites.clear();
     this.fx = [];
@@ -118,5 +168,19 @@ export class PixiStage {
       }
       return true;
     });
+  }
+
+  /** Jitters the whole stage ±SHAKE_JITTER_PX while shakeMs is positive;
+   *  restores the origin the instant it expires (miss-only, spec §5.1). */
+  private updateShake(deltaMs: number): void {
+    if (this.shakeMs <= 0) return;
+    this.shakeMs -= deltaMs;
+    if (this.shakeMs > 0) {
+      const dx = (Math.random() * 2 - 1) * SHAKE_JITTER_PX;
+      const dy = (Math.random() * 2 - 1) * SHAKE_JITTER_PX;
+      this.app.stage.position.set(dx, dy);
+    } else {
+      this.app.stage.position.set(0, 0);
+    }
   }
 }
