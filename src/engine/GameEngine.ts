@@ -55,6 +55,9 @@ export class GameEngine {
     // No plan (server unavailable) means nothing counts as new AND nothing is
     // locked: every card is review-eligible at uniform weight — no ceremonies,
     // no budget, no gate, ordinary play. Gameplay never depends on the API (§7).
+    // Attempts recorded during such a run don't cost un-taught cards their
+    // ceremony: the planner keys seen status on introductions alone, so they
+    // stay new until properly introduced (word-intro §3.2, 2026-08-09 fix).
     const plan: EnginePlan = opts.plan ?? {
       newCardIds: [],
       seenCards: pool.map((c) => ({ id: c.id, weight: 1 })),

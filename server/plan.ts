@@ -170,11 +170,17 @@ function computeBudget(handle: DbHandle, nowMs: number): number {
 
 /**
  * What this run may introduce and review. "New" means in an active tier AND
- * never attempted AND never introduced AND reachable in this mode. Every met
- * card returns in seenCards with a review weight (mode-unreachable or not —
- * seenCards stays mode-agnostic, since a card once met is met regardless of
- * which mode meets it); cards in neither list are locked and must not spawn
- * (§5.3). `mode` is optional: absent means the pooled view used by e2e's
+ * never introduced AND reachable in this mode. Every INTRODUCED card returns
+ * in seenCards with a review weight (mode-unreachable or not — seenCards
+ * stays mode-agnostic, since a card once introduced is met regardless of
+ * which mode met it); cards in neither list are locked and must not spawn
+ * (§5.3). Attempts alone never confer seen status: the ceremony-less
+ * fallbacks (a no-plan run, the starved-pool draws) record attempts for
+ * cards that were never taught, and those cards must re-enter newCardIds
+ * once their tier is active so they still get their acquisition moment
+ * (word-intro §3.2; seen-requires-introduction fix, 2026-08-09). Off-plan
+ * attempts still feed the gate and the weights — knowledge evidence, not
+ * membership. `mode` is optional: absent means the pooled view used by e2e's
  * direct plan reads and any caller that hasn't opted in (final-review Fix 1).
  * The daily budget is unchanged from M4-A.
  */
@@ -214,14 +220,15 @@ export function computeRunPlan(
   for (const card of poolCards) {
     const { id } = card;
     const group = grouped.get(id);
-    if (group !== undefined || introduced.has(id)) {
+    if (introduced.has(id)) {
       seenCards.push({ id, weight: cardWeight(group, nowMs) });
     } else if (activeTierIds.has(id) && !isModeUnreachable(card, mode)) {
       newCardIds.push(id);
     }
-    // Neither met, in an active tier and reachable, is locked (§5.3) — in no
-    // list at all. Mode-unreachable cards can never be introduced in this
-    // mode, so they never enter newCardIds even while their tier is active.
+    // Neither introduced, in an active tier and reachable, is locked (§5.3)
+    // — in no list at all, attempt history or not. Mode-unreachable cards
+    // can never be introduced in this mode, so they never enter newCardIds
+    // even while their tier is active.
   }
 
   return { newCardIds, seenCards, runBudget: computeBudget(handle, nowMs), tiers };
@@ -258,7 +265,7 @@ function computeListRunPlan(
   const seenCards: { id: string; weight: number }[] = [];
   for (const member of members) {
     const group = grouped.get(member.id);
-    if (group !== undefined || introduced.has(member.id)) {
+    if (introduced.has(member.id)) {
       seenCards.push({ id: member.id, weight: cardWeight(group, nowMs) });
     } else if (!(mode === 'reading' && member.kanji === null)) {
       // The mode-unreachable rule (final-review Fix 1) without a gate to
