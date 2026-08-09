@@ -154,14 +154,31 @@ export function getSettings(): Settings {
 }
 
 export function updateSettings(partial: Partial<Settings>): Settings {
-  const next = { ...getSettings(), ...partial };
+  // Amended after review: the write path validates too — a runtime-invalid
+  // partial (volume 5 from a buggy slider) must not poison the session and
+  // then be silently discarded wholesale on next load. Never-throw posture:
+  // invalid updates are rejected with a warn, current state stands.
+  const parsed = settingsSchema.safeParse({ ...getSettings(), ...partial });
+  if (!parsed.success) {
+    console.warn('[settings] rejected invalid update', partial);
+    return getSettings();
+  }
+  const next = parsed.data;
   current = next;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
     // Storage unavailable (private mode, quota) — settings stay session-local.
   }
-  for (const cb of listeners) cb();
+  // Amended after review: per-subscriber isolation — four tasks register
+  // consumers here; one throwing callback must not starve the rest.
+  for (const cb of listeners) {
+    try {
+      cb();
+    } catch (error) {
+      console.warn('[settings] subscriber threw', error);
+    }
+  }
   return next;
 }
 
