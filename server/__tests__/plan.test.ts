@@ -287,6 +287,30 @@ describe('computeRunPlan — seen requires an introduction (leak fix, 2026-08-09
     expect(plan.newCardIds).toEqual([ids[0]]);
     expect(plan.seenCards).toHaveLength(0);
   });
+
+  it('reading mode: an attempted-but-never-introduced kana-only card is in neither list', () => {
+    // Pre-fix it was mode-agnostically seen. Now reading can neither review
+    // nor introduce it — locked — while the pooled view can still teach it.
+    const { t, kanaOnlyTierIds, attempt } = setup();
+    const kanaId = kanaOnlyTierIds(5, 1)[0];
+    attempt(kanaId, NOW - HOUR); // fell during a ceremony-less recall run
+    const reading = computeRunPlan(t.handle, 'n5', NOW, 'reading');
+    expect(reading.newCardIds).not.toContain(kanaId);
+    expect(reading.seenCards.map((s) => s.id)).not.toContain(kanaId);
+    expect(computeRunPlan(t.handle, 'n5', NOW).newCardIds).toContain(kanaId);
+  });
+
+  it('reading mode: an attempted-but-never-introduced kana-only member is in neither list', () => {
+    const { t, attempt, makeList, insertCustomCard } = setup();
+    insertCustomCard('custom-kanaonly02', null);
+    makeList(1, ['custom-kanaonly02']);
+    attempt('custom-kanaonly02', NOW - HOUR);
+    const reading = computeRunPlan(t.handle, 'list:1', NOW, 'reading');
+    expect(reading.newCardIds).toEqual([]);
+    expect(reading.seenCards).toEqual([]);
+    expect(computeRunPlan(t.handle, 'list:1', NOW, 'recall').newCardIds)
+      .toEqual(['custom-kanaonly02']);
+  });
 });
 
 describe('computeRunPlan — mode-aware plan (reading excludes kana-only cards)', () => {

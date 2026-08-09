@@ -31,7 +31,7 @@ Attempts keep the two jobs they genuinely have — knowledge evidence for the ti
 
 Consequences, all intended:
 
-- A card that fell without a ceremony re-enters `newCardIds` the next time its tier is active and budget exists — §3.2's promise, now actually true. Any future poisoning self-heals on the next plan request.
+- A card that fell without a ceremony re-enters `newCardIds` the next time its tier is active and budget exists — §3.2's promise, now actually true. Future poisoning self-heals on the next plan request for as long as the card's tier is active; a card whose tier passes on off-plan evidence alone instead goes locked un-ceremonied — the curriculum moved past it — until other members of its tier lose solid status and reopen the gate. That corner is the honest endpoint of the no-carve-out trade-off below.
 - Off-plan attempts still count toward the gate and stats: real practice is real evidence.
 - A never-introduced card whose tier has already passed is locked, not review-eligible — "not new no longer implies met" (tiered §5.3), applied consistently.
 - Even a card driven *solid* by off-plan attempts stays new while its tier is active: it still gets its ceremony. A solidity carve-out was considered and rejected — it would re-create the reported symptom (a never-taught word circulating as review) behind a rarer trigger, and one invariant beats two. The cost is a rare redundant ceremony on a word learned entirely offline; the gate itself is untouched, so such a card can still help its tier pass.

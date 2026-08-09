@@ -79,7 +79,7 @@ Nothing about this is stored. It is recomputed from `attempts` on every plan req
 
 **Existing history is absorbed, not discarded.** The 39 cards already met are scattered across the frequency ranking. Tier 1 will therefore show partial progress on first launch, and some already-solid cards will sit in tiers 40+. Those cards stay in the seen set and keep appearing in review (§3.4) regardless of tier — only *intake* is gated.
 
-> **Amended 2026-08-09:** absorption-by-attempts retired with the 2026-08-09 DB reset. Seen-set membership now keys on introductions alone — a card with attempts but no introductions row is new (tier active) or locked (tier inactive), never seen — so ceremony-less fallback runs can no longer burn un-taught cards into the review pool. Attempt history is still absorbed where it is evidence: the gate's solid/amnesty counts and the review weights. See `2026-08-09-seen-requires-introduction-design.md`.
+> **Amended 2026-08-09:** absorption-by-attempts retired with the 2026-08-09 DB reset. Seen-set membership now keys on introductions alone — a card with attempts but no introductions row is new (tier active and mode-reachable) or locked otherwise, never seen — so ceremony-less fallback runs can no longer burn un-taught cards into the review pool. Attempt history is still absorbed where it is evidence: the gate's solid/amnesty counts and the review weights. See `2026-08-09-seen-requires-introduction-design.md`.
 
 ### 3.4 The review draw
 

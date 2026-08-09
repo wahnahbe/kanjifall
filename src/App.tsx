@@ -58,9 +58,12 @@ function runFromUrl(): { mode: GameMode; pool: PlayablePool } | null {
  * first-ever run starts with an empty seenCards, and once it introduces a
  * few cards, replaying with just that stale snapshot would leave the seen
  * pool empty - the starved fallback would then draw uniformly from ALL of
- * newCardIds, including cards this run never reached, burning their
- * acquisition ceremony forever the instant they fall and get an attempt
- * (spec §4.2).
+ * newCardIds, including cards this run never reached, dropping them as
+ * ceremony-less falls. The planner heals that now - attempts without an
+ * introductions row no longer confer seen status (§4.2 as amended
+ * 2026-08-09) - so the cost is a squandered replay wave and a delayed
+ * ceremony rather than a permanent burn. Still worth preventing at the
+ * source.
  *
  * A null original means the original run itself had no plan (server down):
  * every pool card was review-eligible at uniform weight, and the replay
@@ -82,8 +85,8 @@ function replayPlan(
   }
   // Cards introduced DURING the run are genuinely met — the run-start
   // snapshot predates them, and without this union a first-ever run's
-  // replay has an empty seen pool and the starved fallback burns the
-  // ceremonies of the cards it never reached. Weight 1: a fresh plan
+  // replay has an empty seen pool and the starved fallback drops the
+  // cards it never reached as ceremony-less falls. Weight 1: a fresh plan
   // reweights them properly server-side; here they just need to be
   // ordinarily drawable.
   const alreadySeen = new Set(original.seenCards.map((s) => s.id));
@@ -276,11 +279,12 @@ export default function App() {
             missed,
             lastRunRef.current.listVersion,
             'revenge',
-            // Revenge's cards are always previously-missed, hence attempted,
-            // hence already seen server-side - so in practice this is a
-            // no-op. Applied anyway so both replay paths are identical and
-            // neither can silently un-introduce a fresh card if that
-            // invariant about missed cards ever stops holding (see
+            // Not a no-op: a missed card is attempted but not necessarily
+            // seen - a starved-fallback fall is missed without ever being
+            // introduced, and the planner keeps such cards new (§4.2 as
+            // amended 2026-08-09). replayPlan parks them in newCardIds out
+            // of revenge's reach, preserving their ceremony for a later
+            // planned run; both replay paths stay identical (see
             // replayPlan's doc comment for the failure this guards against).
             replayPlan(lastPlanRef.current, missed, introducedIdsRef.current),
             REPLAY_NOTICE,

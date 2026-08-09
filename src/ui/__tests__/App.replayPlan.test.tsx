@@ -78,10 +78,12 @@ afterEach(() => {
 });
 
 /**
- * Once a card has an attempts row, the server classifies it as seen
- * PERMANENTLY - there is no un-see path (spec §4.2). So a card that spawns
- * without ever going through its acquisition ceremony has its ceremony
- * destroyed for good the moment it falls and is attempted.
+ * A card that spawns outside its acquisition ceremony falls as a
+ * ceremony-less attempt. The planner no longer lets that burn the card in
+ * (attempts without an introductions row don't confer seen status - spec
+ * §4.2 as amended 2026-08-09), but a replay that leaks un-introduced cards
+ * still squanders its waves on un-taught words and delays their ceremony,
+ * so the wiring must keep them parked.
  *
  * "Play again" replays the *entire loaded pool* (hundreds of cards in real
  * play) - most of which were never part of this run's plan. Spawner's seen
@@ -156,11 +158,11 @@ describe('App replay wiring never lets an un-introduced card spawn', () => {
     const { rerender } = render(<App />);
     await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
 
-    // In real play, Revenge's cards are always previously-attempted misses,
-    // so this exact input can't arise from legitimate gameplay - it stands
-    // in for "some future caller hands onRevenge a card outside the plan's
-    // seen set," proving the wiring itself enforces the invariant instead
-    // of relying on Revenge's callers to always behave.
+    // Since the 2026-08-09 fix this input CAN arise in real play: a
+    // starved-fallback fall is missed without ever being introduced, so a
+    // missed card may legitimately sit in newCardIds rather than the seen
+    // set. The wiring itself must enforce the invariant rather than rely
+    // on Revenge's callers to always behave.
     mockSnapshot = snap({ status: 'gameOver', missed: [seenX, neverC] });
     rerender(<App />);
     await userEvent.click(await screen.findByRole('button', { name: /revenge round/i }));
