@@ -1,11 +1,5 @@
 import type { Card } from '../engine/types.ts';
-
-/**
- * Mirrors cardSchema's gloss max (src/data/schema.ts) — the same deliberate
- * duplication as GLOSS_MAX in scripts/build-data.ts: a joined gloss must
- * still pass the schema gate the build writes through.
- */
-const GLOSS_MAX = 28;
+import { GLOSS_MAX } from './schema.ts';
 
 export interface HomographMergeResult {
   cards: Card[];

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { isKana } from 'wanakana';
+import { GLOSS_MAX } from '../src/data/schema';
 import type { Card } from '../src/engine/types';
 
 /**
@@ -62,7 +63,6 @@ export interface ParseResult {
   summary: { total: number; resolved: number; customNew: number; errors: number };
 }
 
-const GLOSS_MAX = 28; // the committed-data invariant (src/data/schema.ts)
 
 /** TAB when present; otherwise the first two commas, so glosses keep theirs. */
 function splitFields(line: string): string[] {

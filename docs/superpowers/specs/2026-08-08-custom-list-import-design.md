@@ -10,7 +10,7 @@
 
 Get the owner's actual problem words into the game.
 
-The tiered JLPT pools (M4-D) are the study *path*; the words that most need arcade reinforcement are the ones the owner's real SRS (n2-prep) says are failing. This sub-project lets a pasted export become a playable pool: mostly bare words auto-resolved against the 4,678 bundled cards, with a full-line fallback for anything the bundle lacks.
+The tiered JLPT pools (M4-D) are the study *path*; the words that most need arcade reinforcement are the ones the owner's real SRS (n2-prep) says are failing. This sub-project lets a pasted export become a playable pool: mostly bare words auto-resolved against the 4,652 bundled cards, with a full-line fallback for anything the bundle lacks.
 
 Custom lists get the full M4-A treatment — acquisition ceremonies, the shared daily budget, weighted review — but no tier gate: a list is already a curation, so intake ordering is the list's own business.
 

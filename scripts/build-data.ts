@@ -9,14 +9,13 @@ import { readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { isKana } from 'wanakana';
 import { mergeLevelHomographs } from '../src/data/homographs.ts';
-import { levelFileSchema } from '../src/data/schema.ts';
+import { GLOSS_MAX, levelFileSchema } from '../src/data/schema.ts';
 import type { Card } from '../src/engine/types.ts';
 import { PLAN } from '../server/planConfig.ts';
 
 const RAW_DIR = 'data/raw';
 const OUT_DIR = 'public/data';
 const LIST_VERSION = 'jlpt-tanos-jmdict-3.6.2-v3';
-const GLOSS_MAX = 28;
 const MIN_MATCH_RATE = 0.85;
 const LEVEL_BY_TAG: Record<string, 2 | 3 | 4 | 5> = { N5: 5, N4: 4, N3: 3, N2: 2 };
 
@@ -368,9 +367,11 @@ function main(): void {
   // tiering so the survivor ranks once. Must run before attachHooks: hooks
   // and tier counts key by card.kanji, so twins would double-count.
   const homographMerges: string[] = [];
+  const homographsByLevel = new Map<number, number>();
   for (const [level, cards] of cardsByLevel) {
     const merged = mergeLevelHomographs(cards, (id) => commonById.get(id) ?? false);
     cardsByLevel.set(level, merged.cards);
+    homographsByLevel.set(level, merged.merges.length);
     homographMerges.push(...merged.merges);
   }
 
@@ -382,8 +383,14 @@ function main(): void {
   assignTiers(cardsByLevel, counts, commonById);
 
   for (const [level, cards] of cardsByLevel) {
+    // The rate counts post-merge cards, so absorbed homographs read as
+    // unmatched — strictly conservative for the gate; the annotation keeps
+    // the log honest about where those entries went.
     const rate = cards.length / (entryCounts.get(level) || 1);
-    console.log(`N${level}: ${cards.length}/${entryCounts.get(level)} matched (${(rate * 100).toFixed(1)}%)`);
+    console.log(
+      `N${level}: ${cards.length}/${entryCounts.get(level)} matched (${(rate * 100).toFixed(1)}%)` +
+        ` [+${homographsByLevel.get(level) ?? 0} homographs merged in]`,
+    );
     if (rate < MIN_MATCH_RATE) {
       console.error(`FAIL: N${level} match rate ${(rate * 100).toFixed(1)}% < ${MIN_MATCH_RATE * 100}%`);
       process.exit(1);

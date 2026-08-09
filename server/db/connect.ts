@@ -20,7 +20,14 @@ export class DbOpenError extends Error {
 
 const LEVELS = [5, 4, 3, 2] as const;
 
-/** Idempotent: INSERT OR REPLACE all committed cards (4,652 rows, one transaction). */
+/**
+ * Idempotent: INSERT OR REPLACE all committed cards (4,652 rows, one
+ * transaction), then purge source='jlpt' rows from superseded list versions.
+ * Without the purge, a data regeneration that REMOVES ids (e.g. the v3
+ * homograph merge) leaves ghost rows: never spawnable (the static pool no
+ * longer has them) yet counted by every tier-gate denominator and stats
+ * total — a permanent, silent stall. Custom cards are never touched.
+ */
 function seedCards(handle: DbHandle): void {
   const upsert = handle.sqlite.prepare(
     `INSERT OR REPLACE INTO cards (id, kanji, kana, gloss, pos, jlpt, tier, source, list_version)
@@ -30,10 +37,12 @@ function seedCards(handle: DbHandle): void {
     for (const row of rows) upsert.run(row);
   });
   const rows: Record<string, unknown>[] = [];
+  const liveVersions = new Set<string>();
   for (const level of LEVELS) {
     const file = levelFileSchema.parse(
       JSON.parse(readFileSync(`public/data/jlpt-n${level}.json`, 'utf8')),
     );
+    liveVersions.add(file.listVersion);
     for (const card of file.cards) {
       rows.push({
         id: card.id,
@@ -49,6 +58,11 @@ function seedCards(handle: DbHandle): void {
     }
   }
   tx(rows);
+  const versions = [...liveVersions];
+  const placeholders = versions.map(() => '?').join(',');
+  handle.sqlite
+    .prepare(`DELETE FROM cards WHERE source = 'jlpt' AND list_version NOT IN (${placeholders})`)
+    .run(...versions);
 }
 
 function ensureProfileRow(handle: DbHandle): void {
@@ -63,7 +77,9 @@ function ensureProfileRow(handle: DbHandle): void {
 // NOTE: PRAGMA foreign_keys stays OFF by design: routes guard run existence on one
 // synchronous connection, there are no delete endpoints, and drizzle-kit's SQLite
 // rebuild migrations can fail spuriously with it enabled. Orphans are filtered in stats.
-/** Opens + migrates + seeds. Never deletes: a failed migration throws DbOpenError. */
+/** Opens + migrates + seeds. Never deletes user data (runs, attempts,
+ *  custom cards); only superseded jlpt seed rows are purged — see seedCards.
+ *  A failed migration throws DbOpenError. */
 export function connect(dbPath: string): DbHandle {
   try {
     mkdirSync(dirname(dbPath), { recursive: true });

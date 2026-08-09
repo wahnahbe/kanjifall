@@ -73,6 +73,22 @@ describe('mergeLevelHomographs', () => {
     expect(cards[0].kana).toEqual(['あく', 'すく']);
   });
 
+  it('skips an overflowing twin gloss but still joins a later one that fits', () => {
+    const aku = card({ id: 'jm-100', kanji: '空く', kana: ['あく'], gloss: 'to open' });
+    const suku = card({
+      id: 'jm-200',
+      kanji: '空く',
+      kana: ['すく'],
+      gloss: 'to become less crowded', // joined would be 32 chars > 28
+    });
+    const hima = card({ id: 'jm-300', kanji: '空く', kana: ['ひま'], gloss: 'free' });
+
+    const { cards } = mergeLevelHomographs([aku, suku, hima], notCommon);
+
+    expect(cards[0].gloss).toBe('to open / free');
+    expect(cards[0].kana).toEqual(['あく', 'すく', 'ひま']);
+  });
+
   it('collapses a three-card homograph group into a single card', () => {
     const ue = card({ id: 'jm-100', kanji: '上', kana: ['うわ'], jlpt: 3 });
     const kami = card({ id: 'jm-200', kanji: '上', kana: ['かみ'], jlpt: 3 });
