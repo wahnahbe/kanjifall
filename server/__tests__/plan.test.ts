@@ -155,9 +155,11 @@ describe('computeRunPlan — tier gate', () => {
   });
 
   it('newCardIds never contains a card outside the active tier; a far-tier seen card still appears in seenCards', () => {
-    const { t, tierIds, attempt } = setup();
+    const { t, tierIds, attempt, introduce } = setup();
     const farId = tierIds(5, 3)[0];
-    attempt(farId, NOW - HOUR); // absorbed history: scattered across the ranking (§3.3)
+    // Met for real — ceremony then attempt — scattered across the ranking (§3.3).
+    introduce(farId, NOW - HOUR);
+    attempt(farId, NOW - HOUR);
     const plan = computeRunPlan(t.handle, 'n5', NOW);
     const tier1 = new Set(tierIds(5, 1));
     for (const id of plan.newCardIds) expect(tier1.has(id), id).toBe(true);
@@ -195,7 +197,8 @@ describe('computeRunPlan — review weights', () => {
     const { t, ids, attempt, introduce, weightOf } = setup();
     introduce(ids[0], NOW - HOUR);
     // 5 fast kills, 73h ago: strength ~99 (weakness ~0), staleness capped at 1
-    // → weight ~0.1 + 0 + 0.4 = ~0.5.
+    // → weight ~0.1 + 0 + 0.4 = ~0.5. Introduced first, as real play always is.
+    introduce(ids[1], NOW - 73 * HOUR);
     for (let i = 0; i < 5; i++) attempt(ids[1], NOW - 73 * HOUR + i * 60_000);
     const plan = computeRunPlan(t.handle, 'n5', NOW);
     expect(weightOf(plan, ids[0])).toBeGreaterThan(weightOf(plan, ids[1]));
@@ -207,7 +210,8 @@ describe('computeRunPlan — review weights', () => {
   });
 
   it('the weight floor keeps a strong fresh card strictly positive but rare', () => {
-    const { t, ids, attempt, weightOf } = setup();
+    const { t, ids, attempt, introduce, weightOf } = setup();
+    introduce(ids[2], NOW - 2 * HOUR);
     for (let i = 0; i < 3; i++) attempt(ids[2], NOW - HOUR + i * 60_000); // strong and fresh
     const plan = computeRunPlan(t.handle, 'n5', NOW);
     expect(weightOf(plan, ids[2])).toBeGreaterThanOrEqual(PLAN.reviewWeightFloor);
@@ -215,7 +219,8 @@ describe('computeRunPlan — review weights', () => {
   });
 
   it('a weak fresh card is weighted by the weakness term (not only the floor)', () => {
-    const { t, ids, makeAmnestied, weightOf } = setup();
+    const { t, ids, introduce, makeAmnestied, weightOf } = setup();
+    introduce(ids[3], NOW - 3 * HOUR);
     makeAmnestied(ids[3]); // 8 misses ending ~2h ago: strength 0 → weakness 1
     const plan = computeRunPlan(t.handle, 'n5', NOW);
     // floor + 0.6·1 + 0.4·staleness(~113min/72h ≈ 0.026) ≈ 0.7105 — dominated by
@@ -224,15 +229,63 @@ describe('computeRunPlan — review weights', () => {
     expect(weightOf(plan, ids[3])).toBeLessThan(0.8);
   });
 
-  it('a card with an attempt or an introduction is seen, not new (M4-A, preserved)', () => {
-    const { t, tierIds, attempt, introduce } = setup();
-    const [a, b] = tierIds(5, 1);
-    attempt(a, NOW - HOUR);
+  it('an introduced card is seen, not new — membership keys on introductions alone (2026-08-09)', () => {
+    // M4-A's "an attempt OR an introduction is seen" narrowed: the attempt
+    // half was the pre-plan-era absorption shim, retired with the 2026-08-09
+    // reset. The attempted-only cases live in the leak-fix describe below.
+    const { t, tierIds, introduce } = setup();
+    const [b] = tierIds(5, 1);
     introduce(b, NOW - HOUR);
     const plan = computeRunPlan(t.handle, 'n5', NOW);
-    expect(plan.newCardIds).not.toContain(a);
     expect(plan.newCardIds).not.toContain(b);
-    expect(plan.seenCards.map((s) => s.id)).toEqual(expect.arrayContaining([a, b]));
+    expect(plan.seenCards.map((s) => s.id)).toContain(b);
+  });
+});
+
+describe('computeRunPlan — seen requires an introduction (leak fix, 2026-08-09)', () => {
+  // Attempts without an introduction happen only via the ceremony-less
+  // fallbacks (no-plan run, starved pool, Spawner's starved draw). §3.2
+  // promises those cards "still get their acquisition moment on a later day",
+  // so attempts alone must never confer seen status.
+
+  it('an attempted-but-never-introduced card in the active tier stays new', () => {
+    const { t, tierIds, attempt } = setup();
+    const cardId = tierIds(5, 1)[0];
+    attempt(cardId, NOW - HOUR); // fell during a ceremony-less run
+    const plan = computeRunPlan(t.handle, 'n5', NOW);
+    expect(plan.newCardIds).toContain(cardId);
+    expect(plan.seenCards.map((s) => s.id)).not.toContain(cardId);
+  });
+
+  it('an attempted-but-never-introduced card outside the active tier is locked, not seen', () => {
+    const { t, tierIds, attempt } = setup();
+    const farId = tierIds(5, 3)[0];
+    attempt(farId, NOW - HOUR);
+    const plan = computeRunPlan(t.handle, 'n5', NOW);
+    expect(plan.newCardIds).not.toContain(farId);
+    expect(plan.seenCards.map((s) => s.id)).not.toContain(farId);
+  });
+
+  it('even a card driven solid without an introduction stays new while its tier is active', () => {
+    // Deliberately no solidity carve-out: a carve-out would re-create the
+    // never-taught-yet-circulating symptom behind a rarer trigger. The gate
+    // still counts the off-plan evidence (solid: 1) — only membership changes.
+    const { t, tierIds, makeSolid } = setup();
+    const cardId = tierIds(5, 1)[0];
+    makeSolid(cardId);
+    const plan = computeRunPlan(t.handle, 'n5', NOW);
+    expect(plan.newCardIds).toContain(cardId);
+    expect(plan.seenCards.map((s) => s.id)).not.toContain(cardId);
+    expect(plan.tiers[0]).toMatchObject({ index: 1, solid: 1 });
+  });
+
+  it('an attempted-but-never-introduced list member stays new', () => {
+    const { t, ids, attempt, makeList } = setup();
+    makeList(1, [ids[0]]);
+    attempt(ids[0], NOW - HOUR);
+    const plan = computeRunPlan(t.handle, 'list:1', NOW);
+    expect(plan.newCardIds).toEqual([ids[0]]);
+    expect(plan.seenCards).toHaveLength(0);
   });
 });
 
@@ -325,8 +378,9 @@ describe('computeRunPlan — mode-aware plan (reading excludes kana-only cards)'
 
 describe('computeRunPlan — list pools (custom-list-import spec §5.2)', () => {
   it('an unmet member is new, a met member is weighted seen, and tiers is empty', () => {
-    const { t, ids, attempt, makeList } = setup();
+    const { t, ids, attempt, introduce, makeList } = setup();
     makeList(1, [ids[0], ids[1]]);
+    introduce(ids[0], NOW - HOUR);
     attempt(ids[0], NOW - HOUR);
     const plan = computeRunPlan(t.handle, 'list:1', NOW);
     expect(plan.newCardIds).toEqual([ids[1]]);

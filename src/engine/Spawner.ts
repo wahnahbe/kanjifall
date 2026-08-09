@@ -62,10 +62,10 @@ export class Spawner {
     // Introduced cards join the seen pool immediately - before this wave's
     // own remainder is drawn, not just for later waves. Otherwise, on a
     // fresh run's wave 1, the seen pool is still empty at the moment the
-    // remainder is chosen and drawSeen falls back to still-un-introduced
-    // cards to fill it, letting them fall with no acquisition ceremony and
-    // (once an attempt is recorded) no way back (spec §3.1/§3.2). They
-    // carry the just-introduced maximum weight (§3.4).
+    // remainder is chosen and drawSeen would fall back to still-un-introduced
+    // cards, spending the wave on ceremony-less falls instead of rehearsing
+    // the words just taught (spec §3.1/§3.2). They carry the just-introduced
+    // maximum weight (§3.4).
     this.seenPool = [
       ...this.seenPool,
       ...newCards.map((card) => ({ card, weight: JUST_INTRODUCED_WEIGHT })),
@@ -96,7 +96,9 @@ export class Spawner {
    * Locked cards are in neither pool and can never reach this draw (§7).
    * The fallback does not remove those cards from newPool or mark them
    * introduced, so a later run with real budget can still give them a
-   * proper acquisition moment.
+   * proper acquisition moment — the planner keys seen status on
+   * introductions alone, so the attempts recorded here don't burn them in
+   * (seen-requires-introduction fix, 2026-08-09).
    */
   private drawSeen(count: number): Card[] {
     if (count <= 0) return [];
