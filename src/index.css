@@ -18,6 +18,20 @@ button:hover { background: var(--color-line-soft); border-color: var(--color-sys
 button:focus-visible { outline: 2px solid var(--color-system); outline-offset: 2px; }
 button.primary { background: var(--color-system); color: var(--color-ground-deep); border-color: var(--color-system); font-weight: 700; }
 button.primary:hover { background: var(--color-ink); border-color: var(--color-ink); }
+/* Disabled reads as unavailable via token swaps, not opacity — an opacity
+   blanket on .primary's dark-on-cyan text would drag its contrast the wrong
+   way. Declared after :hover so it wins when a disabled control is also
+   hovered, plus explicit :disabled:hover rules so that's true regardless of
+   any future reordering — a disabled button must never animate toward
+   looking active. Label stays var(--color-ink-dim), not the fainter
+   ink-faint, so the unavailable action is still legible, not just present. */
+button:disabled, button:disabled:hover {
+  cursor: not-allowed;
+  color: var(--color-ink-dim); background: var(--color-ground-lift); border-color: var(--color-line-soft);
+}
+button.primary:disabled, button.primary:disabled:hover {
+  color: var(--color-ink-dim); background: var(--color-line-soft); border-color: var(--color-line);
+}
 /* Text inputs and the import textarea (ImportScreen is the only screen with
    free-text entry) — not named in the brief's shared-shell block, but left
    at browser defaults they render as stark white boxes that break the calm
