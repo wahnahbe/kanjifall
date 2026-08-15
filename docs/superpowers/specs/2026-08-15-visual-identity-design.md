@@ -87,19 +87,24 @@ All four faces are SIL Open Font License, so they can be self-hosted and redistr
 
 **Self-hosted, not CDN.** The app is local-first and must work with no network. No Google Fonts link, no external request — this also keeps the strict-offline promise the README makes about data never leaving the machine.
 
-### 4.2 Subsetting
+### 4.2 Delivery
 
-Full Japanese faces are multi-megabyte, which matters for a public repo even though runtime load is a local file read. The subset is generated from what the app can actually display:
+**Amended 2026-08-15, during planning.** This section originally specified a `pyftsubset`-based script generating corpus-limited subsets into committed `public/fonts/` binaries. That is superseded by Fontsource npm packages, which are strictly better here:
 
-- **Shippori Mincho B1** — every kanji and kana present in the bundled `public/data/jlpt-n{2,3,4,5}.json` corpus, plus full kana, latin, digits, and common punctuation. Roughly 1,500 glyphs.
-- **Yuji Syuku** — a fixed, tiny set: the app's headings, 第/波, kanji numerals 一〜十, and latin.
-- **Chakra Petch / IBM Plex Mono** — latin, digits, punctuation only.
+| | Original (pyftsubset) | Adopted (Fontsource) |
+|---|---|---|
+| Toolchain | Python required to regenerate | None — plain npm dependency |
+| Committed binaries | Yes, regenerate on corpus change | None; `node_modules` → `dist`, both gitignored |
+| Glyph coverage | ~1,500, corpus-limited | Full Japanese |
+| Offline | Yes | Yes — served from our own `dist` |
 
-`scripts/build-fonts.mjs` regenerates the subsets from the corpus with `pyftsubset`, writes woff2 into `public/fonts/`, and is documented as a step to re-run whenever the bundled corpus changes. The generated files are committed — contributors must not need a Python toolchain to run the game.
+Four dependencies, all SIL OFL with license files included in the packages: `@fontsource/shippori-mincho-b1`, `@fontsource/yuji-syuku`, `@fontsource/chakra-petch`, `@fontsource/ibm-plex-mono`.
 
-### 4.3 The fallback that must be named
+Each package splits by unicode-range, so only the needed slices are imported: `japanese-600.css` + `latin-600.css` for the word face, latin-only for the UI faces. The Japanese mincho slice is 1.9 MB — irrelevant at runtime, since it is a local file read from the same process that serves the game, and it never enters the repo.
 
-**Imported custom lists can contain kanji outside the subset.** Those glyphs fall back to the system JP stack (`'Yu Gothic UI', 'Meiryo', 'Noto Sans JP', sans-serif`) and will visibly differ from the mincho used elsewhere. This is deliberate: shipping a 6MB font to cover glyphs most players will never see is the worse trade. The Import screen states it in one line.
+### 4.3 Consequence: no fallback caveat
+
+The original subsetting plan meant kanji outside the bundled corpus — reachable through imported custom lists — would fall back to the system JP stack and visibly differ. **Full coverage removes that seam entirely.** Imported lists render in the same mincho as everything else. The system stack (`'Yu Gothic UI', 'Meiryo', 'Noto Sans JP', sans-serif`) remains as the last fallback in the font stack for the case where a font file fails to load at all.
 
 ### 4.4 Loading
 
@@ -111,9 +116,15 @@ Full Japanese faces are multi-megabyte, which matters for a public repo even tho
 
 Replaces the flat `0x0b0e14` background:
 
-- A vertical gradient from `#070910` at the top through `#0a0d16` to `#04060b` at the floor, drawn once into a `Graphics` and resized with the stage.
+**Amended 2026-08-15, during planning.** The backdrop moves to CSS on `.pixi-host` and the Pixi canvas becomes transparent (`backgroundAlpha: 0`), replacing the original plan of drawing the gradient in `Graphics` and the grain as an in-Pixi tiling sprite. The governing split is now:
+
+> **CSS owns the backdrop. Pixi owns anything tied to game coordinates.**
+
+The backdrop is four `background-image` layers on one element — gradient, data grid, washi fibre, noise — with **no `mix-blend-mode`**, which was the actual compositor cost the original wording was trying to avoid. One element, no extra layer, no blend, fully tokenised. The floor stroke stays in Pixi, because the kill line is game state and must move with screen shake.
+
+- A vertical gradient from `--color-ground` at the top through `--color-ground-lift` to `--color-ground-deep` at the floor.
 - A faint vertical data grid (`--color-system` at 5% alpha, 76px pitch) — the cheapest possible depth cue, and it reads as machine.
-- Paper grain and diagonal washi fibre at very low opacity, as a tiling sprite inside Pixi rather than a CSS overlay: a full-screen `mix-blend-mode` layer over a canvas is a known compositor cost, and inside Pixi it participates in the existing filter stack for free.
+- Paper grain and diagonal washi fibre at very low opacity.
 
 ### 5.2 The floor
 
