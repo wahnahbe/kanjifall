@@ -1,23 +1,24 @@
 import { Container, Text, TextStyle } from 'pixi.js';
+import { PALETTE } from '../design/palette';
 import type { AirborneWord, GameMode } from '../engine/types';
 
-const FONT_STACK = "'Yu Gothic UI', 'Meiryo', 'Noto Sans JP', sans-serif";
+const FONT_STACK = "'Shippori Mincho B1', 'Yu Gothic UI', 'Meiryo', serif";
 
 const BASE_STYLE: Partial<TextStyle> = {
   fontFamily: FONT_STACK,
   fontSize: 40,
-  fill: 0xe8f0ff,
+  fill: PALETTE.ink,
 };
 
 const HINT_STYLE: Partial<TextStyle> = {
   fontFamily: FONT_STACK,
   fontSize: 26,
-  fill: 0xbfd4ff,
+  fill: PALETTE.inkDim,
 };
 
 const HINT_FADE_MS = 300;
 const HINT_OFFSET_Y = 34;
-const LOCKED_TINT = 0x7fdfff;
+const LOCKED_TINT = 0xffffff; // replaced by the reticle in Task 7
 const UNLOCKED_TINT = 0xffffff;
 
 export class WordSprite {

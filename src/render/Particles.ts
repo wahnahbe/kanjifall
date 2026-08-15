@@ -1,13 +1,14 @@
 import { Container, Graphics } from 'pixi.js';
 import { getSettings } from '../data/settings';
+import { PALETTE } from '../design/palette';
 import {
   burstCount, killBurstBase, spawnBurst, stepParticles, type SimParticle,
 } from './particleSim';
 
-const KILL_COLOR = 0x9dffb0;
-const MISS_COLOR = 0xff8f8f;
+const KILL_COLOR = PALETTE.ink;
+const MISS_COLOR = PALETTE.danger;
 const MISS_BASE = 8;
-const CONFETTI_PALETTE = [0xffd166, 0x9dffb0, 0x7cc7ff, 0xff9de2];
+const CONFETTI_PALETTE = [PALETTE.ink, PALETTE.system, PALETTE.accent];
 const CONFETTI_BASE = 40;
 
 /** Pixi-facing half of the particle system: owns the live pool and the single

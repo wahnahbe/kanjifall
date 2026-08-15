@@ -1,6 +1,7 @@
 import { Application, Container, Text, TextStyle } from 'pixi.js';
 import type { Filter } from 'pixi.js';
 import { getSettings, subscribeSettings } from '../data/settings';
+import { PALETTE } from '../design/palette';
 import type { AirborneWord, GameMode } from '../engine/types';
 import { buildFilters, filterKinds } from './filters';
 import { Particles } from './Particles';
@@ -81,7 +82,7 @@ export class PixiStage {
     await document.fonts.ready; // JP glyph measurement gate (spec §7)
     const app = new Application();
     await app.init({
-      background: 0x0b0e14,
+      backgroundAlpha: 0,
       resizeTo: host,
       antialias: true,
     });
@@ -116,7 +117,7 @@ export class PixiStage {
    *  with combo tier, and — every 5th combo step — a bigger burst plus a
    *  `×N!` flash (skipped entirely at effects 'off': spec §5.1). */
   playKill(word: AirborneWord, combo: number): void {
-    this.spawnFx(word, word.card.gloss, 0x9dffb0, 350, (view, t) => {
+    this.spawnFx(word, word.card.gloss, PALETTE.ink, 350, (view, t) => {
       view.scale.set(1 + t * 0.8);
       view.alpha = 1 - t;
     });
@@ -126,7 +127,7 @@ export class PixiStage {
     this.particles.killBurst(px, py, combo);
 
     if (combo > 0 && combo % 5 === 0 && getSettings().effects !== 'off') {
-      this.spawnFx(word, `×${combo}!`, 0xffd166, 500, (view, t) => {
+      this.spawnFx(word, `×${combo}!`, PALETTE.accent, 500, (view, t) => {
         const pop = t < 0.3 ? 1 + (t / 0.3) * 0.3 : 1.3 - Math.min((t - 0.3) / 0.3, 1) * 0.3;
         view.scale.set(pop);
         view.alpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
@@ -139,7 +140,7 @@ export class PixiStage {
    *  screen shake. */
   playMiss(word: AirborneWord): void {
     const reveal = `${word.card.kanji ?? ''} ${word.card.kana[0]} — ${word.card.gloss}`.trim();
-    this.spawnFx(word, reveal, 0xff8f8f, 1600, (view, t) => {
+    this.spawnFx(word, reveal, PALETTE.ink, 1600, (view, t) => {
       view.alpha = t < 0.15 ? 1 : 1 - (t - 0.15) / 0.85;
     });
 
@@ -173,7 +174,7 @@ export class PixiStage {
     const text = new Text({
       text: label,
       style: new TextStyle({
-        fontFamily: "'Yu Gothic UI', 'Meiryo', 'Noto Sans JP', sans-serif",
+        fontFamily: "'Shippori Mincho B1', 'Yu Gothic UI', 'Meiryo', serif",
         fontSize: 30,
         fill: color,
       }),
