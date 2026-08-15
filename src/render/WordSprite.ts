@@ -4,7 +4,7 @@ import { getSettings } from '../data/settings';
 import { cssHex, PALETTE } from '../design/palette';
 import { visualParams } from '../design/visualParams';
 import type { AirborneWord, GameMode } from '../engine/types';
-import { loadBrushTexture } from './brushStroke';
+import { loadBrushTexture, type BrushStrokeOptions } from './brushStroke';
 import { reticleBrackets } from './reticle';
 
 const FONT_STACK = "'Shippori Mincho B1', 'Yu Gothic UI', 'Meiryo', serif";
@@ -36,8 +36,32 @@ const RETICLE_THICKNESS = 2;
 const UNDERLINE_SEED = 4;
 const UNDERLINE_WIDTH_RATIO = 1.24;
 const UNDERLINE_GAP_PX = 6;
+// The floor's brush texture (PixiStage.ts, width 1200) is displayed near
+// 1:1 scale against the full screen width. Reusing it here would squeeze it
+// down to underline scale (~40-140px, via Sprite.width, which only sets
+// scale.x) by 15-25x — the noise wavelength collapses to sub-pixel and
+// aliases into speckle instead of reading as a stroke (visual-identity
+// review, fix round 1). `width: 150` keeps the canvas close to the
+// underline's actual on-screen size; `displacementScale` is turned down
+// from the floor's 17 to match — at width 150 the same 17 would smear the
+// short stroke's ends disproportionately (17 is over 10% of 150, vs ~1.4%
+// of the floor's 1200). `baseFrequency`/`numOctaves` are left at the
+// floor's values on purpose: same noise density, just realized on a
+// stroke-sized canvas instead of a screen-sized one. Chosen by rendering
+// candidates at 45-140px across several seeds and comparing by eye.
+const UNDERLINE_STROKE_OPTIONS: BrushStrokeOptions = {
+  width: 150,
+  displacementScale: 10,
+};
 
 const HALO_BLUR = 18;
+// TextStyle._getFinalPadding() sizes the backing canvas from `padding` and
+// filter padding only — it does not know about dropShadow.blur. Without
+// this, the shadow's soft falloff is hard-clipped at the canvas edge and
+// reads as a visible rectangle around the glyph instead of fading out
+// (visual-identity review, fix round 1). 1.5x the blur radius comfortably
+// covers the falloff.
+const HALO_PADDING = HALO_BLUR * 1.5;
 
 // Spec §9.1: kanji stroke detail wins over any effect. The chromatic split
 // must never apply below this font size, no matter what visualParams says —
@@ -45,7 +69,9 @@ const HALO_BLUR = 18;
 const CHROMATIC_SPLIT_MIN_FONT_SIZE = 40;
 const CHROMATIC_SPLIT_ALPHA = 0.5;
 
-function chromaticSplitAllowed(fontSize: number): boolean {
+// Exported (only) so the gate itself can be pinned by a unit test — this is
+// the one rule Task 7 asked to be enforced in code rather than in review.
+export function chromaticSplitAllowed(fontSize: number): boolean {
   return fontSize >= CHROMATIC_SPLIT_MIN_FONT_SIZE;
 }
 
@@ -58,7 +84,7 @@ function chromaticSplitAllowed(fontSize: number): boolean {
 // runs, which throws outside a DOM (see brushStroke.ts's own doc comment).
 let underlineTexturePromise: Promise<Texture> | null = null;
 function underlineTexture(): Promise<Texture> {
-  underlineTexturePromise ??= loadBrushTexture(cssHex(PALETTE.danger), UNDERLINE_SEED);
+  underlineTexturePromise ??= loadBrushTexture(cssHex(PALETTE.danger), UNDERLINE_SEED, UNDERLINE_STROKE_OPTIONS);
   return underlineTexturePromise;
 }
 
@@ -110,9 +136,18 @@ export class WordSprite {
         // Word halo (spec §7): a soft glow behind the glyph, strength tied
         // to haloAlpha. Omitted entirely at 0 rather than passed with
         // alpha: 0, so effects 'off' renders genuinely flat, not a
-        // zero-opacity shadow still costing a draw pass.
+        // zero-opacity shadow still costing a draw pass. `padding` grows only
+        // the backing canvas (Text.updateBounds() measures the unpadded
+        // glyph when style.trim is false, its default, so this.text.width/
+        // height — and therefore bracket/underline sizing below — are
+        // unaffected); without it the shadow's blur falloff is hard-clipped
+        // at the canvas edge and reads as a visible rectangle around the
+        // glyph instead of fading out.
         ...(haloAlpha > 0
-          ? { dropShadow: { color: PALETTE.system, blur: HALO_BLUR, distance: 0, alpha: haloAlpha } }
+          ? {
+              dropShadow: { color: PALETTE.system, blur: HALO_BLUR, distance: 0, alpha: haloAlpha },
+              padding: HALO_PADDING,
+            }
           : {}),
       }),
       resolution,
