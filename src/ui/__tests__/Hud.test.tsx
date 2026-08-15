@@ -14,7 +14,7 @@ describe('Hud', () => {
   it('renders score, lives, wave, combo, and the kana buffer', () => {
     render(<Hud snapshot={snapshot} />);
     expect(screen.getByTestId('score')).toHaveTextContent('1230');
-    expect(screen.getByTestId('lives')).toHaveTextContent('♥♥');
+    expect(screen.getByTestId('lives').querySelectorAll('.hud-pip-live')).toHaveLength(2);
     expect(screen.getByTestId('wave')).toHaveTextContent('3');
     expect(screen.getByTestId('combo')).toHaveTextContent('4');
     expect(screen.getByTestId('kana-buffer')).toHaveTextContent('べんk');

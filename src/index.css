@@ -52,14 +52,54 @@ button:hover { background: #24304a; }
   z-index: 0;
 }
 .hud { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; }
+.hud-stripe {
+  position: absolute; top: 0; left: 0; right: 0; height: 3px; opacity: 0.55;
+  background: repeating-linear-gradient(115deg, var(--color-accent) 0 10px, var(--color-ground-lift) 10px 20px);
+}
 .hud-top {
-  display: flex; gap: 1.5rem; justify-content: space-between;
-  padding: 0.75rem 1.25rem; font-size: 1.1rem; color: #aab8d8;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: var(--space-4) var(--space-5) 0;
 }
+.hud-block { display: flex; align-items: stretch; }
+.hud-tab {
+  background: var(--color-system); color: var(--color-ground-deep);
+  font-family: var(--font-ui); font-weight: 700; font-size: var(--text-2xs);
+  letter-spacing: 0.18em; padding: var(--space-1) var(--space-2);
+  display: flex; align-items: center;
+}
+.hud-value {
+  background: var(--color-surface); border: 1px solid var(--color-line); border-left: none;
+  padding: 0 var(--space-3); display: flex; align-items: center; min-width: 4.5rem;
+}
+.hud-value-word { font-family: var(--font-word); font-size: var(--text-lg); color: var(--color-ink); }
+.hud-value-accent { font-family: var(--font-ui); font-weight: 700; font-size: var(--text-lg); color: var(--color-accent); }
+.hud-wave { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); }
+.hud-wave-jp { font-family: var(--font-display); font-size: var(--text-lg); color: var(--color-ink); }
+.hud-wave-lat {
+  font-family: var(--font-mono); font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-accent); opacity: 0.6;
+}
+.hud-right { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); }
+.hud-pips { display: flex; gap: var(--space-1); }
+.hud-pip { width: 20px; height: 6px; transform: skewX(-22deg); }
+.hud-pip-live { background: var(--color-danger); }
+.hud-pip-spent { background: var(--color-danger-soft); }
 .hud-buffer {
-  margin-top: auto; text-align: center; font-size: 2.2rem;
-  padding: 0.5rem 0 1.25rem; color: #7fdfff; min-height: 4.5rem;
+  /* margin-bottom raised from the brief's --space-5 (24px): the floor's
+     dry-brush stroke sits FLOOR_Y_RATIO=1.0 (PixiStage.ts), anchored to the
+     screen's bottom edge, ~26px tall plus ~12px of glow bleed — a ~38px band
+     that --space-5 would have driven the buffer straight into. --space-8
+     (48px) clears the glow with a visible gap so the buffer reads as its own
+     element instead of crowding the floor. */
+  margin-top: auto; align-self: center; display: flex; align-items: center; gap: var(--space-3);
+  border: 1px solid var(--color-line); background: var(--color-surface);
+  padding: var(--space-2) var(--space-5); margin-bottom: var(--space-8);
 }
+.hud-buffer-tick {
+  font-family: var(--font-mono); font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label); color: var(--color-system); opacity: 0.7;
+}
+.hud-buffer-kana { font-family: var(--font-word); font-size: var(--text-2xl); color: var(--color-ink); }
 .overlay {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 1rem;
