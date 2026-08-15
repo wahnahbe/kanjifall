@@ -50,6 +50,16 @@ export class PixiStage {
   }
 
   static async create(host: HTMLElement): Promise<PixiStage> {
+    // Canvas text does not trigger @font-face loading, and document.fonts.ready
+    // only resolves against fonts something has already requested — so the JP
+    // glyph gate (main spec §7) can report ready while Pixi measures against a
+    // fallback face. Request the family Pixi renders, explicitly, first.
+    // A failed load must not block play — same non-fatal posture as filters.ts.
+    try {
+      await document.fonts.load("600 40px 'Shippori Mincho B1'");
+    } catch (error) {
+      console.warn('[PixiStage] Shippori Mincho B1 preload failed — falling back', error);
+    }
     await document.fonts.ready; // JP glyph measurement gate (spec §7)
     const app = new Application();
     await app.init({
