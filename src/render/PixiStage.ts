@@ -17,6 +17,27 @@ const PARTICLES_Z_INDEX = 10; // above word sprites and fx, which sit at the def
 const SHAKE_DURATION_MS = 150;
 const SHAKE_JITTER_PX = 4;
 
+// Kicked off the moment this module is evaluated — i.e. at app boot, in
+// flight while the player is still reading the title screen — rather than
+// only when create() runs. Measured cold-cache click-to-first-frame with the
+// load starting inside create() at ~240-285ms (production build, 1.9 MB
+// japanese-600 slice); starting it here instead means create() usually just
+// awaits a promise that's already settled. Non-fatal: a failed load resolves
+// rather than rejects, so nothing here can produce an unhandled rejection
+// before anyone awaits it, and Pixi falls back to a system face — same
+// posture as filters.ts. Guarded for non-browser evaluation: this module is
+// pulled in transitively by isGameKey.test.ts outside jsdom, where `document`
+// doesn't exist — merely importing PixiStage must never throw.
+const mincho600Ready: Promise<void> =
+  typeof document === 'undefined'
+    ? Promise.resolve()
+    : document.fonts
+        .load("600 40px 'Shippori Mincho B1'")
+        .then(() => undefined)
+        .catch((error: unknown) => {
+          console.warn('[PixiStage] Shippori Mincho B1 preload failed — falling back', error);
+        });
+
 /** Dumb render layer: mirrors engine words, plays kill/miss effects. */
 export class PixiStage {
   private sprites = new Map<number, WordSprite>();
@@ -53,13 +74,10 @@ export class PixiStage {
     // Canvas text does not trigger @font-face loading, and document.fonts.ready
     // only resolves against fonts something has already requested — so the JP
     // glyph gate (main spec §7) can report ready while Pixi measures against a
-    // fallback face. Request the family Pixi renders, explicitly, first.
-    // A failed load must not block play — same non-fatal posture as filters.ts.
-    try {
-      await document.fonts.load("600 40px 'Shippori Mincho B1'");
-    } catch (error) {
-      console.warn('[PixiStage] Shippori Mincho B1 preload failed — falling back', error);
-    }
+    // fallback face. mincho600Ready (module scope, above) already requested
+    // it at app boot; await the same promise here rather than kicking off a
+    // second load.
+    await mincho600Ready;
     await document.fonts.ready; // JP glyph measurement gate (spec §7)
     const app = new Application();
     await app.init({
