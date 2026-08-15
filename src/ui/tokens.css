@@ -1,0 +1,64 @@
+/* Design tokens — the source of truth for the visual identity
+   (visual-identity spec §3). Colours are mirrored in src/design/palette.ts
+   for Pixi; src/design/__tests__/tokenParity.test.ts enforces the match.
+   Do not introduce a colour literal anywhere else. */
+:root {
+  /* --- 01 ink ------------------------------------------------------- */
+  --color-ink: #f6f1e6;
+  --color-ink-dim: #a8b0c4;
+  --color-ink-faint: #6c7690;
+  /* --- 02 system ---------------------------------------------------- */
+  --color-system: #00e5ff;
+  /* --- 03 danger ---------------------------------------------------- */
+  --color-danger: #ff2a3c;
+  /* --- 04 accent (never a surface) ---------------------------------- */
+  --color-accent: #fcee0a;
+  /* --- 05 ground ---------------------------------------------------- */
+  --color-ground: #070910;
+  --color-ground-lift: #0a0d16;
+  --color-ground-deep: #04060b;
+
+  /* Derived surfaces — CSS-only, excluded from parity by having no hex value */
+  --color-surface: rgba(0, 229, 255, 0.06);
+  --color-line: rgba(0, 229, 255, 0.32);
+  --color-line-soft: rgba(0, 229, 255, 0.16);
+  --color-danger-soft: rgba(255, 42, 60, 0.16);
+  --color-grid-line: rgba(0, 229, 255, 0.05);
+  --color-fibre: rgba(207, 216, 238, 0.03);
+
+  /* --- type --------------------------------------------------------- */
+  --font-word: 'Shippori Mincho B1', 'Yu Gothic UI', 'Meiryo', serif;
+  --font-display: 'Yuji Syuku', 'Shippori Mincho B1', serif;
+  --font-ui: 'Chakra Petch', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.5rem;
+  --text-3xl: 3.5rem;
+
+  --tracking-label: 0.3em;
+
+  /* --- space (8px ramp) --------------------------------------------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+  --space-10: 5rem;
+
+  /* --- radius (this world is hard-edged) ---------------------------- */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+
+  /* --- duration ----------------------------------------------------- */
+  --duration-fast: 120ms;
+  --duration-base: 220ms;
+  --duration-slow: 600ms;
+}
