@@ -4,6 +4,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
+    // Honors a harness-assigned PORT (e.g. Claude's preview autoPort) while
+    // keeping vite's 5173 default; dev:e2e's explicit --port 5183 CLI flag
+    // still overrides both.
+    port: Number(process.env.PORT) || 5173,
     proxy: { '/api': 'http://localhost:8790' },
   },
   define: {

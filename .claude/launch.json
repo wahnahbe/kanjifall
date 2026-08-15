@@ -5,13 +5,15 @@
       "name": "kanjifall-dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:headless"],
-      "port": 5173
+      "port": 5173,
+      "autoPort": true
     },
     {
       "name": "kanjifall-e2e",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:e2e"],
-      "port": 5183
+      "port": 5183,
+      "autoPort": false
     }
   ]
 }
