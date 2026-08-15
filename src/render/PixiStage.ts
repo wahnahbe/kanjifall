@@ -113,7 +113,7 @@ export class PixiStage {
     }
   }
 
-  /** Scale-up + fade-out gloss tween, a kill-green particle burst that grows
+  /** Scale-up + fade-out gloss tween, a kill particle burst that grows
    *  with combo tier, and — every 5th combo step — a bigger burst plus a
    *  `×N!` flash (skipped entirely at effects 'off': spec §5.1). */
   playKill(word: AirborneWord, combo: number): void {
@@ -136,7 +136,7 @@ export class PixiStage {
   }
 
   /** Reveal the answer where the word landed (spec §3.1: miss is a learning
-   *  moment), a dim red particle puff, and — effects 'full' only — a brief
+   *  moment), a particle puff, and — effects 'full' only — a brief
    *  screen shake. */
   playMiss(word: AirborneWord): void {
     const reveal = `${word.card.kanji ?? ''} ${word.card.kana[0]} — ${word.card.gloss}`.trim();

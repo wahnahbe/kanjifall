@@ -26,13 +26,13 @@ export class Particles {
     this.view.addChild(this.graphics);
   }
 
-  /** Kill-green burst at a word's death position; size grows with combo tier. */
+  /** Kill burst at a word's death position; size grows with combo tier. */
   killBurst(x: number, y: number, combo: number): void {
     const count = burstCount(getSettings().effects, killBurstBase(combo));
     spawnBurst(this.pool, x, y, KILL_COLOR, count, Math.random);
   }
 
-  /** Dim red puff where a word landed. */
+  /** Particle puff where a word landed. */
   missPuff(x: number, y: number): void {
     const count = burstCount(getSettings().effects, MISS_BASE);
     spawnBurst(this.pool, x, y, MISS_COLOR, count, Math.random);
