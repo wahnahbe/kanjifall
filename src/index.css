@@ -20,7 +20,37 @@ button:hover { background: #24304a; }
 }
 .hint { color: #8b98b8; font-size: 0.85rem; }
 .game-screen { position: relative; height: 100%; }
-.pixi-host { position: absolute; inset: 0; }
+.pixi-host {
+  position: absolute;
+  inset: 0;
+  --grain-alpha: 1;
+  background-color: var(--color-ground);
+  background-image:
+    repeating-linear-gradient(to right, var(--color-grid-line) 0 1px, transparent 1px 76px),
+    linear-gradient(180deg, var(--color-ground) 0%, var(--color-ground-lift) 58%, var(--color-ground-deep) 100%);
+  background-repeat: repeat, no-repeat;
+  background-size: auto, 100% 100%;
+}
+.pixi-host::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--grain-alpha);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E"),
+    repeating-linear-gradient(102deg, transparent 0 23px, var(--color-fibre) 23px 24px);
+  background-size: 160px 160px, auto;
+}
+/* Pixi appends its canvas as a plain in-flow child, which paints in the
+   non-positioned-descendant step — *before* the positioned ::before above
+   (CSS 2.1 Appendix E stacking order), so without this the grain/fibre
+   layer covers the words. Verified visually: swapping the ::before to an
+   opaque fill washed out the falling words until this rule was added. */
+.pixi-host canvas {
+  position: relative;
+  z-index: 0;
+}
 .hud { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; }
 .hud-top {
   display: flex; gap: 1.5rem; justify-content: space-between;

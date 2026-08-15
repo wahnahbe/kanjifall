@@ -2,6 +2,7 @@ import { Application, Container, Text, TextStyle } from 'pixi.js';
 import type { Filter } from 'pixi.js';
 import { getSettings, subscribeSettings } from '../data/settings';
 import { PALETTE } from '../design/palette';
+import { visualParams } from '../design/visualParams';
 import type { AirborneWord, GameMode } from '../engine/types';
 import { buildFilters, filterKinds } from './filters';
 import { Particles } from './Particles';
@@ -45,6 +46,7 @@ export class PixiStage {
   private fx: Fx[] = [];
   private readonly app: Application;
   private readonly particles: Particles;
+  private readonly host: HTMLElement;
   private readonly unsubscribeSettings: () => void;
   private shakeMs = 0;
   // Sentinel so the FIRST applyFilters() call always applies, no matter what
@@ -52,15 +54,20 @@ export class PixiStage {
   // neither bloom nor crt is on) — see applyFilters' doc comment.
   private appliedFilterKinds = 'unset';
 
-  private constructor(app: Application) {
+  private constructor(app: Application, host: HTMLElement) {
     this.app = app;
+    this.host = host;
     this.app.stage.sortableChildren = true;
     this.particles = new Particles();
     this.particles.view.zIndex = PARTICLES_Z_INDEX;
     this.app.stage.addChild(this.particles.view);
 
     this.applyFilters();
-    this.unsubscribeSettings = subscribeSettings(() => this.applyFilters());
+    this.applyBackdrop();
+    this.unsubscribeSettings = subscribeSettings(() => {
+      this.applyFilters();
+      this.applyBackdrop();
+    });
 
     app.ticker.add(() => {
       const delta = app.ticker.deltaMS;
@@ -87,7 +94,7 @@ export class PixiStage {
       antialias: true,
     });
     host.appendChild(app.canvas);
-    return new PixiStage(app);
+    return new PixiStage(app, host);
   }
 
   /** Mirror engine word list into sprites; reposition everything. */
@@ -267,5 +274,12 @@ export class PixiStage {
   private destroyFilters(filters: readonly Filter[] | undefined): void {
     if (!filters) return;
     for (const filter of filters) filter.destroy(true);
+  }
+
+  /** Backdrop grain is CSS (spec §5.1); its strength still follows the
+   *  effects level, so it is driven through a custom property rather than a
+   *  class toggle. */
+  private applyBackdrop(): void {
+    this.host.style.setProperty('--grain-alpha', String(visualParams(getSettings().effects).grainAlpha));
   }
 }
