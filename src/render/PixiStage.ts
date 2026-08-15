@@ -1,9 +1,11 @@
-import { Application, Container, Text, TextStyle } from 'pixi.js';
-import type { Filter } from 'pixi.js';
+import { Application, Container, Graphics, Sprite, Text, TextStyle } from 'pixi.js';
+import type { Filter, Texture } from 'pixi.js';
+import { GlowFilter } from 'pixi-filters';
 import { getSettings, subscribeSettings } from '../data/settings';
-import { PALETTE } from '../design/palette';
+import { cssHex, PALETTE } from '../design/palette';
 import { visualParams } from '../design/visualParams';
 import type { AirborneWord, GameMode } from '../engine/types';
+import { loadBrushTexture } from './brushStroke';
 import { buildFilters, filterKinds } from './filters';
 import { Particles } from './Particles';
 import { WordSprite } from './WordSprite';
@@ -18,6 +20,23 @@ interface Fx {
 const PARTICLES_Z_INDEX = 10; // above word sprites and fx, which sit at the default 0
 const SHAKE_DURATION_MS = 150;
 const SHAKE_JITTER_PX = 4;
+
+// Below word sprites and fx (default 0) — words visibly fall in front of the
+// ground and disappear behind it at the kill line.
+const FLOOR_Z_INDEX = -1;
+// The kill line as a fraction of stage height. GameEngine.moveWords() misses
+// a word once w.y >= 1 (src/engine/GameEngine.ts:220) — the *bottom edge* of
+// the stage, not some fraction above it. Word sprites are centre-anchored,
+// so a word dies the instant its centre reaches this line.
+const FLOOR_Y_RATIO = 1.0;
+// The stroke's lower edge already sits on the kill line (anchor (0, 1) below)
+// so there is no room past it for a separate deadline offset — the deadline
+// draws one pixel inside the canvas edge instead, immediately under the
+// stroke's body.
+const DEADLINE_INSET_PX = 1;
+const FLOOR_GLOW_DISTANCE = 12;
+const FLOOR_GLOW_OUTER_STRENGTH = 3;
+const FLOOR_TEXTURE_SEED = 11;
 
 // Kicked off the moment this module is evaluated — i.e. at app boot, in
 // flight while the player is still reading the title screen — rather than
@@ -48,11 +67,20 @@ export class PixiStage {
   private readonly particles: Particles;
   private readonly host: HTMLElement;
   private readonly unsubscribeSettings: () => void;
+  private readonly handleResize = (): void => this.layoutFloor();
   private shakeMs = 0;
+  private destroyed = false;
   // Sentinel so the FIRST applyFilters() call always applies, no matter what
   // filterKinds(initial settings) happens to join to (including '' when
   // neither bloom nor crt is on) — see applyFilters' doc comment.
   private appliedFilterKinds = 'unset';
+  // Same sentinel trick as appliedFilterKinds, for the same reason: settings
+  // notify on every write (a volume-slider drag fires ~20 in a row), and
+  // glowAlpha only ever takes the values 0/0.5/1 — never null — so this
+  // always differs on the first real call.
+  private appliedGlowAlpha: number | null = null;
+  private floor: Sprite | null = null;
+  private deadline: Graphics | null = null;
 
   private constructor(app: Application, host: HTMLElement) {
     this.app = app;
@@ -64,10 +92,13 @@ export class PixiStage {
 
     this.applyFilters();
     this.applyBackdrop();
+    void this.mountFloor();
     this.unsubscribeSettings = subscribeSettings(() => {
       this.applyFilters();
       this.applyBackdrop();
+      this.applyFloorGlow();
     });
+    app.renderer.on('resize', this.handleResize);
 
     app.ticker.add(() => {
       const delta = app.ticker.deltaMS;
@@ -164,8 +195,22 @@ export class PixiStage {
   }
 
   destroy(): void {
+    // Set before anything async-dependent runs: if mountFloor()'s texture
+    // decode is still in flight, this tells it to discard the texture
+    // instead of mounting a sprite onto a stage that's going away.
+    this.destroyed = true;
     this.unsubscribeSettings();
+    this.app.renderer.off('resize', this.handleResize);
     this.destroyFilters(this.app.stage.filters);
+    if (this.floor !== null) {
+      this.destroyFilters(this.floor.filters);
+      // { texture: true } — Container.destroy() never frees a Sprite's
+      // texture (see destroyFilters' doc comment for the equivalent gap on
+      // filters), and this texture is a one-off decode, not a shared/cached
+      // asset, so nothing else will ever free it.
+      this.floor.destroy({ texture: true, textureSource: true });
+    }
+    this.deadline?.destroy();
     this.app.destroy(true, { children: true });
     this.sprites.clear();
     this.fx = [];
@@ -281,5 +326,82 @@ export class PixiStage {
    *  class toggle. */
   private applyBackdrop(): void {
     this.host.style.setProperty('--grain-alpha', String(visualParams(getSettings().effects).grainAlpha));
+  }
+
+  /** Loads the dry-brush stroke and the 1px deadline beneath it, and mounts
+   *  both onto the stage. Fired once from the constructor without an await
+   *  (the texture decode is async; nothing downstream depends on it being
+   *  ready synchronously). Game state, not decoration — this is what marks
+   *  the kill line, so unlike applyFilters()/applyBackdrop() it lives in
+   *  Pixi and moves with screen shake rather than in CSS.
+   *
+   *  Wrapped in try/catch for the same reason buildFilters() is (see its doc
+   *  comment): a failed decode must never block play, and — left unhandled —
+   *  a rejected promise fired with `void` here would surface only as an
+   *  unhandled rejection, not a caught, logged failure. */
+  private async mountFloor(): Promise<void> {
+    let texture: Texture;
+    try {
+      texture = await loadBrushTexture(cssHex(PALETTE.system), FLOOR_TEXTURE_SEED);
+    } catch (error) {
+      console.warn('[PixiStage] floor stroke texture failed to load — running without it', error);
+      return;
+    }
+    if (this.destroyed) {
+      // destroy() ran while the decode was in flight — don't mount onto a
+      // torn-down stage, and don't leak the texture we just decoded.
+      texture.destroy(true);
+      return;
+    }
+    const floor = new Sprite(texture);
+    floor.anchor.set(0, 1); // lower edge lands exactly on the kill line
+    floor.zIndex = FLOOR_Z_INDEX;
+    this.floor = floor;
+    this.app.stage.addChild(floor);
+
+    const deadline = new Graphics();
+    deadline.zIndex = FLOOR_Z_INDEX;
+    this.deadline = deadline;
+    this.app.stage.addChild(deadline);
+
+    this.layoutFloor();
+    this.applyFloorGlow();
+  }
+
+  /** Stretches the stroke across the stage width at the kill line and
+   *  redraws the deadline beneath it. Called on mount and on every resize —
+   *  never scales the stroke's height, only its width, so it never distorts. */
+  private layoutFloor(): void {
+    if (this.floor === null || this.deadline === null) return;
+    const width = this.app.screen.width;
+    const killY = this.app.screen.height * FLOOR_Y_RATIO;
+    this.floor.width = width;
+    this.floor.position.set(0, killY);
+    this.deadline.clear();
+    this.deadline.rect(0, killY - DEADLINE_INSET_PX, width, 1).fill(PALETTE.danger);
+  }
+
+  /** The floor is information, not decoration (spec §5.1 juice rule): it
+   *  still renders at effects 'off', just flat — no glow filter, no alpha
+   *  boost. Guarded the same way as applyFilters(), for the same reason
+   *  (settings notify on every write, including volume-only ones). */
+  private applyFloorGlow(): void {
+    if (this.floor === null) return;
+    const { glowAlpha } = visualParams(getSettings().effects);
+    if (glowAlpha === this.appliedGlowAlpha) return;
+    this.appliedGlowAlpha = glowAlpha;
+    const outgoing = this.floor.filters;
+    this.floor.filters =
+      glowAlpha > 0
+        ? [
+            new GlowFilter({
+              color: PALETTE.system,
+              distance: FLOOR_GLOW_DISTANCE,
+              outerStrength: FLOOR_GLOW_OUTER_STRENGTH * glowAlpha,
+              quality: 0.3,
+            }),
+          ]
+        : [];
+    this.destroyFilters(outgoing);
   }
 }

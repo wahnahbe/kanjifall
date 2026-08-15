@@ -19,3 +19,10 @@ export const PALETTE = {
 } as const;
 
 export type PaletteKey = keyof typeof PALETTE;
+
+/** Converts a `PALETTE` `0xRRGGBB` number into a CSS colour string, for the
+ *  render-layer code paths (e.g. brush-stroke textures) that need a colour
+ *  as a string rather than a Pixi tint. */
+export function cssHex(n: number): string {
+  return `#${n.toString(16).padStart(6, '0')}`;
+}
