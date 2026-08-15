@@ -97,7 +97,7 @@ export function ResultsScreen({
         >
           Revenge round ({missed.length})
         </button>
-        <button autoFocus={missed.length === 0} onClick={onPlayAgain}>Play again</button>
+        <button className="primary" autoFocus={missed.length === 0} onClick={onPlayAgain}>Play again</button>
         <button onClick={onTitle}>Title</button>
       </div>
     </div>

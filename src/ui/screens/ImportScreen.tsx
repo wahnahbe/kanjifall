@@ -121,6 +121,7 @@ export function ImportScreen({ onSaved, onBack }: ImportScreenProps) {
           Preview
         </button>
         <button
+          className="primary"
           data-testid="save-button"
           disabled={busy || preview === null || valid === 0 || name.trim().length === 0}
           onClick={() => void doSave()}

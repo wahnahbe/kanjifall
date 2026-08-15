@@ -29,7 +29,7 @@ export function ServerErrorScreen({ info, onRetry, onBack }: ServerErrorScreenPr
         </div>
       )}
       <div className="picker-row">
-        <button onClick={onRetry}>Retry</button>
+        <button className="primary" onClick={onRetry}>Retry</button>
         <button onClick={onBack}>Back</button>
       </div>
     </div>
