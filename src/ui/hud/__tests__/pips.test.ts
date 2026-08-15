@@ -15,7 +15,7 @@ describe('pipStates (visual-identity spec §6)', () => {
   });
 
   it('never exceeds max', () => {
-    expect(pipStates(9)).toHaveLength(3);
-    expect(pipStates(9, 5)).toHaveLength(5);
+    expect(pipStates(9)).toEqual(['live', 'live', 'live']);
+    expect(pipStates(9, 5)).toEqual(['live', 'live', 'live', 'live', 'live']);
   });
 });

@@ -15,7 +15,7 @@ export function Hud({ snapshot }: { snapshot: EngineSnapshot }) {
           <span className="hud-wave-lat" data-testid="wave">wave {snapshot.wave}</span>
         </div>
         <div className="hud-right">
-          <div className="hud-block">
+          <div className={`hud-block${snapshot.combo > 0 ? '' : ' hud-block-empty'}`}>
             <span className="hud-tab">COMBO</span>
             <span
               className={`hud-value hud-value-accent${snapshot.combo > 0 ? ' combo-pop' : ''}`}
@@ -35,6 +35,7 @@ export function Hud({ snapshot }: { snapshot: EngineSnapshot }) {
       <div className="hud-buffer" data-testid="kana-buffer">
         <span className="hud-buffer-tick">IN</span>
         <span className="hud-buffer-kana">{snapshot.bufferKana || ' '}</span>
+        <span className="hud-buffer-caret" aria-hidden="true" />
       </div>
     </div>
   );

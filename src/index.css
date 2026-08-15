@@ -61,6 +61,12 @@ button:hover { background: #24304a; }
   padding: var(--space-4) var(--space-5) 0;
 }
 .hud-block { display: flex; align-items: stretch; }
+/* Combo starts and resets at 0 (every wave, every miss), so its block has no
+   text most of the time. visibility: hidden (not display: none) keeps the
+   box's height reserved so the pips row below doesn't jump when a combo
+   starts or breaks — it just suppresses the empty tab+value chrome so it
+   never reads as broken UI. */
+.hud-block-empty { visibility: hidden; }
 .hud-tab {
   background: var(--color-system); color: var(--color-ground-deep);
   font-family: var(--font-ui); font-weight: 700; font-size: var(--text-2xs);
@@ -100,6 +106,10 @@ button:hover { background: #24304a; }
   letter-spacing: var(--tracking-label); color: var(--color-system); opacity: 0.7;
 }
 .hud-buffer-kana { font-family: var(--font-word); font-size: var(--text-2xl); color: var(--color-ink); }
+/* Spec §6: the buffer reads as a live input, not a static label — the yellow
+   caret is what signals that. Static (no blink): a blinking caret would need
+   to respect prefers-reduced-motion and the spec doesn't call for animation. */
+.hud-buffer-caret { width: 3px; height: 1.8rem; background: var(--color-accent); }
 .overlay {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 1rem;
