@@ -26,3 +26,16 @@ export type PaletteKey = keyof typeof PALETTE;
 export function cssHex(n: number): string {
   return `#${n.toString(16).padStart(6, '0')}`;
 }
+
+/** Recharts and other string-colour APIs need a CSS colour, not a number.
+ *  Reads the live custom property so tokens.css stays the source of truth.
+ *  Guarded for non-browser test environments: under Node (this repo's
+ *  default vitest environment), `getComputedStyle` doesn't exist at all; under
+ *  jsdom (the per-file `@vitest-environment jsdom` opt-in used by component
+ *  tests), it exists but nothing has imported tokens.css, so the custom
+ *  property resolves to '' — both paths fall through to `fallback`. */
+export function tokenColor(name: string, fallback: string): string {
+  if (typeof getComputedStyle !== 'function') return fallback;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value === '' ? fallback : value;
+}
