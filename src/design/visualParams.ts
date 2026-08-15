@@ -15,9 +15,9 @@ export interface VisualParams {
   grainAlpha: number;
 }
 
-const FULL: VisualParams = { chromaticSplitPx: 1.4, haloAlpha: 1, glowAlpha: 1, grainAlpha: 1 };
-const REDUCED: VisualParams = { chromaticSplitPx: 0, haloAlpha: 0.5, glowAlpha: 0.5, grainAlpha: 0.5 };
-const OFF: VisualParams = { chromaticSplitPx: 0, haloAlpha: 0, glowAlpha: 0, grainAlpha: 0 };
+const FULL: VisualParams = Object.freeze({ chromaticSplitPx: 1.4, haloAlpha: 1, glowAlpha: 1, grainAlpha: 1 });
+const REDUCED: VisualParams = Object.freeze({ chromaticSplitPx: 0, haloAlpha: 0.5, glowAlpha: 0.5, grainAlpha: 0.5 });
+const OFF: VisualParams = Object.freeze({ chromaticSplitPx: 0, haloAlpha: 0, glowAlpha: 0, grainAlpha: 0 });
 
 export function visualParams(effects: Settings['effects']): VisualParams {
   if (effects === 'off') return OFF;

@@ -15,6 +15,7 @@ describe('visualParams (visual-identity spec §7)', () => {
     expect(p.chromaticSplitPx).toBe(0);
     expect(p.haloAlpha).toBeLessThan(1);
     expect(p.haloAlpha).toBeGreaterThan(0);
+    expect(p.glowAlpha).toBe(0.5);
     expect(p.grainAlpha).toBeGreaterThan(0);
   });
 
