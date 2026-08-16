@@ -98,12 +98,16 @@ export function ResultsScreen({
         <button
           data-testid="revenge-button"
           disabled={missed.length === 0}
-          autoFocus={missed.length > 0}
           onClick={() => onRevenge(missed)}
         >
           Revenge round ({missed.length})
         </button>
-        <button className="primary" autoFocus={missed.length === 0} onClick={onPlayAgain}>Play again</button>
+        {/* .primary and the keyboard default must agree (fix wave M6) — a
+            primary that moves depending on state (was: revenge round when
+            words were missed, the common case) is worse than one that
+            doesn't, so autoFocus now always targets the visually-primary
+            action instead of tracking `missed.length`. */}
+        <button className="primary" autoFocus onClick={onPlayAgain}>Play again</button>
         <button onClick={onTitle}>Title</button>
       </div>
     </div>

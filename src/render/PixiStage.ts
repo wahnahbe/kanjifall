@@ -3,6 +3,7 @@ import type { Filter, Texture } from 'pixi.js';
 import { GlowFilter } from 'pixi-filters';
 import { getSettings, subscribeSettings } from '../data/settings';
 import { cssHex, PALETTE } from '../design/palette';
+import { FONT_STACK } from '../design/typography';
 import { visualParams } from '../design/visualParams';
 import type { AirborneWord, GameMode } from '../engine/types';
 import { loadBrushTexture } from './brushStroke';
@@ -248,7 +249,7 @@ export class PixiStage {
     const text = new Text({
       text: label,
       style: new TextStyle({
-        fontFamily: "'Shippori Mincho B1', 'Yu Gothic UI', 'Meiryo', serif",
+        fontFamily: FONT_STACK,
         fontSize: 30,
         fill: color,
       }),
@@ -279,7 +280,13 @@ export class PixiStage {
     }
     this.fx = this.fx.filter((fx) => {
       if (fx.ageMs >= fx.lifeMs) {
-        fx.view.destroy({ children: true });
+        // context: true frees the miss-reveal underline Graphics's owned
+        // GraphicsContext — see WordSprite.destroy()'s doc comment for why
+        // `{children:true}` alone doesn't do this (verified against the
+        // installed pixi.js 8.19 source). texture stays unset: the label
+        // Text's own texture is per-instance, not shared, so Text's default
+        // teardown already covers it without this flag.
+        fx.view.destroy({ children: true, context: true });
         return false;
       }
       return true;
