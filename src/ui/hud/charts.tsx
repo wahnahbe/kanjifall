@@ -42,7 +42,7 @@ export function LevelBars({ levels }: { levels: LevelStat[] }) {
 /** Recharts renders an effectively-empty SVG under jsdom (no layout engine, no text measurement) —
  *  tests assert the `trend-chart` wrapper's presence only, never chart internals (see task brief). */
 export function TrendChart({ trend }: { trend: TrendPoint[] }) {
-  const axisColor = tokenColor('--color-ink-faint', '#6c7690');
+  const axisColor = tokenColor('--color-ink-faint', '#737d97');
   const ground = tokenColor('--color-ground-lift', '#0a0d16');
   const line = tokenColor('--color-line', 'rgba(0, 229, 255, 0.32)');
   const ink = tokenColor('--color-ink', '#f6f1e6');

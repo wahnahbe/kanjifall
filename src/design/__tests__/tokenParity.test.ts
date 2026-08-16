@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PALETTE } from '../palette';
+import { FONT_STACK } from '../typography';
 
 /** `--color-ink-dim` → `inkDim`. */
 function toCamel(cssName: string): string {
@@ -19,6 +20,15 @@ function readCssPalette(): Map<string, number> {
     found.set(toCamel(name), Number.parseInt(hex, 16));
   }
   return found;
+}
+
+/** Reads `--font-word`'s declared value verbatim (not colour-shaped, so it
+ *  can't reuse readCssPalette's hex regex). */
+function readCssFontWord(): string {
+  const css = readFileSync(join(process.cwd(), 'src/ui/tokens.css'), 'utf8');
+  const match = /--font-word:\s*([^;]+);/.exec(css);
+  if (match === null) throw new Error('tokens.css has no --font-word declaration');
+  return match[1].trim();
 }
 
 describe('token parity (visual-identity spec §3.3)', () => {
@@ -42,5 +52,12 @@ describe('token parity (visual-identity spec §3.3)', () => {
     expect(PALETTE.danger).toBe(0xff2a3c);
     expect(PALETTE.accent).toBe(0xfcee0a);
     expect(PALETTE.ground).toBe(0x070910);
+  });
+
+  // Render-layer fix wave: FONT_STACK (src/design/typography.ts) was a copy
+  // re-typed in both WordSprite.ts and PixiStage.ts with nothing catching
+  // drift from tokens.css's own --font-word — this pins all three together.
+  it('typography.ts FONT_STACK equals tokens.css --font-word', () => {
+    expect(FONT_STACK).toBe(readCssFontWord());
   });
 });

@@ -6,7 +6,13 @@
   /* --- 01 ink ------------------------------------------------------- */
   --color-ink: #f6f1e6;
   --color-ink-dim: #a8b0c4;
-  --color-ink-faint: #6c7690;
+  /* Amended 2026-08-15, fix wave: was #6c7690 (4.39:1 on --color-ground,
+     4.28:1 on --color-ground-lift — below WCAG AA's 4.5:1 for the small text
+     this token is used at everywhere, including .ceremony-sentence-en, a
+     translated example sentence, and LevelBars' .hint line, the only channel
+     distinguishing the coverage/mastery bars). Lightened; see spec §3.1's
+     amendment note for the measured ratios. */
+  --color-ink-faint: #737d97;
   /* --- 02 system ---------------------------------------------------- */
   --color-system: #00e5ff;
   /* --- 03 danger ---------------------------------------------------- */
@@ -31,6 +37,11 @@
      at effects 'full'/'reduced', gone at 'off' (--grain-alpha), unchanged
      everywhere else. */
   --color-fibre: rgba(207, 216, 238, 0.015);
+  /* Fix wave: .screen-center and .stats-screen each had their own inline
+     linear-gradient — a three-stop and a two-stop version respectively —
+     which drifted from each other despite spec §8 saying calm screens share
+     one ground. Single token now backs both. */
+  --gradient-ground: linear-gradient(180deg, var(--color-ground) 0%, var(--color-ground-lift) 58%, var(--color-ground-deep) 100%);
 
   /* --- type --------------------------------------------------------- */
   --font-word: 'Shippori Mincho B1', 'Yu Gothic UI', 'Meiryo', serif;

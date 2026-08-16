@@ -5,7 +5,7 @@ export const PALETTE = {
   /** 01 — falling words, score, the kana being typed. Always brightest. */
   ink: 0xf6f1e6,
   inkDim: 0xa8b0c4,
-  inkFaint: 0x6c7690,
+  inkFaint: 0x737d97,
   /** 02 — system chrome and ambient light: floor, panels, reticle, buffer frame. */
   system: 0x00e5ff,
   /** 03 — now-or-never: target underline, pips, deadline, misses. */
