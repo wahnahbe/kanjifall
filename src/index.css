@@ -81,7 +81,7 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
   background-color: var(--color-ground);
   background-image:
     repeating-linear-gradient(to right, var(--color-grid-line) 0 1px, transparent 1px 76px),
-    linear-gradient(180deg, var(--color-ground) 0%, var(--color-ground-lift) 58%, var(--color-ground-deep) 100%);
+    var(--gradient-ground);
   background-repeat: repeat, no-repeat;
   background-size: auto, 100% 100%;
 }

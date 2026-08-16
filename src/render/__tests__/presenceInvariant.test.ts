@@ -74,6 +74,17 @@ describe('presence is never gated on a decoration alpha (spec §7)', () => {
     assertNeverGated(source, 'this.view.addChild(brackets);');
   });
 
+  /** The underline is the second of the target's two channels (spec §9.4:
+   *  brackets carry shape, the underline carries colour), so gating it on a
+   *  decoration alpha would silently reduce the target to colour-only
+   *  signalling — the exact defect §9.4 exists to prevent. It mounts inside
+   *  the async texture-load `.then()`, so its statement text is `view.…`
+   *  (the closure's captured local) rather than `this.view.…`. */
+  it('WordSprite mounts the target underline unconditionally', () => {
+    const { source } = parse('src/render/WordSprite.ts');
+    assertNeverGated(source, 'view.addChild(underline);');
+  });
+
   // Sanity check on the test itself: applyFloorGlow's *filter* assignment
   // legitimately IS gated on glowAlpha (spec §7: "Full glow" / "Reduced
   // glow" / "Flat, no glow" all still render the stroke, just with a
