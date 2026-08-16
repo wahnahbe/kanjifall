@@ -4,11 +4,21 @@ Task 11 of `docs/superpowers/plans/2026-08-15-visual-identity.md`. Verifies spec
 `docs/superpowers/specs/2026-08-15-visual-identity-design.md` §7 (effects
 contract), §9 (legibility), §11 (testing) against the running app.
 
-Browser: `kanjifall-e2e` (port 5183) only, via Playwright MCP. Screenshots in
-`.superpowers/sdd/2026-08-15-visual-identity/`, referenced by filename below.
-Two fixes landed during this pass are noted inline where they change the
-observed column from a first-pass failure to a pass — see
-`task-11-report.md` for the full account of every fix.
+Browser: `kanjifall-e2e` (port 5183) only, via Playwright MCP — never the dev
+config, which writes to the real study database.
+
+**On the evidence referenced below.** Verification screenshots and the working
+task report (`task-11-report.md`) lived in `.superpowers/sdd/`, a gitignored
+scratch directory deleted when the work was handed over. They are **not part of
+this repository**, and the `*.png` filenames in the tables below are identifiers
+of artifacts examined at the time, not paths you can open. Every observation
+recorded here was made against them; the verdicts are the durable record, the
+images were the working evidence. Nothing below depends on that report to be
+understood — where it once carried supporting narrative, the relevant reasoning
+is now stated inline.
+
+Two fixes landed during this pass and are noted inline where they change the
+observed column from a first-pass failure to a pass.
 
 ## 1. §7 effects contract — one row per table cell
 
@@ -65,7 +75,7 @@ underlines still visible.
 
 ## 3. Three deferred questions
 
-Full evidence and reasoning in `task-11-report.md`. Rulings only, here:
+The three questions deferred to this gate, and the ruling made on each:
 
 1. **Does the target underline glow at `full`?** No, it did not (real gap) —
    **fixed**. See table row above and `t11-reticle-glow-full.png`.
@@ -103,9 +113,10 @@ reduced — the existing tuning holds up under direct inspection at play size.
 
 ## 5. Contrast check (spec §9.2, §9.3)
 
-Computed via the WCAG 2.1 relative-luminance formula against the ground
-colours actually used behind each token (`node`, exact script in
-`task-11-report.md`):
+Computed in `node` via the WCAG 2.1 relative-luminance formula — channels
+normalised to 0–1, linearised (`c <= 0.03928 ? c/12.92 : ((c+0.055)/1.055)^2.4`),
+weighted `0.2126 R + 0.7152 G + 0.0722 B`, then `(L_lighter + 0.05) /
+(L_darker + 0.05)` — against the ground colours actually used behind each token:
 
 | Pair | Ratio | vs. 4.5:1 (AA, normal text) |
 |---|---|---|
@@ -115,18 +126,31 @@ colours actually used behind each token (`node`, exact script in
 | `--color-accent` `#fcee0a` vs `--color-ground` | 16.46:1 | PASS |
 | `--color-danger` `#ff2a3c` vs `--color-ground` | 5.35:1 | PASS |
 | `--color-danger` vs `--color-ground-deep` (floor area) | 5.45:1 | PASS |
-| `--color-ink-faint` `#6c7690` vs `--color-ground` | 4.39:1 | **FAIL** (below 4.5:1) |
-| `--color-ink-faint` vs `--color-ground-lift` (top of gradient) | 4.28:1 | **FAIL** |
+| `--color-ink-faint` `#737d97` vs `--color-ground` | 4.84:1 | PASS *(was 4.39:1 FAIL at `#6c7690` — see below)* |
+| `--color-ink-faint` vs `--color-ground-lift` (top of gradient) | 4.72:1 | PASS *(was 4.28:1 FAIL)* |
 
 `--color-ink-faint` is used at seven locations: `.hint`, `.plan-notice`,
 `.tier-advance`, `.stat-label`, `.ceremony-sentence-en`, `.ceremony-credit`,
 and `input::placeholder, textarea::placeholder` (line 45 of `index.css`) — all
 `--text-xs`/`--text-sm`/`--text-2xs`/placeholder text, i.e. all "small text"
-by the WCAG size threshold where 4.5:1 is the applicable bar. **Not fixed** —
-see report for why (token-level shortfall, not a usage bug; the brief's own
-guidance is to fix contrast failures by changing *usage*, and this usage is
-uniform and intentional across all seven locations, not a mistake in any one
-of them). Reported as a finding, not fixed.
+by the WCAG size threshold where 4.5:1 is the applicable bar.
+
+**This gate recorded it as a FAIL and deliberately did not fix it**, reasoning
+that it was a token-level shortfall rather than a usage bug, and that the
+standing guidance was to fix contrast by changing *usage* — which here is
+uniform and intentional across all seven locations.
+
+**The final whole-branch review overturned that.** It held that two usages
+break the "labels and hints only" defence: `.ceremony-sentence-en` is a
+translated example sentence, i.e. reading content rather than a label; and in
+`LevelBars` the `.hint` line (`"{n}% coverage · {n}% mastery"`) is the *only*
+channel distinguishing the cyan coverage bar from the ink mastery bar, so the
+text discharging spec §9.4 for that widget was the least legible token in the
+app. The token was lightened `#6c7690` → `#737d97`, `palette.ts` updated to
+match (the parity test enforces agreement), and spec §3.1 carries a dated
+amendment note with the measured ratios. The table above reflects the shipped
+values; the original failing figures are retained in italics so the reversal
+is legible rather than silently overwritten.
 
 `--color-danger` usage-as-text-only (§9.3): confirmed three text usages:
 `.missed td` (line ~120, `--text-base`), `.load-error` (line ~185,
