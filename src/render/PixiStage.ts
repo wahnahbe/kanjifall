@@ -37,6 +37,10 @@ const DEADLINE_INSET_PX = 1;
 const FLOOR_GLOW_DISTANCE = 12;
 const FLOOR_GLOW_OUTER_STRENGTH = 3;
 const FLOOR_TEXTURE_SEED = 11;
+// Miss-reveal underline (spec §5.4) — a flat rect, not a texture: see
+// playMiss()'s doc comment for why this one skips the brush-stroke treatment.
+const MISS_UNDERLINE_GAP_PX = 4;
+const MISS_UNDERLINE_THICKNESS_PX = 2;
 
 // Kicked off the moment this module is evaluated — i.e. at app boot, in
 // flight while the player is still reading the title screen — rather than
@@ -145,7 +149,10 @@ export class PixiStage {
     }
     for (const [id, sprite] of this.sprites) {
       if (!alive.has(id)) {
-        sprite.view.destroy({ children: true });
+        // sprite.destroy() (not sprite.view.destroy() directly) so a locked
+        // word's reticle/underline GlowFilter — added for spec §7 — frees its
+        // compiled GPU program too; see WordSprite.destroy()'s doc comment.
+        sprite.destroy();
         this.sprites.delete(id);
       }
     }
@@ -178,9 +185,17 @@ export class PixiStage {
    *  screen shake. */
   playMiss(word: AirborneWord): void {
     const reveal = `${word.card.kanji ?? ''} ${word.card.kana[0]} — ${word.card.gloss}`.trim();
+    // Spec §5.4: "becomes --color-ink on a vermillion underline rather than
+    // pink text" — the reveal is the game's most important teaching moment.
+    // Task 4's brief deferred this underline to Task 7; Task 7's own brief
+    // only ever specified the *target-lock* underline (§5.3), so it was
+    // never picked up — found during this task's matrix walk. §5.4 says
+    // "a vermillion underline", not §5.3's "vermillion brush underline", so
+    // this is a flat Graphics rect rather than the dry-brush texture: no new
+    // texture/tuning surface, and it matches the spec's literal wording.
     this.spawnFx(word, reveal, PALETTE.ink, 1600, (view, t) => {
       view.alpha = t < 0.15 ? 1 : 1 - (t - 0.15) / 0.85;
-    });
+    }, { underline: true });
 
     const px = word.x * this.app.screen.width;
     const py = Math.min(word.y, 0.95) * this.app.screen.height;
@@ -211,6 +226,12 @@ export class PixiStage {
       this.floor.destroy({ texture: true, textureSource: true });
     }
     this.deadline?.destroy();
+    // Same gap as the floor/stage filters above: app.destroy({children:true})
+    // below recursively destroys every sprite's view but never runs
+    // WordSprite's own filter cleanup, so any currently-locked word's
+    // reticle/underline GlowFilter (spec §7) would leak its compiled GPU
+    // program otherwise.
+    for (const sprite of this.sprites.values()) sprite.destroy();
     this.app.destroy(true, { children: true });
     this.sprites.clear();
     this.fx = [];
@@ -222,6 +243,7 @@ export class PixiStage {
     color: number,
     lifeMs: number,
     update: Fx['update'],
+    options: { underline?: boolean } = {},
   ): void {
     const text = new Text({
       text: label,
@@ -235,6 +257,15 @@ export class PixiStage {
     text.anchor.set(0.5);
     const view = new Container();
     view.addChild(text);
+    // Miss reveal only (spec §5.4) — measured against the real label, so it
+    // spans exactly the rendered text regardless of how long the reveal
+    // string (kanji + kana + gloss) turns out to be.
+    if (options.underline === true) {
+      const underline = new Graphics()
+        .rect(-text.width / 2, text.height / 2 + MISS_UNDERLINE_GAP_PX, text.width, MISS_UNDERLINE_THICKNESS_PX)
+        .fill(PALETTE.danger);
+      view.addChild(underline);
+    }
     const yPx = Math.min(word.y, 0.95) * this.app.screen.height;
     view.position.set(word.x * this.app.screen.width, yPx);
     this.app.stage.addChild(view);

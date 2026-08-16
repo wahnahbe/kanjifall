@@ -1,9 +1,15 @@
 import type { EngineSnapshot } from '../../engine/types';
+import { useSettings } from '../useSettings';
 import { pipStates } from './pips';
 
 export function Hud({ snapshot }: { snapshot: EngineSnapshot }) {
+  // Spec §7: "Lives, score, combo, buffer" glow on their accents at `full`
+  // only — flat at `reduced` and `off`. useSettings() (not a one-off
+  // getSettings() read) so a live settings change repaints immediately,
+  // matching every other effects-driven surface in the HUD/playfield.
+  const glowFull = useSettings().effects === 'full';
   return (
-    <div className="hud">
+    <div className={glowFull ? 'hud hud-glow' : 'hud'}>
       <div className="hud-stripe" />
       <div className="hud-top">
         <div className="hud-block">

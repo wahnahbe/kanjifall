@@ -1,5 +1,6 @@
 import { Container, Graphics, Sprite, Text, TextStyle } from 'pixi.js';
-import type { Texture } from 'pixi.js';
+import type { Filter, Texture } from 'pixi.js';
+import { GlowFilter } from 'pixi-filters';
 import { getSettings } from '../data/settings';
 import { cssHex, PALETTE } from '../design/palette';
 import { visualParams } from '../design/visualParams';
@@ -22,7 +23,18 @@ const HINT_STYLE: Partial<TextStyle> = {
 };
 
 const HINT_FADE_MS = 300;
-const HINT_OFFSET_Y = 34;
+// Was a flat 34px offset, independent of the falling word's own measured
+// height — Task 7 flagged (but never tested) that this could crowd the
+// target underline in recall mode; Task 11's browser walk confirmed it does
+// (the underline sits at halfH + UNDERLINE_GAP_PX + ~13, which for the
+// English gloss words recall mode falls — taller than kanji at the same
+// font size, due to ascenders/descenders — landed at roughly the same y as
+// the fixed 34px hint). Placed relative to this.text.height instead, same
+// "derive from the real measurement" posture ensureTargetArt() already
+// uses for the brackets/underline, so hint spacing now clears the underline
+// for any word instead of only the ones the original constant happened to fit.
+const UNDERLINE_HALF_HEIGHT_PX = 13; // half of brushStroke's default HEIGHT (26px) — UNDERLINE_STROKE_OPTIONS never overrides height, so the underline sprite always renders at that native size
+const HINT_CLEARANCE_PX = 8; // gap below where the underline sits (or would sit, if this word is ever locked)
 
 // Target reticle geometry (visual-identity spec §5.3) — corner brackets are
 // the shape signal; the brush underline below is the colour signal. Never
@@ -53,6 +65,17 @@ const UNDERLINE_STROKE_OPTIONS: BrushStrokeOptions = {
   width: 150,
   displacementScale: 10,
 };
+
+// Target reticle + underline glow (spec §7: "Glow" at full and reduced,
+// "Flat" only at off) — scaled by visualParams().glowAlpha the same way
+// PixiStage.applyFloorGlow() scales the floor's glow, so the two match in
+// character. Distinct constants (not reused from PixiStage) because the
+// reticle/underline are far smaller on screen than the full-width floor
+// stroke and a floor-sized glow would blow out their edges.
+const RETICLE_GLOW_DISTANCE = 6;
+const RETICLE_GLOW_OUTER_STRENGTH = 1.6;
+const UNDERLINE_GLOW_DISTANCE = 5;
+const UNDERLINE_GLOW_OUTER_STRENGTH = 1.6;
 
 const HALO_BLUR = 18;
 // TextStyle._getFinalPadding() sizes the backing canvas from `padding` and
@@ -96,13 +119,19 @@ export class WordSprite {
   private brackets: Graphics | null = null;
   private underline: Sprite | null = null;
   private targetArtRequested = false;
+  // Read once at construction, same posture as chromaticSplitPx/haloAlpha
+  // below: a word's own effects treatment is fixed for its lifetime rather
+  // than reactive (see task-7-report.md's "ruled not to fix" — no in-flight
+  // settings-change path exists during play).
+  private readonly glowAlpha: number;
 
   constructor(word: AirborneWord, mode: GameMode) {
     const display = mode === 'recall'
       ? word.card.gloss
       : word.card.kanji ?? word.card.kana[0];
     const resolution = Math.min(Math.max(window.devicePixelRatio, 1) * 2, 4);
-    const { chromaticSplitPx, haloAlpha } = visualParams(getSettings().effects);
+    const { chromaticSplitPx, haloAlpha, glowAlpha } = visualParams(getSettings().effects);
+    this.glowAlpha = glowAlpha;
     const fontSize = BASE_STYLE.fontSize ?? 0;
 
     this.view = new Container();
@@ -165,7 +194,8 @@ export class WordSprite {
       resolution: 2,
     });
     this.hintText.anchor.set(0.5);
-    this.hintText.position.set(0, HINT_OFFSET_Y);
+    const halfH = this.text.height / 2;
+    this.hintText.position.set(0, halfH + UNDERLINE_GAP_PX + UNDERLINE_HALF_HEIGHT_PX + HINT_CLEARANCE_PX);
     this.hintText.alpha = 0;
     this.view.addChild(this.hintText);
   }
@@ -213,6 +243,20 @@ export class WordSprite {
       brackets.rect(r.x, r.y, r.w, r.h).fill(PALETTE.system);
     }
     brackets.visible = false;
+    // Spec §7: the reticle glows at full/reduced, flat only at off — mirrors
+    // PixiStage.applyFloorGlow()'s glowAlpha scaling. Omitted (not a
+    // zero-strength filter) at glowAlpha 0, same "genuinely flat, not a
+    // zero-opacity pass" posture the halo above already takes.
+    if (this.glowAlpha > 0) {
+      brackets.filters = [
+        new GlowFilter({
+          color: PALETTE.system,
+          distance: RETICLE_GLOW_DISTANCE,
+          outerStrength: RETICLE_GLOW_OUTER_STRENGTH * this.glowAlpha,
+          quality: 0.3,
+        }),
+      ];
+    }
     this.brackets = brackets;
     this.view.addChild(brackets);
 
@@ -233,11 +277,39 @@ export class WordSprite {
         underline.width = width * UNDERLINE_WIDTH_RATIO; // width only, like the floor — never stretches the stroke's thickness
         underline.position.set(0, halfH + UNDERLINE_GAP_PX + texture.height / 2);
         underline.visible = this.locked;
+        // Same glow rule as the brackets above (spec §7).
+        if (this.glowAlpha > 0) {
+          underline.filters = [
+            new GlowFilter({
+              color: PALETTE.danger,
+              distance: UNDERLINE_GLOW_DISTANCE,
+              outerStrength: UNDERLINE_GLOW_OUTER_STRENGTH * this.glowAlpha,
+              quality: 0.3,
+            }),
+          ];
+        }
         this.underline = underline;
         view.addChild(underline);
       })
       .catch((error: unknown) => {
         console.warn('[WordSprite] underline texture failed to load — running without it', error);
       });
+  }
+
+  /** Frees the reticle/underline GlowFilter's compiled GPU program before the
+   *  view itself is torn down — Container.destroy() never touches a child's
+   *  .filters (same gap PixiStage.destroyFilters()'s doc comment documents
+   *  for the stage's own filters and the floor's). Safe to call unconditionally:
+   *  brackets/underline are null until a word is ever locked, and filters are
+   *  only ever assigned when glowAlpha > 0. */
+  destroy(): void {
+    this.destroyFilters(this.brackets?.filters);
+    this.destroyFilters(this.underline?.filters);
+    this.view.destroy({ children: true });
+  }
+
+  private destroyFilters(filters: readonly Filter[] | undefined): void {
+    if (!filters) return;
+    for (const filter of filters) filter.destroy(true);
   }
 }

@@ -138,6 +138,18 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
 .hud-pip { width: 20px; height: 6px; transform: skewX(-22deg); }
 .hud-pip-live { background: var(--color-danger); }
 .hud-pip-spent { background: var(--color-danger-soft); }
+/* Spec §7: "Lives, score, combo, buffer" glow at effects=full only — applied
+   via .hud-glow (Hud.tsx, driven by live settings) as box-shadow on the
+   chrome boxes themselves, never as text-shadow on the --text-2xs tabs/
+   labels (hud-tab, hud-wave-lat, hud-buffer-tick) — spec §9.2 bans glow on
+   text below --text-base regardless of effects level. hud-value-accent
+   (the combo digits, --text-lg) is the one text-shadow here, and it clears
+   the size floor. */
+.hud-glow .hud-tab { box-shadow: 0 0 6px var(--color-system); }
+.hud-glow .hud-value { box-shadow: 0 0 6px var(--color-line); }
+.hud-glow .hud-value-accent { text-shadow: 0 0 8px var(--color-accent); }
+.hud-glow .hud-pip-live { box-shadow: 0 0 6px var(--color-danger); }
+.hud-glow .hud-buffer { box-shadow: 0 0 8px var(--color-line); }
 .hud-buffer {
   /* margin-bottom raised from the brief's --space-5 (24px): the floor's
      dry-brush stroke sits FLOOR_Y_RATIO=1.0 (PixiStage.ts), anchored to the

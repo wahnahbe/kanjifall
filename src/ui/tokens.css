@@ -24,7 +24,13 @@
   --color-line-soft: rgba(0, 229, 255, 0.16);
   --color-danger-soft: rgba(255, 42, 60, 0.16);
   --color-grid-line: rgba(0, 229, 255, 0.05);
-  --color-fibre: rgba(207, 216, 238, 0.03);
+  /* Task 11 QA: was 0.03 — at that alpha the 1px repeating-linear-gradient
+     lines (index.css .pixi-host::before) read as crisp diagonal scratches
+     rather than the "very low opacity" paper texture spec §5.1 calls for,
+     confirmed in composited full-effects screenshots. Halved; still present
+     at effects 'full'/'reduced', gone at 'off' (--grain-alpha), unchanged
+     everywhere else. */
+  --color-fibre: rgba(207, 216, 238, 0.015);
 
   /* --- type --------------------------------------------------------- */
   --font-word: 'Shippori Mincho B1', 'Yu Gothic UI', 'Meiryo', serif;
