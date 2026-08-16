@@ -118,20 +118,23 @@ colours actually used behind each token (`node`, exact script in
 | `--color-ink-faint` `#6c7690` vs `--color-ground` | 4.39:1 | **FAIL** (below 4.5:1) |
 | `--color-ink-faint` vs `--color-ground-lift` (top of gradient) | 4.28:1 | **FAIL** |
 
-`--color-ink-faint` is used at `.hint`, `.plan-notice`, `.tier-advance`,
-`.stat-label`, `.ceremony-sentence-en`, `.ceremony-credit` — all
-`--text-xs`/`--text-sm`/`--text-2xs`, i.e. all "small text" by the WCAG
-size threshold, so 4.5:1 is the applicable bar, not 3:1. **Not fixed** — see
-report for why (token-level shortfall, not a usage bug; the brief's own
+`--color-ink-faint` is used at seven locations: `.hint`, `.plan-notice`,
+`.tier-advance`, `.stat-label`, `.ceremony-sentence-en`, `.ceremony-credit`,
+and `input::placeholder, textarea::placeholder` (line 45 of `index.css`) — all
+`--text-xs`/`--text-sm`/`--text-2xs`/placeholder text, i.e. all "small text"
+by the WCAG size threshold where 4.5:1 is the applicable bar. **Not fixed** —
+see report for why (token-level shortfall, not a usage bug; the brief's own
 guidance is to fix contrast failures by changing *usage*, and this usage is
-uniform and intentional across six rules, not a mistake in any one of them).
-Reported as a finding, not fixed.
+uniform and intentional across all seven locations, not a mistake in any one
+of them). Reported as a finding, not fixed.
 
-`--color-danger` usage-as-text-only (§9.3): confirmed `.missed td` and
-`.load-error` both explicitly pin `font-size: var(--text-base)` (checked in
-`index.css`) — vermillion never appears as text below that size. Grep of
-every `--color-danger` usage in `index.css` confirms the rest are lines
-(underlines), pips, or the deadline — no other text usage exists.
+`--color-danger` usage-as-text-only (§9.3): confirmed three text usages:
+`.missed td` (line ~120, `--text-base`), `.load-error` (line ~185,
+`--text-base`), and `.ceremony-buffer.rejected` (line 280, `--text-2xl`).
+All three explicitly pin font sizes well above the spec §9.3 floor
+(`--text-base` minimum). Searched `index.css` for `--color-danger` usage;
+every other occurrence is a line (underlines), a pip, or the deadline —
+text usage is confined to these three rules.
 
 ## 6. Colour-is-never-the-only-signal (spec §9.4)
 
