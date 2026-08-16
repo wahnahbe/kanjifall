@@ -1,7 +1,11 @@
 import { Texture } from 'pixi.js';
 
 const WIDTH = 1200;
-const HEIGHT = 26;
+// Exported: callers that need to reason about a stroke's native on-screen
+// height at default options (e.g. WordSprite's underline clearance math)
+// derive from this instead of re-declaring a copy of the literal that could
+// silently drift from the constructor's own default.
+export const HEIGHT = 26;
 const BASE_FREQUENCY = '0.018 0.55';
 const NUM_OCTAVES = 3;
 const DISPLACEMENT_SCALE = 17;

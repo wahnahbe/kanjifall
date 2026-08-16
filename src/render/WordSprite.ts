@@ -3,12 +3,11 @@ import type { Filter, Texture } from 'pixi.js';
 import { GlowFilter } from 'pixi-filters';
 import { getSettings } from '../data/settings';
 import { cssHex, PALETTE } from '../design/palette';
+import { FONT_STACK } from '../design/typography';
 import { visualParams } from '../design/visualParams';
 import type { AirborneWord, GameMode } from '../engine/types';
-import { loadBrushTexture, type BrushStrokeOptions } from './brushStroke';
+import { HEIGHT as BRUSH_STROKE_HEIGHT, loadBrushTexture, type BrushStrokeOptions } from './brushStroke';
 import { reticleBrackets } from './reticle';
-
-const FONT_STACK = "'Shippori Mincho B1', 'Yu Gothic UI', 'Meiryo', serif";
 
 const BASE_STYLE: Partial<TextStyle> = {
   fontFamily: FONT_STACK,
@@ -33,8 +32,12 @@ const HINT_FADE_MS = 300;
 // "derive from the real measurement" posture ensureTargetArt() already
 // uses for the brackets/underline, so hint spacing now clears the underline
 // for any word instead of only the ones the original constant happened to fit.
-const UNDERLINE_HALF_HEIGHT_PX = 13; // half of brushStroke's default HEIGHT (26px) — UNDERLINE_STROKE_OPTIONS never overrides height, so the underline sprite always renders at that native size
-const HINT_CLEARANCE_PX = 8; // gap below where the underline sits (or would sit, if this word is ever locked)
+// Half of brushStroke's default HEIGHT — UNDERLINE_STROKE_OPTIONS never
+// overrides height, so the underline sprite always renders at that native
+// size. Derived from the exported constant (not a re-typed literal) so the
+// two cannot drift.
+const UNDERLINE_HALF_HEIGHT_PX = BRUSH_STROKE_HEIGHT / 2;
+const HINT_CLEARANCE_PX = 8; // gap below the underline's bottom edge (or where it would sit, if this word is ever locked)
 
 // Target reticle geometry (visual-identity spec §5.3) — corner brackets are
 // the shape signal; the brush underline below is the colour signal. Never
@@ -195,7 +198,14 @@ export class WordSprite {
     });
     this.hintText.anchor.set(0.5);
     const halfH = this.text.height / 2;
-    this.hintText.position.set(0, halfH + UNDERLINE_GAP_PX + UNDERLINE_HALF_HEIGHT_PX + HINT_CLEARANCE_PX);
+    // hintText.anchor is 0.5, so this sets the hint's CENTRE. The underline's
+    // bottom edge (its own centre plus its own half-height, not just one
+    // half-height added once) is halfH + UNDERLINE_GAP_PX + (half-height *
+    // 2); the hint's centre then needs to clear that edge by
+    // HINT_CLEARANCE_PX *plus* the hint's own half-height, or the clearance
+    // constant lands on the hint's centre instead of its top edge.
+    const underlineBottom = halfH + UNDERLINE_GAP_PX + UNDERLINE_HALF_HEIGHT_PX * 2;
+    this.hintText.position.set(0, underlineBottom + HINT_CLEARANCE_PX + this.hintText.height / 2);
     this.hintText.alpha = 0;
     this.view.addChild(this.hintText);
   }
@@ -305,7 +315,16 @@ export class WordSprite {
   destroy(): void {
     this.destroyFilters(this.brackets?.filters);
     this.destroyFilters(this.underline?.filters);
-    this.view.destroy({ children: true });
+    // context: true frees the brackets Graphics's owned GraphicsContext —
+    // Container.destroy({children:true}) forwards this same options object
+    // to each child's own destroy(), and Graphics.destroy() only frees its
+    // context when `options === true` or `options.context === true`
+    // (verified against the installed pixi.js 8.19 source); `{children:true}`
+    // alone matches neither, so the context leaked before this. texture
+    // stays unset deliberately: the underline Sprite's texture is the
+    // module-scope shared/cached one (see underlineTexture()), and other
+    // WordSprite instances may still be using or awaiting it.
+    this.view.destroy({ children: true, context: true });
   }
 
   private destroyFilters(filters: readonly Filter[] | undefined): void {

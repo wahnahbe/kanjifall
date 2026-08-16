@@ -159,6 +159,26 @@ uses: `halfH + UNDERLINE_GAP_PX + UNDERLINE_HALF_HEIGHT_PX + HINT_CLEARANCE_PX`)
 instead of a flat constant. Re-verified — `recall-hint-fixed2.png`: hint now
 sits with a clean visible gap below the underline for every word in frame.
 
+**Correction, fix wave (2026-08-15).** The line above was wrong: the formula
+this task shipped was geometrically broken, not fixed. `hintText.anchor` is
+`0.5`, so the formula set the hint's *centre*, but `UNDERLINE_HALF_HEIGHT_PX`
+was only added once (getting to the underline's centre) where the geometry
+needs it twice (centre → bottom edge), and the hint's own half-height was
+never added at all. Net effect: the hint's centre landed only 8px below the
+underline's *centre*, which is inside the underline's own 26px-tall texture
+— not below it. Reproduced directly: reverting to this task's exact formula
+and freezing the game mid-frame in the browser (`kanjifall-e2e`, recall mode)
+shows the hint kanji visually crossing the underline's glow band —
+`fixwave-i1-before-overlap.png`. `recall-hint-fixed2.png`'s "clean gap" claim
+was apparently an eyeball check that didn't catch this at normal zoom; the
+overlap is real and visible once you look for it. Corrected in the fix wave
+(`WordSprite.ts`'s `showHint()`): the hint's centre is now
+`underlineBottom + HINT_CLEARANCE_PX + hintText.height / 2`, i.e. the
+underline's true bottom edge (centre + full half-height) plus the clearance
+plus the hint's own half-height. Re-verified with the same freeze-frame
+technique — `fixwave-i1-locked-hint-frozen.png` shows a genuine visible gap
+between the underline and the hint kanji.
+
 **Residual, not fixed**: words very close to the kill line still visually
 approach the fixed-position HUD buffer chrome (see `recall-hint-fixed2.png`'s
 bottom word) — this is a pre-existing consequence of `FLOOR_Y_RATIO = 1.0`
