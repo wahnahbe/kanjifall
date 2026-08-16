@@ -1,7 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { sfx } from '../../audio/sfx';
+import { cssHex, PALETTE } from '../../design/palette';
 import type { Card, EngineSnapshot } from '../../engine/types';
 import { useSettings } from '../useSettings';
+
+/** Spec §3.1: confetti draws from ink/cyan/accent only — the three colours the identity keeps, not
+ *  a bespoke pink/blue/amber mix (and not the retired kill-green that mix used to include). Sourced
+ *  from PALETTE rather than retyped as literals so this can't drift from tokens.css. */
+const CONFETTI_COLORS = [cssHex(PALETTE.ink), cssHex(PALETTE.system), cssHex(PALETTE.accent)];
 
 interface ResultsScreenProps {
   snapshot: EngineSnapshot;
@@ -64,7 +70,7 @@ export function ResultsScreen({
                   style={{
                     left: `${(i * 41) % 100}%`,
                     animationDelay: `${(i % 8) * 90}ms`,
-                    backgroundColor: ['#ffd166', '#9dffb0', '#7cc7ff', '#ff9de2'][i % 4],
+                    backgroundColor: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
                   }}
                 />
               ))}

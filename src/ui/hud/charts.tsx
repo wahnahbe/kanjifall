@@ -46,6 +46,7 @@ export function TrendChart({ trend }: { trend: TrendPoint[] }) {
   const ground = tokenColor('--color-ground-lift', '#0a0d16');
   const line = tokenColor('--color-line', 'rgba(0, 229, 255, 0.32)');
   const ink = tokenColor('--color-ink', '#f6f1e6');
+  const radiusSm = tokenColor('--radius-sm', '2px');
   return (
     <div className="trend-chart" data-testid="trend-chart">
       <ResponsiveContainer width="100%" height={180}>
@@ -54,7 +55,7 @@ export function TrendChart({ trend }: { trend: TrendPoint[] }) {
           <YAxis yAxisId="words" hide domain={[0, 'auto']} stroke={axisColor} />
           <YAxis yAxisId="accuracy" orientation="right" hide domain={[0, 1]} stroke={axisColor} />
           <Tooltip
-            contentStyle={{ background: ground, border: `1px solid ${line}`, borderRadius: 2 }}
+            contentStyle={{ background: ground, border: `1px solid ${line}`, borderRadius: radiusSm }}
             labelStyle={{ color: axisColor }}
             itemStyle={{ color: ink }}
           />
