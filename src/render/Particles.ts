@@ -1,13 +1,14 @@
 import { Container, Graphics } from 'pixi.js';
 import { getSettings } from '../data/settings';
+import { PALETTE } from '../design/palette';
 import {
   burstCount, killBurstBase, spawnBurst, stepParticles, type SimParticle,
 } from './particleSim';
 
-const KILL_COLOR = 0x9dffb0;
-const MISS_COLOR = 0xff8f8f;
+const KILL_COLOR = PALETTE.ink;
+const MISS_COLOR = PALETTE.danger;
 const MISS_BASE = 8;
-const CONFETTI_PALETTE = [0xffd166, 0x9dffb0, 0x7cc7ff, 0xff9de2];
+const CONFETTI_PALETTE = [PALETTE.ink, PALETTE.system, PALETTE.accent];
 const CONFETTI_BASE = 40;
 
 /** Pixi-facing half of the particle system: owns the live pool and the single
@@ -25,13 +26,13 @@ export class Particles {
     this.view.addChild(this.graphics);
   }
 
-  /** Kill-green burst at a word's death position; size grows with combo tier. */
+  /** Kill burst at a word's death position; size grows with combo tier. */
   killBurst(x: number, y: number, combo: number): void {
     const count = burstCount(getSettings().effects, killBurstBase(combo));
     spawnBurst(this.pool, x, y, KILL_COLOR, count, Math.random);
   }
 
-  /** Dim red puff where a word landed. */
+  /** Particle puff where a word landed. */
   missPuff(x: number, y: number): void {
     const count = burstCount(getSettings().effects, MISS_BASE);
     spawnBurst(this.pool, x, y, MISS_COLOR, count, Math.random);

@@ -1,4 +1,5 @@
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { tokenColor } from '../../design/palette';
 import type { StatsOverview } from '../../shared/api';
 
 type LevelStat = StatsOverview['levels'][number];
@@ -41,16 +42,33 @@ export function LevelBars({ levels }: { levels: LevelStat[] }) {
 /** Recharts renders an effectively-empty SVG under jsdom (no layout engine, no text measurement) —
  *  tests assert the `trend-chart` wrapper's presence only, never chart internals (see task brief). */
 export function TrendChart({ trend }: { trend: TrendPoint[] }) {
+  const axisColor = tokenColor('--color-ink-faint', '#737d97');
+  const ground = tokenColor('--color-ground-lift', '#0a0d16');
+  const line = tokenColor('--color-line', 'rgba(0, 229, 255, 0.32)');
+  const ink = tokenColor('--color-ink', '#f6f1e6');
+  const radiusSm = tokenColor('--radius-sm', '2px');
   return (
     <div className="trend-chart" data-testid="trend-chart">
       <ResponsiveContainer width="100%" height={180}>
         <LineChart data={trend}>
-          <XAxis dataKey="date" tick={false} axisLine={false} />
-          <YAxis yAxisId="words" hide domain={[0, 'auto']} />
-          <YAxis yAxisId="accuracy" orientation="right" hide domain={[0, 1]} />
-          <Tooltip />
-          <Line yAxisId="words" type="monotone" dataKey="words" stroke="#7fdfff" dot={false} strokeWidth={2} />
-          <Line yAxisId="accuracy" type="monotone" dataKey="accuracy" stroke="#ffb0b0" dot={false} strokeWidth={2} />
+          <XAxis dataKey="date" tick={false} axisLine={false} stroke={axisColor} />
+          <YAxis yAxisId="words" hide domain={[0, 'auto']} stroke={axisColor} />
+          <YAxis yAxisId="accuracy" orientation="right" hide domain={[0, 1]} stroke={axisColor} />
+          <Tooltip
+            contentStyle={{ background: ground, border: `1px solid ${line}`, borderRadius: radiusSm }}
+            labelStyle={{ color: axisColor }}
+            itemStyle={{ color: ink }}
+          />
+          {/* Spec §9.4: two series must not be told apart by hue alone — words is a solid line,
+              accuracy is dashed, so the difference survives grayscale/colour-blind viewing too. */}
+          <Line
+            yAxisId="words" type="monotone" dataKey="words"
+            stroke={tokenColor('--color-system', '#00e5ff')} dot={false} strokeWidth={2}
+          />
+          <Line
+            yAxisId="accuracy" type="monotone" dataKey="accuracy"
+            stroke={ink} dot={false} strokeWidth={2} strokeDasharray="6 4"
+          />
         </LineChart>
       </ResponsiveContainer>
     </div>

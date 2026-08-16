@@ -133,7 +133,7 @@ export function SetupScreen(
         <p className="load-error" data-testid="load-error">{error}</p>
       )}
       <div className="picker-row">
-        <button data-testid="begin-button" disabled={loading} onClick={() => onBegin(mode, pool)}>
+        <button className="primary" data-testid="begin-button" disabled={loading} onClick={() => onBegin(mode, pool)}>
           {loading ? 'Loading words…' : 'Begin'}
         </button>
         <button onClick={onBack}>Back</button>

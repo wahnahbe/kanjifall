@@ -175,14 +175,18 @@ export function StatsScreen({ onBack }: StatsScreenProps) {
 
       <section>
         <p>
-          Reading <strong data-testid="learned-reading">{overview.learned.reading}</strong> · Recall{' '}
+          <span className="stat-label">Reading</span>{' '}
+          <strong data-testid="learned-reading">{overview.learned.reading}</strong>
+          {' · '}
+          <span className="stat-label">Recall</span>{' '}
           <strong data-testid="learned-recall">{overview.learned.recall}</strong>
         </p>
       </section>
 
       <section>
         <p data-testid="estimated-level">
-          Estimated level: {overview.estimatedLevel === null ? '—' : `N${overview.estimatedLevel}`}
+          Estimated level:{' '}
+          <strong>{overview.estimatedLevel === null ? '—' : `N${overview.estimatedLevel}`}</strong>
         </p>
         <p className="hint">vocab-only estimate</p>
         <LevelBars levels={overview.levels} />
@@ -192,8 +196,9 @@ export function StatsScreen({ onBack }: StatsScreenProps) {
         <h3>Pace</h3>
         <p>{overview.pace.onPace ? 'On pace ✓' : 'Behind pace ✗'}</p>
         <p>
-          Learning {overview.pace.learnRatePerDay.toFixed(1)}/day, need{' '}
-          {overview.pace.requiredRatePerDay.toFixed(1)}/day ({overview.pace.daysToExam} days to exam)
+          Learning <strong>{overview.pace.learnRatePerDay.toFixed(1)}</strong>/day, need{' '}
+          <strong>{overview.pace.requiredRatePerDay.toFixed(1)}</strong>/day (
+          <strong>{overview.pace.daysToExam}</strong> days to exam)
         </p>
       </section>
 
@@ -291,7 +296,7 @@ function ProfileForm({ profile, onSave, saving, error, onDraftChange }: ProfileF
         onChange={(event) => updateDraft({ ...draft, dailyWordGoal: Number(event.target.value) })}
       />
 
-      <button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+      <button type="submit" className="primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
       {error !== null && <p data-testid="profile-error">{error}</p>}
     </form>
   );

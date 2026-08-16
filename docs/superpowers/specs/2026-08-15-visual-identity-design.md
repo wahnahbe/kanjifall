@@ -52,7 +52,9 @@ The ranking is the design. Each colour has exactly one job, and a colour never b
 | 04 | `--color-accent` | `#fcee0a` | Accent only: micro-labels, combo value, the caret, the top hazard stripe. **Never a surface.** |
 | 05 | `--color-ground` | `#070910` | Base, with an indigo lift toward the top (`#0a0d16`) and a darker floor (`#04060b`). |
 
-Supporting tokens: `--color-ink-dim` `#a8b0c4` (secondary label text), `--color-ink-faint` `#6c7690` (tertiary, hints), `--color-surface` `rgba(0,229,255,.06)` (panel fill), `--color-line` `rgba(0,229,255,.32)` (panel border).
+Supporting tokens: `--color-ink-dim` `#a8b0c4` (secondary label text), `--color-ink-faint` `#737d97` (tertiary, hints), `--color-surface` `rgba(0,229,255,.06)` (panel fill), `--color-line` `rgba(0,229,255,.32)` (panel border).
+
+**Amended 2026-08-15, fix wave.** `--color-ink-faint` was originally `#6c7690`, measured (Task 11 QA) at 4.39:1 against `--color-ground` and 4.28:1 against `--color-ground-lift` — both below the 4.5:1 AA floor for the small text this token is used at everywhere it appears (`.hint`, `.plan-notice`, `.tier-advance`, `.stat-label`, `.ceremony-sentence-en`, `.ceremony-credit`, placeholder text). Two usages make this more than a rounding-error shortfall: `.ceremony-sentence-en` is a translated example sentence (reading content, not a label), and in `LevelBars` the `.hint` line ("{n}% coverage · {n}% mastery") is the *only* channel distinguishing the cyan coverage bar from the ink mastery bar — so the text discharging §9.4 for that widget was the least legible token in the app. Lightened to `#737d97`, which measures 4.84:1 on `--color-ground` and 4.72:1 on `--color-ground-lift` (WCAG 2.1 relative-luminance formula) — comfortably clearing 4.5:1 on both grounds it actually appears against. `palette.ts` updated to match; `tokenParity.test.ts` confirms agreement.
 
 **Retired:** the current kill-green `0x9dffb0`, the confetti palette's pink/blue/amber mix, and the miss pink `0xff8f8f`. Green is not in the order; kill particles become ink white with a cyan cast, misses become vermillion, confetti draws from ink/cyan/accent only.
 

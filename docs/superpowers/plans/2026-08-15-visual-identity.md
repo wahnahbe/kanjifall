@@ -174,6 +174,8 @@ Create `src/ui/tokens.css`:
   --color-line: rgba(0, 229, 255, 0.32);
   --color-line-soft: rgba(0, 229, 255, 0.16);
   --color-danger-soft: rgba(255, 42, 60, 0.16);
+  --color-grid-line: rgba(0, 229, 255, 0.05);
+  --color-fibre: rgba(207, 216, 238, 0.03);
 
   /* --- type --------------------------------------------------------- */
   --font-word: 'Shippori Mincho B1', 'Yu Gothic UI', 'Meiryo', serif;
@@ -457,7 +459,7 @@ Spec: §3.1 ("Retired"), §5.4.
 In `src/render/Particles.ts`, replace the colour constants. Green is retired from the identity:
 
 ```ts
-import { PALETTE } from '../../design/palette';
+import { PALETTE } from '../design/palette';
 
 const KILL_COLOR = PALETTE.ink;
 const MISS_COLOR = PALETTE.danger;
@@ -466,7 +468,7 @@ const CONFETTI_PALETTE = [PALETTE.ink, PALETTE.system, PALETTE.accent];
 const CONFETTI_BASE = 40;
 ```
 
-Note the import path is `../design/palette` from `src/render/` — verify with `tsc`, not by eye.
+The import path is `../design/palette` from `src/render/`. Verify with `tsc`, not by eye.
 
 `confettiSweep` cycles the palette with `i % CONFETTI_PALETTE.length`, so a 3-entry array needs no other change.
 
@@ -557,7 +559,7 @@ The split across two rules is deliberate: CSS cannot scale one background layer'
   --grain-alpha: 1;
   background-color: var(--color-ground);
   background-image:
-    repeating-linear-gradient(to right, rgba(0, 229, 255, 0.05) 0 1px, transparent 1px 76px),
+    repeating-linear-gradient(to right, var(--color-grid-line) 0 1px, transparent 1px 76px),
     linear-gradient(180deg, var(--color-ground) 0%, var(--color-ground-lift) 58%, var(--color-ground-deep) 100%);
   background-repeat: repeat, no-repeat;
   background-size: auto, 100% 100%;
@@ -570,7 +572,7 @@ The split across two rules is deliberate: CSS cannot scale one background layer'
   opacity: var(--grain-alpha);
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E"),
-    repeating-linear-gradient(102deg, transparent 0 23px, rgba(207, 216, 238, 0.03) 23px 24px);
+    repeating-linear-gradient(102deg, transparent 0 23px, var(--color-fibre) 23px 24px);
   background-size: 160px 160px, auto;
 }
 ```
@@ -1286,7 +1288,7 @@ This is the screen that most needs the calm treatment. Figures in `var(--font-mo
 - [ ] **Step 5: Confirm no literals survive**
 
 Run: `grep -rnE "#[0-9a-fA-F]{6}|0x[0-9a-fA-F]{6}" src/ --include=*.ts --include=*.tsx --include=*.css | grep -v "tokens.css" | grep -v "design/palette.ts"`
-Expected: only `tokenColor` fallback strings and `0xffffff` in `WordSprite.ts`. Anything else is a miss.
+Expected: only the `tokenColor` fallback strings in `charts.tsx`. (`WordSprite.ts`'s `0xffffff` tints from Task 4 are expected to be gone — Task 7 replaced the tint mechanism with the reticle, making them dead. If they survive, delete them.) Anything else is a miss.
 
 - [ ] **Step 6: Verify in the browser**
 

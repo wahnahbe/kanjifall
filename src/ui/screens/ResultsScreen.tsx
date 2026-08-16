@@ -1,7 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { sfx } from '../../audio/sfx';
+import { cssHex, PALETTE } from '../../design/palette';
 import type { Card, EngineSnapshot } from '../../engine/types';
 import { useSettings } from '../useSettings';
+
+/** Spec §3.1: confetti draws from ink/cyan/accent only — the three colours the identity keeps, not
+ *  a bespoke pink/blue/amber mix (and not the retired kill-green that mix used to include). Sourced
+ *  from PALETTE rather than retyped as literals so this can't drift from tokens.css. */
+const CONFETTI_COLORS = [cssHex(PALETTE.ink), cssHex(PALETTE.system), cssHex(PALETTE.accent)];
 
 interface ResultsScreenProps {
   snapshot: EngineSnapshot;
@@ -64,7 +70,7 @@ export function ResultsScreen({
                   style={{
                     left: `${(i * 41) % 100}%`,
                     animationDelay: `${(i % 8) * 90}ms`,
-                    backgroundColor: ['#ffd166', '#9dffb0', '#7cc7ff', '#ff9de2'][i % 4],
+                    backgroundColor: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
                   }}
                 />
               ))}
@@ -92,12 +98,16 @@ export function ResultsScreen({
         <button
           data-testid="revenge-button"
           disabled={missed.length === 0}
-          autoFocus={missed.length > 0}
           onClick={() => onRevenge(missed)}
         >
           Revenge round ({missed.length})
         </button>
-        <button autoFocus={missed.length === 0} onClick={onPlayAgain}>Play again</button>
+        {/* .primary and the keyboard default must agree (fix wave M6) — a
+            primary that moves depending on state (was: revenge round when
+            words were missed, the common case) is worse than one that
+            doesn't, so autoFocus now always targets the visually-primary
+            action instead of tracking `missed.length`. */}
+        <button className="primary" autoFocus onClick={onPlayAgain}>Play again</button>
         <button onClick={onTitle}>Title</button>
       </div>
     </div>
