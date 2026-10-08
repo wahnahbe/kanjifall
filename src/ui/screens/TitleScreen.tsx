@@ -3,18 +3,17 @@ import { visualParams } from '../../design/visualParams';
 import { brushStrokeDataUri } from '../../render/brushStroke';
 import { useSettings } from '../useSettings';
 import { TitleGhosts } from './TitleGhosts';
+import { TITLE_FLOOR_URL } from './titleFloor';
 
 // The sign's stroke: seed 7 as before (TitleScreen's own seed), now at the
-// sign's full width. The title floor reuses the playfield floor's seed 11
-// and defaults so the horizon here is the same stroke the game burns.
-// Computed once at module scope: brushStrokeDataUri is a pure, synchronous
-// string generator (no texture decode). Both are applied as quoted url()
-// values — the generator only percent-encodes < > # ", so the SVG's own
-// attribute spaces stay literal and would end an unquoted CSS url() token.
+// sign's full width. The floor horizon is shared with the run chooser
+// (titleFloor.ts). Computed once at module scope: brushStrokeDataUri is a
+// pure, synchronous string generator (no texture decode). Applied as a
+// quoted url() value — the generator only percent-encodes < > # ", so the
+// SVG's own attribute spaces stay literal and would end an unquoted CSS
+// url() token.
 const SIGN_RULE_SEED = 7;
-const FLOOR_SEED = 11;
 const signRuleUrl = brushStrokeDataUri(cssHex(PALETTE.system), SIGN_RULE_SEED, { width: 480, height: 14, displacementScale: 5 });
-const floorUrl = brushStrokeDataUri(cssHex(PALETTE.system), FLOOR_SEED);
 
 interface TitleScreenProps {
   onStart: () => void;
@@ -45,7 +44,7 @@ export function TitleScreen({ onStart, onStats, onSettings }: TitleScreenProps) 
         <p className="title-tagline">Type the reading. Press Enter. Don&apos;t let words hit the floor.</p>
         <p className="hint">Keyboard: a–z romaji · Enter submit · Backspace edit · Esc clear</p>
       </div>
-      <div className="title-floor" style={{ backgroundImage: `url("${floorUrl}")` }} aria-hidden="true" />
+      <div className="title-floor" style={{ backgroundImage: `url("${TITLE_FLOOR_URL}")` }} aria-hidden="true" />
       <div className="machine-band title-band">
         <button className="primary" data-testid="start-button" onClick={onStart}>Start — Reading mode (N5)</button>
         <button data-testid="stats-button" onClick={onStats}>Stats</button>

@@ -281,6 +281,25 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
 @keyframes title-fall {
   0% { top: -12%; opacity: 0; } 6% { opacity: 1; } 84% { opacity: 1; top: 62%; } 92% { opacity: 0; top: 70%; } 100% { opacity: 0; top: 70%; }
 }
+/* --- Run chooser (second-pass spec §5.2): the title's frame, no sign. ---
+   Like .title-screen it paints no ground — the persistent atmosphere is the
+   ground. Its children bleed in at full and reduced alike (data-motion=1);
+   the 80ms stagger is a full-only gesture (spec §6), so the delays live
+   under [data-flicker='1'] and reduced bleeds everything together. */
+/* `safe center`: when the picker rows outgrow a short window the stage
+   scrolls from its top instead of clipping the heading above it. */
+.setup-screen .title-stage { gap: var(--space-4); overflow-y: auto; padding: var(--space-6) var(--space-4); justify-content: safe center; }
+.setup-heading { font-family: var(--font-display); font-size: var(--text-xl); font-weight: 400; letter-spacing: 0.12em; color: var(--color-ink); }
+.setup-screen .title-stage > * { animation: screen-bleed var(--duration-bleed) var(--ease-ink) both; }
+.setup-screen[data-flicker='1'] .title-stage > :nth-child(2) { animation-delay: 80ms; }
+.setup-screen[data-flicker='1'] .title-stage > :nth-child(3) { animation-delay: 160ms; }
+.setup-screen[data-flicker='1'] .title-stage > :nth-child(4) { animation-delay: 240ms; }
+/* The chooser has no sign, so the title's sign-timeline delays on .hint and
+   the band buttons (which it inherits through .title-screen) would hold its
+   hints back ~1.1s and Begin ~1.2s. Re-time them onto the stage stagger. */
+.setup-screen[data-flicker='1'] .hint { animation-delay: 0ms; }
+.setup-screen[data-flicker='1'] .title-band > button:nth-child(1) { animation-delay: 240ms; }
+.setup-screen[data-flicker='1'] .title-band > button:nth-child(2) { animation-delay: 320ms; }
 .game-screen { position: relative; height: 100%; }
 .pixi-host {
   position: absolute;
