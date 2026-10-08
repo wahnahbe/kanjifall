@@ -16,7 +16,7 @@ describe('installBrushChrome (second-pass spec §3.2)', () => {
   it('uses a distinct aspect per mask so strokes do not distort', () => {
     const root = document.createElement('div');
     installBrushChrome(root);
-    expect(root.style.getPropertyValue('--brush-frame-wide')).toContain("width='200' height='40'");
+    expect(root.style.getPropertyValue('--brush-frame-wide')).toContain("width='100' height='40'");
     expect(root.style.getPropertyValue('--brush-frame-tall')).toContain("width='260' height='70'");
     expect(root.style.getPropertyValue('--brush-frame-sign')).toContain("width='520' height='220'");
   });

@@ -432,6 +432,10 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
    regress if an ancestor's font-size ever changes. */
 .missed td { padding: var(--space-1) var(--space-4); font-size: var(--text-base); color: var(--color-danger); }
 .picker-row { display: flex; gap: var(--space-3); flex-wrap: wrap; justify-content: center; }
+/* A plain button sharing a row with taller pickers (Import… beside the
+   two-line list pickers) keeps its own height: stretched, its 2.5:1 brush
+   mask would distort like any off-aspect box. */
+.picker-row > button:not(.picker) { align-self: center; }
 .picker { display: flex; flex-direction: column; gap: var(--space-1); min-width: 8.5rem; }
 /* .picker.selected's fill used to match the base button's exactly, so
    selected-vs-unselected read as a 1px border-alpha difference — and
