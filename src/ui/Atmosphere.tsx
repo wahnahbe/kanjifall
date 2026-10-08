@@ -9,8 +9,10 @@ export type AtmosphereScene = 'title' | 'chooser' | 'game' | 'calm';
  *  A constant tuple, not a component: fast refresh just reloads this module. */
 // oxlint-disable-next-line react/only-export-components
 export const GHOST_GLYPHS = ['言', '葉', '降'] as const;
+// 降 sits left of the light shaft (centred, 28% wide): where it crossed the
+// shaft it was the brightest point of the whole depth layer.
 const GHOST_PLACEMENT: readonly CSSProperties[] = [
-  { left: '6%', top: '10%' }, { left: '62%', top: '6%' }, { left: '34%', top: '62%' },
+  { left: '6%', top: '10%' }, { left: '62%', top: '6%' }, { left: '18%', top: '62%' },
 ];
 
 /** The persistent depth layer behind every screen (second-pass spec §3.1).
