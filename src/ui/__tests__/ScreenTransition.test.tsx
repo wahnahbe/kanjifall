@@ -3,7 +3,7 @@ import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetSettingsCache, updateSettings } from '../../data/settings';
 import { MOTION } from '../../design/motion';
-import { ScreenTransition } from '../ScreenTransition';
+import { ScreenTransition, useIsOutgoingLayer } from '../ScreenTransition';
 
 describe('ScreenTransition (second-pass spec §4.4)', () => {
   beforeEach(() => { vi.useFakeTimers(); localStorage.clear(); resetSettingsCache(); });
@@ -46,6 +46,14 @@ describe('ScreenTransition (second-pass spec §4.4)', () => {
     expect(screen.queryByTestId('screen-out')).not.toBeNull(); // timer restarted at the second change
     act(() => vi.advanceTimersByTime(1));
     expect(screen.queryByTestId('screen-out')).toBeNull();
+  });
+
+  it('marks the draining copy as outgoing so screens can skip mount side effects', () => {
+    function Probe() { return <p data-testid="probe">{useIsOutgoingLayer() ? 'outgoing' : 'live'}</p>; }
+    const { rerender } = render(<ScreenTransition screenKey="a"><Probe /></ScreenTransition>);
+    expect(screen.getByTestId('probe')).toHaveTextContent('live');
+    rerender(<ScreenTransition screenKey="b"><p>B</p></ScreenTransition>);
+    expect(screen.getByTestId('screen-out').textContent).toContain('outgoing');
   });
 
   it('is never a cut: at effects off it is a 120ms crossfade with no blur', () => {

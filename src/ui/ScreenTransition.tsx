@@ -1,6 +1,20 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  createContext, useContext, useEffect, useLayoutEffect, useRef, useState,
+  type CSSProperties, type ReactNode,
+} from 'react';
 import { visualParams } from '../design/visualParams';
 import { useSettings } from './useSettings';
+
+const OutgoingLayerContext = createContext(false);
+
+/** True inside the draining copy of the previous screen. The copy is a fresh
+ *  mount of the old element, so a screen whose mount has side effects
+ *  (network fetch, a one-shot sound) checks this and skips them. A hook next
+ *  to its provider: fast refresh just reloads this module. */
+// oxlint-disable-next-line react/only-export-components
+export function useIsOutgoingLayer(): boolean {
+  return useContext(OutgoingLayerContext);
+}
 
 interface Layer {
   key: string;
@@ -49,7 +63,7 @@ export function ScreenTransition({ screenKey, children }: ScreenTransitionProps)
     <div className="screen-stack" style={style} data-flicker={flicker}>
       {outgoing !== null && (
         <div key={`out-${outgoing.key}`} className="screen-layer screen-layer-out" inert aria-hidden="true" data-testid="screen-out">
-          {outgoing.node}
+          <OutgoingLayerContext.Provider value={true}>{outgoing.node}</OutgoingLayerContext.Provider>
         </div>
       )}
       <div key={`in-${screenKey}`} ref={incomingRef} tabIndex={-1} className="screen-layer screen-layer-in" data-testid="screen-in">

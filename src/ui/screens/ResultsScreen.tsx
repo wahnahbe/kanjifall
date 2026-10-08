@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { sfx } from '../../audio/sfx';
 import { cssHex, PALETTE } from '../../design/palette';
 import type { Card, EngineSnapshot } from '../../engine/types';
+import { useIsOutgoingLayer } from '../ScreenTransition';
 import { useSettings } from '../useSettings';
 
 /** Spec §3.1: confetti draws from ink/cyan/accent only — the three colours the identity keeps, not
@@ -40,16 +41,19 @@ export function ResultsScreen({
   const accuracy = attempts === 0 ? 0 : Math.round((snapshot.kills / attempts) * 100);
 
   const settings = useSettings();
+  const outgoing = useIsOutgoingLayer();
   const playedRef = useRef(false);
   useEffect(() => {
     // Deliberately NOT reset on effect re-run: StrictMode's double-invocation
     // must not double-play, and a fresh results screen is a fresh component
     // instance with a fresh ref (the OPPOSITE of ImportScreen's disposedRef
-    // pattern — see the juice-pass plan's Global Constraints).
-    if (tierAdvance === null || playedRef.current) return;
+    // pattern — see the juice-pass plan's Global Constraints). The draining
+    // copy a screen transition leaves behind is a fresh instance too, but the
+    // fanfare already played for the live one, so it stays silent.
+    if (tierAdvance === null || playedRef.current || outgoing) return;
     playedRef.current = true;
     sfx.tierFanfare();
-  }, [tierAdvance]);
+  }, [tierAdvance, outgoing]);
 
   return (
     <div className="overlay" data-testid="results">

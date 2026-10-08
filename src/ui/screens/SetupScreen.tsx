@@ -4,6 +4,7 @@ import { fetchLists } from '../../data/listsClient';
 import { fetchRunPlan } from '../../data/planClient';
 import type { GameMode } from '../../engine/types';
 import type { ListSummary, TierProgress } from '../../shared/api';
+import { useIsOutgoingLayer } from '../ScreenTransition';
 
 interface SetupScreenProps {
   loading: boolean;
@@ -33,8 +34,13 @@ export function SetupScreen(
   // §5.4; final-review Fix 1: reading excludes kana-only cards from the
   // gate, so the preview must track mode too, not just pool). Begin
   // re-fetches the authoritative plan; server-down simply shows nothing.
+  // Both fetches below skip the draining copy a screen transition leaves
+  // behind (a fresh mount of this same element): it only fades out, so it
+  // must not go back to the network.
+  const outgoing = useIsOutgoingLayer();
   const [tiers, setTiers] = useState<readonly TierProgress[] | null>(null);
   useEffect(() => {
+    if (outgoing) return;
     let cancelled = false;
     setTiers(null);
     void fetchRunPlan(pool, mode).then((fetched) => {
@@ -43,12 +49,13 @@ export function SetupScreen(
     return () => {
       cancelled = true;
     };
-  }, [pool, mode]);
+  }, [pool, mode, outgoing]);
 
   // The player's lists, or null while unknown/unavailable. Server down →
   // row absent, same posture as tier progress (spec §5.3).
   const [listRow, setListRow] = useState<readonly ListSummary[] | null>(null);
   useEffect(() => {
+    if (outgoing) return;
     let cancelled = false;
     void fetchLists().then((lists) => {
       if (!cancelled) setListRow(lists);
@@ -56,7 +63,7 @@ export function SetupScreen(
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [outgoing]);
 
   // A selected list that no longer exists (deleted elsewhere) falls back to N5.
   useEffect(() => {
