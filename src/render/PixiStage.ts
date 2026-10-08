@@ -8,9 +8,10 @@ import { playScale, type PlayScale } from '../design/scale';
 import { FONT_STACK } from '../design/typography';
 import { visualParams } from '../design/visualParams';
 import type { AirborneWord, GameMode } from '../engine/types';
+import { approachProgress, deadlineFlickerAlpha, DEADLINE_FLICKER_LIFE_MS, impactFrame, swellScaleX } from './approach';
 import { loadBrushTexture } from './brushStroke';
 import { buildFilters, filterKinds } from './filters';
-import { flareTexture } from './flareTexture';
+import { tryFlareTexture } from './flareTexture';
 import { flareFrame, SLASH_ANGLE_RAD, SLASH_LENGTH_RATIO, SLASH_LIFE_MS, SLASH_SEED, slashFrame } from './killFx';
 import { Particles } from './Particles';
 import { WordSprite } from './WordSprite';
@@ -24,7 +25,6 @@ interface Fx {
 
 const PARTICLES_Z_INDEX = 10; // above word sprites and fx, which sit at the default 0
 const SHAKE_DURATION_MS = 150;
-const SHAKE_JITTER_PX = 4;
 // Spawn-bleed blur cap (second-pass spec §4.3). Every blurred bleed is a
 // two-pass filter over the whole word, and a late wave can spawn a dozen
 // words in a second — past this many simultaneous bleeds the newcomer fades
@@ -96,6 +96,12 @@ const mincho600Ready: Promise<void> =
 /** Dumb render layer: mirrors engine words, plays kill/miss effects. */
 export class PixiStage {
   private sprites = new Map<number, WordSprite>();
+  // One red swell per approaching word (second-pass spec §4.3), keyed by the
+  // word's instanceId like `sprites`. Each shares the flare texture.
+  private readonly swells = new Map<number, Sprite>();
+  // Age of the miss deadline flicker; Infinity = no flicker playing, so the
+  // per-frame update short-circuits.
+  private deadlineFlickerMs = Number.POSITIVE_INFINITY;
   private fx: Fx[] = [];
   private readonly app: Application;
   private readonly particles: Particles;
@@ -139,6 +145,12 @@ export class PixiStage {
     this.applyBackdrop();
     this.scale = playScale(app.screen.height);
     void this.mountFloor();
+    // Warm the shared kill textures: the first kill of a session would
+    // otherwise show its slash late while the texture decodes. The slash
+    // chain's own `.catch` already logs a failure; this second `.catch` only
+    // silences the warm-up's duplicate rejection.
+    void slashTexture().catch(() => undefined);
+    tryFlareTexture();
     this.unsubscribeSettings = subscribeSettings(() => {
       this.params = visualParams(getSettings().effects);
       this.applyFilters();
@@ -153,6 +165,7 @@ export class PixiStage {
       for (const sprite of this.sprites.values()) sprite.update(delta);
       this.particles.update(delta);
       this.updateShake(delta);
+      this.updateDeadlineFlicker(delta);
     });
   }
 
@@ -199,6 +212,9 @@ export class PixiStage {
       sprite.setLocked(lockedIds.includes(word.instanceId));
       if (word.hintShown && word.card.kanji !== null) sprite.showHint(word.card.kanji);
       sprite.setPosition(word.x * this.app.screen.width, word.y * this.app.screen.height);
+      const progress = approachProgress(word.y);
+      sprite.setApproach(progress);
+      this.syncSwell(word.instanceId, word.x, progress);
     }
     for (const [id, sprite] of this.sprites) {
       if (!alive.has(id)) {
@@ -207,8 +223,45 @@ export class PixiStage {
         // compiled GPU program too; see WordSprite.destroy()'s doc comment.
         sprite.destroy();
         this.sprites.delete(id);
+        this.removeSwell(id);
       }
     }
+  }
+
+  /** Red glow under the floor beneath an approaching word (spec §4.3), the
+   *  flare texture tinted danger, growing with progress. Decoration only. */
+  private syncSwell(id: number, x: number, progress: number): void {
+    const { swellAlpha } = this.params;
+    if (swellAlpha === 0 || progress <= 0) {
+      this.removeSwell(id);
+      return;
+    }
+    let swell = this.swells.get(id);
+    if (swell === undefined) {
+      const texture = tryFlareTexture();
+      if (texture === null) return;
+      swell = new Sprite(texture);
+      // Centred on the kill line, not bottom-anchored: the stage ends at the
+      // floor, so only the upper half shows, as light welling up from under
+      // it. A bottom anchor floated the whole glow ~75px above the floor.
+      swell.anchor.set(0.5);
+      swell.tint = PALETTE.danger;
+      swell.zIndex = FLOOR_Z_INDEX + 0.25;
+      this.swells.set(id, swell);
+      this.app.stage.addChild(swell);
+    }
+    const killY = this.app.screen.height * FLOOR_Y_RATIO;
+    const base = (this.scale.wordPx * 10) / swell.texture.width;
+    swell.position.set(x * this.app.screen.width, killY);
+    swell.scale.set(base * swellScaleX(progress), base * 0.35);
+    swell.alpha = progress * swellAlpha;
+  }
+
+  private removeSwell(id: number): void {
+    const swell = this.swells.get(id);
+    if (swell === undefined) return;
+    swell.destroy(); // texture is the shared flare: never { texture: true }
+    this.swells.delete(id);
   }
 
   /** Three things at once (second-pass spec §4.3): a brush slash drawn across
@@ -228,8 +281,11 @@ export class PixiStage {
     const wordPx = sprite?.wordPx ?? this.scale.wordPx;
     const { slashAlpha, flareAlpha } = this.params;
 
-    if (flareAlpha > 0) {
-      const flare = new Sprite(flareTexture());
+    // tryFlareTexture() never throws: a missing 2D context costs the flare,
+    // never the kill (it logs once and returns null).
+    const flareTex = flareAlpha > 0 ? tryFlareTexture() : null;
+    if (flareTex !== null) {
+      const flare = new Sprite(flareTex);
       flare.anchor.set(0.5);
       flare.position.set(px, py);
       flare.zIndex = FLOOR_Z_INDEX + 0.5; // behind words, in front of the floor
@@ -278,8 +334,10 @@ export class PixiStage {
   }
 
   /** Reveal the answer where the word landed (spec §3.1: miss is a learning
-   *  moment), a particle puff, and — effects 'full' only — a brief
-   *  screen shake. */
+   *  moment), then the miss in the ink/neon grammar (second-pass spec §4.3): a
+   *  vermillion splash, an impact glow along the floor, the deadline's
+   *  flicker, and a 2px jolt. The reveal text is state and always plays; every
+   *  other part is gated by its own visualParams number. */
   playMiss(word: AirborneWord): void {
     const reveal = `${word.card.kanji ?? ''} ${word.card.kana[0]} — ${word.card.gloss}`.trim();
     // Spec §5.4: "becomes --color-ink on a vermillion underline rather than
@@ -295,10 +353,27 @@ export class PixiStage {
     }, { underline: true });
 
     const px = word.x * this.app.screen.width;
-    const py = Math.min(word.y, 0.95) * this.app.screen.height;
-    this.particles.missPuff(px, py);
-
-    if (getSettings().effects === 'full') this.shakeMs = SHAKE_DURATION_MS;
+    const killY = this.app.screen.height * FLOOR_Y_RATIO;
+    // Splash: vermillion droplets thrown up from the impact point.
+    this.particles.splash(px, killY);
+    // Impact glow along the floor.
+    const { impactAlpha, shakePx, flicker } = this.params;
+    const impactTex = impactAlpha > 0 ? tryFlareTexture() : null;
+    if (impactTex !== null) {
+      const impact = new Sprite(impactTex);
+      impact.anchor.set(0.5); // centred on the floor line, same as the swell
+      impact.tint = PALETTE.danger;
+      impact.position.set(px, killY);
+      impact.zIndex = FLOOR_Z_INDEX + 0.5;
+      const base = (this.scale.wordPx * 12) / impact.texture.width;
+      this.pushFx(impact, MOTION.flareMs, (view, t) => {
+        const f = impactFrame(t * MOTION.flareMs);
+        view.scale.set(base * f.scaleX, base * 0.3);
+        view.alpha = f.alpha * impactAlpha;
+      });
+    }
+    if (flicker === 1) this.deadlineFlickerMs = 0;
+    if (shakePx > 0) this.shakeMs = SHAKE_DURATION_MS;
   }
 
   /** Brief confetti sweep across the top edge (spec §5.1). */
@@ -323,6 +398,10 @@ export class PixiStage {
       this.floor.destroy({ texture: true, textureSource: true });
     }
     this.deadline?.destroy();
+    // The swells share the flare texture with every kill flare and impact
+    // glow, so destroy the sprites only — never { texture: true }.
+    for (const swell of this.swells.values()) swell.destroy();
+    this.swells.clear();
     // Same gap as the floor/stage filters above: app.destroy({children:true})
     // below recursively destroys every sprite's view but never runs
     // WordSprite's own filter cleanup, so any currently-locked word's
@@ -395,17 +474,29 @@ export class PixiStage {
     });
   }
 
-  /** Jitters the whole stage ±SHAKE_JITTER_PX while shakeMs is positive;
-   *  restores the origin the instant it expires (miss-only, spec §5.1). */
+  /** Jitters the whole stage ±shakePx (visualParams: 2 at full, 0 elsewhere)
+   *  while shakeMs is positive; restores the origin the instant it expires
+   *  (miss-only, spec §5.1). */
   private updateShake(deltaMs: number): void {
     if (this.shakeMs <= 0) return;
     this.shakeMs -= deltaMs;
     if (this.shakeMs > 0) {
-      const dx = (Math.random() * 2 - 1) * SHAKE_JITTER_PX;
-      const dy = (Math.random() * 2 - 1) * SHAKE_JITTER_PX;
+      const dx = (Math.random() * 2 - 1) * this.params.shakePx;
+      const dy = (Math.random() * 2 - 1) * this.params.shakePx;
       this.app.stage.position.set(dx, dy);
     } else {
       this.app.stage.position.set(0, 0);
+    }
+  }
+
+  /** Spec §4.3 Miss: the deadline dips and returns twice over three snaps. */
+  private updateDeadlineFlicker(deltaMs: number): void {
+    if (this.deadline === null || this.deadlineFlickerMs === Number.POSITIVE_INFINITY) return;
+    this.deadlineFlickerMs += deltaMs;
+    this.deadline.alpha = deadlineFlickerAlpha(this.deadlineFlickerMs, this.params.flicker);
+    if (this.deadlineFlickerMs >= DEADLINE_FLICKER_LIFE_MS) {
+      this.deadline.alpha = 1;
+      this.deadlineFlickerMs = Number.POSITIVE_INFINITY;
     }
   }
 

@@ -12,7 +12,6 @@ const KILL_COLOR = PALETTE.ink;
 // of two palette entries, not a third colour.
 const KILL_CAST_COLOR = mixColor(PALETTE.ink, PALETTE.system, 0.35);
 const MISS_COLOR = PALETTE.danger;
-const MISS_BASE = 8;
 const SPLASH_BASE = 7;
 const SPLASH_UPWARD_BIAS = 220; // rises, then gravity (240px/s²) brings it back within --duration-burst
 const CONFETTI_PALETTE = [PALETTE.ink, PALETTE.system, PALETTE.accent];
@@ -40,12 +39,6 @@ export class Particles {
     const cast = Math.floor(count / 2);
     spawnBurst(this.pool, x, y, KILL_COLOR, count - cast, Math.random, { shape: 'droplet' });
     spawnBurst(this.pool, x, y, KILL_CAST_COLOR, cast, Math.random, { shape: 'droplet' });
-  }
-
-  /** Particle puff where a word landed (kept for the juice pass's contract). */
-  missPuff(x: number, y: number): void {
-    const count = burstCount(getSettings().effects, MISS_BASE);
-    spawnBurst(this.pool, x, y, MISS_COLOR, count, Math.random, { shape: 'droplet' });
   }
 
   /** Miss splash (spec §4.3): vermillion droplets thrown up from the impact

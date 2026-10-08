@@ -26,3 +26,19 @@ export function flareTexture(): Texture {
   cached = Texture.from(canvas);
   return cached;
 }
+
+let warned = false;
+/** `flareTexture()` that never throws: a missing 2D context logs one warning
+ *  and returns null, and the caller skips its decoration. A failed flare must
+ *  never abort the kill or miss event path (juice-pass spec §9 posture). */
+export function tryFlareTexture(): Texture | null {
+  try {
+    return flareTexture();
+  } catch (error) {
+    if (!warned) {
+      warned = true;
+      console.warn('[flareTexture] 2D canvas unavailable — running without flare, swell and impact glow', error);
+    }
+    return null;
+  }
+}

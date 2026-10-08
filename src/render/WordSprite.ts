@@ -7,6 +7,7 @@ import { cssHex, PALETTE } from '../design/palette';
 import { FONT_STACK } from '../design/typography';
 import { visualParams } from '../design/visualParams';
 import type { AirborneWord, GameMode } from '../engine/types';
+import { approachTint } from './approach';
 import { HEIGHT as BRUSH_STROKE_HEIGHT, loadBrushTexture, type BrushStrokeOptions } from './brushStroke';
 import { reticleBrackets } from './reticle';
 import { lockFlickerAlpha, spawnFrame, type SpawnParams } from './spawnTween';
@@ -140,6 +141,15 @@ export class WordSprite {
   // the word was built under (spec §7.7 — flicker is a single event, gone
   // whenever it is 0).
   private readonly flicker: 0 | 1;
+  // Same again for the approach warm-up (second-pass spec §4.3): the halo
+  // strength and the tint strength this word was built under. The danger-halo
+  // copy is built lazily by setApproach(), so it needs the label, the
+  // resolution and the halo alpha to rebuild the same glyph later.
+  private readonly approachTintAlpha: number;
+  private readonly haloAlpha: number;
+  private hotText: Text | null = null;
+  private readonly display: string;
+  private readonly resolution: number;
   // Non-null from beginSpawn() until the bleed completes (or the sprite is
   // destroyed). `filter` is the short-lived BlurFilter, null when the blur is
   // skipped (alpha-only levels, or past PixiStage's concurrency cap).
@@ -153,9 +163,13 @@ export class WordSprite {
       ? word.card.gloss
       : word.card.kanji ?? word.card.kana[0];
     const resolution = Math.min(Math.max(window.devicePixelRatio, 1) * 2, 4);
-    const { chromaticSplitPx, haloAlpha, glowAlpha, flicker } = visualParams(getSettings().effects);
+    const { chromaticSplitPx, haloAlpha, glowAlpha, flicker, approachTintAlpha } = visualParams(getSettings().effects);
     this.glowAlpha = glowAlpha;
     this.flicker = flicker;
+    this.approachTintAlpha = approachTintAlpha;
+    this.haloAlpha = haloAlpha;
+    this.display = display;
+    this.resolution = resolution;
     this.wordPx = wordPx;
     const fontSize = wordPx;
 
@@ -287,6 +301,34 @@ export class WordSprite {
 
   setPosition(xPx: number, yPx: number): void {
     this.view.position.set(xPx, yPx);
+  }
+
+  /** Second-pass spec §4.3 Approach: over the last fifth of the fall the halo
+   *  warms from cyan toward vermillion. The halo is baked into the glyph
+   *  texture, so rather than re-rasterizing every frame, a second copy with a
+   *  danger-coloured halo sits behind the first and cross-fades in. Built
+   *  lazily on the first non-zero progress; most words die before it exists. */
+  setApproach(progress: number): void {
+    if (this.approachTintAlpha === 0 || this.haloAlpha === 0) return;
+    if (progress <= 0) {
+      if (this.hotText !== null) this.hotText.alpha = 0;
+      return;
+    }
+    if (this.hotText === null) {
+      this.hotText = new Text({
+        text: this.display,
+        style: new TextStyle({
+          ...BASE_STYLE,
+          fontSize: this.wordPx,
+          dropShadow: { color: approachTint(1), blur: HALO_BLUR, distance: 0, alpha: this.haloAlpha },
+          padding: HALO_PADDING,
+        }),
+        resolution: this.resolution,
+      });
+      this.hotText.anchor.set(0.5);
+      this.view.addChildAt(this.hotText, this.view.getChildIndex(this.text));
+    }
+    this.hotText.alpha = progress * this.approachTintAlpha;
   }
 
   /** Second-pass spec §4.3: bleed in from blur while the light flickers on.
