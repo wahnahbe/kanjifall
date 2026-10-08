@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { resetSettingsCache, updateSettings } from '../../data/settings';
-import { TITLE_GHOST_LANES_PCT, TITLE_GHOST_WORDS } from '../screens/TitleGhosts';
+import { REST_TOP_PCT, TITLE_GHOST_LANES_PCT, TITLE_GHOST_WORDS } from '../screens/TitleGhosts';
 import { TitleScreen } from '../screens/TitleScreen';
 
 function renderTitle() {
@@ -53,6 +53,18 @@ describe('TitleScreen (second-pass spec §5.1)', () => {
     expect(reduced.dataset.flicker).toBe('0'); // CSS applies the stagger delays only under [data-flicker='1']
     expect(reduced.dataset.motion).toBe('1'); // bleed stays on at reduced, so the copy still bleeds in
     expect(screen.getAllByTestId('title-ghosts')[1].style.getPropertyValue('--ghost-alpha')).toBe('0.5');
+  });
+
+  it('holds the ghost words still at reduced, each at its rest height (spec §6, reduced motion)', () => {
+    renderTitle();
+    expect(screen.getByTestId('title-ghosts').dataset.drift).toBe('1');
+    updateSettings({ effects: 'reduced' });
+    renderTitle();
+    const reduced = screen.getAllByTestId('title-ghosts')[1];
+    expect(reduced.dataset.drift).toBe('0');
+    const ghosts = [...reduced.querySelectorAll('.title-ghost')] as HTMLElement[];
+    expect(ghosts).toHaveLength(REST_TOP_PCT.length);
+    ghosts.forEach((g, i) => expect(g.style.getPropertyValue('--rest-top')).toBe(`${REST_TOP_PCT[i]}%`));
   });
 
   it('keeps the sign flicker to three brightness steps (spec §7.7)', () => {

@@ -19,13 +19,13 @@ const GHOST_PLACEMENT: readonly CSSProperties[] = [
  *  changes a data attribute; index.css decides what each scene shows. */
 export function Atmosphere({ scene }: { scene: AtmosphereScene }) {
   const { effects } = useSettings();
-  const { atmosphereAlpha } = visualParams(effects);
+  const { atmosphereAlpha, drift } = visualParams(effects);
   const style = { '--atmosphere-alpha': String(atmosphereAlpha) } as CSSProperties;
   return (
     <div
       className="atmosphere"
       data-scene={scene}
-      data-drift={effects === 'full' ? '1' : '0'}
+      data-drift={drift}
       data-testid="atmosphere"
       aria-hidden="true"
       style={style}

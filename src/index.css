@@ -281,6 +281,9 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
 @keyframes title-fall {
   0% { top: -12%; opacity: 0; } 6% { opacity: 1; } 84% { opacity: 1; top: 62%; } 92% { opacity: 0; top: 70%; } 100% { opacity: 0; top: 70%; }
 }
+/* Reduced (drift 0, the prefers-reduced-motion default): the ghosts hold
+   still in their lanes at their rest height instead of falling. */
+.title-ghosts[data-drift='0'] .title-ghost { animation: none; opacity: 1; top: var(--rest-top); }
 /* --- Run chooser (second-pass spec §5.2): the title's frame, no sign. ---
    Like .title-screen it paints no ground — the persistent atmosphere is the
    ground. Its children bleed in at full and reduced alike (data-motion=1);
