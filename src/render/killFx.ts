@@ -5,6 +5,8 @@ import { MOTION } from '../design/motion';
 export const SLASH_SEED = 9; // distinct from floor 11, underline 4, title rule 7, frames 3
 export const SLASH_LENGTH_RATIO = 2.6; // × wordPx
 export const SLASH_ANGLE_RAD = (-16 * Math.PI) / 180;
+export const SLASH_THICKNESS_RATIO = 0.5; // × wordPx
+export const SLASH_MIN_THICKNESS_PX = 8;
 export const FLARE_SCALE_MIN = 0.1;
 export const FLARE_SCALE_MAX = 1.7;
 const GOLDEN_CONJUGATE = 0.6180339887;
@@ -16,6 +18,14 @@ function easeOut(t: number): number {
 const SLASH_HOLD_MS = MOTION.snapMs;
 const SLASH_FADE_MS = MOTION.snapMs * 2;
 export const SLASH_LIFE_MS = MOTION.slashMs + SLASH_HOLD_MS + SLASH_FADE_MS;
+
+/** The slash sprite's displayed height. The brush texture paints a bar only
+ *  5/26 of its canvas (the floor's proportions), so the sprite has to be far
+ *  taller than the ink it shows: half a word-height gives ≈5px of ink at 52px
+ *  words, a brush cut rather than a hairline. The floor only binds below 16px. */
+export function slashHeightPx(wordPx: number): number {
+  return Math.max(SLASH_MIN_THICKNESS_PX, wordPx * SLASH_THICKNESS_RATIO);
+}
 
 /** scaleX 0→1 over --duration-slash (decelerating), hold one snap, fade over two. */
 export function slashFrame(ageMs: number): { scaleX: number; alpha: number; done: boolean } {

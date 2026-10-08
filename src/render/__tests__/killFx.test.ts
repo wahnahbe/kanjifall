@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MOTION } from '../../design/motion';
-import { dropletPolygon, flareFrame, slashFrame } from '../killFx';
+import { dropletPolygon, flareFrame, slashFrame, slashHeightPx } from '../killFx';
 
 describe('slashFrame (second-pass spec §4.3 Kill)', () => {
   it('draws itself over --duration-slash, holds one snap, fades over two', () => {
@@ -13,6 +13,17 @@ describe('slashFrame (second-pass spec §4.3 Kill)', () => {
   });
   it('decelerates while drawing', () => {
     expect(slashFrame(MOTION.slashMs / 2).scaleX).toBeGreaterThan(0.5);
+  });
+});
+
+describe('slashHeightPx (second-pass QA finding F2: a brush cut, not a hairline)', () => {
+  it('is half a word-height at play sizes', () => {
+    expect(slashHeightPx(52)).toBe(26);
+    expect(slashHeightPx(44)).toBe(22);
+  });
+  it('only falls back to its 8px floor below 16px words', () => {
+    expect(slashHeightPx(10)).toBe(8);
+    expect(slashHeightPx(16)).toBe(8);
   });
 });
 
