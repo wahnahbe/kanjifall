@@ -15,6 +15,21 @@ describe('Atmosphere (second-pass spec §3.1)', () => {
     expect(GHOST_GLYPHS).toEqual(['言', '葉', '降']);
   });
 
+  it('keeps 降 off the light shaft (spec §7.6; second-pass QA finding F6)', () => {
+    // The shaft is centred and 28% wide, so its left edge is at 36%. Where
+    // 降 crossed it, the glyph was the brightest point of the depth layer.
+    // `left` is the glyph's left edge; the glyph itself is one em of a 12vw
+    // font (index.css .atmosphere-ghost), i.e. 12% of the full-width layer,
+    // so its right edge, not its left, has to clear the shaft. (At the old
+    // 34% the left edge alone was under 36 while the glyph spanned 34–46%.)
+    const SHAFT_LEFT_PCT = 36;
+    const GLYPH_WIDTH_PCT = 12;
+    render(<Atmosphere scene="game" />);
+    const ghost = screen.getByTestId('atmosphere').querySelectorAll<HTMLElement>('.atmosphere-ghost')[2];
+    expect(ghost.textContent).toBe('降');
+    expect(parseFloat(ghost.style.left) + GLYPH_WIDTH_PCT).toBeLessThanOrEqual(SHAFT_LEFT_PCT);
+  });
+
   it('exposes the scene for CSS and is hidden from assistive tech', () => {
     render(<Atmosphere scene="calm" />);
     const root = screen.getByTestId('atmosphere');
