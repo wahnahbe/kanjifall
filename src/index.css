@@ -198,24 +198,84 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
 @keyframes wave-fade-out { to { opacity: 0; } }
 @keyframes wave-sweep { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-350%); opacity: 0; } }
 
-/* --- Title screen --------------------------------------------------- */
-.title-mark { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
-.title-word {
-  font-family: var(--font-display); font-size: var(--text-3xl); font-weight: 400;
-  color: var(--color-ink); letter-spacing: 0.04em;
+/* --- Title screen (second-pass spec §5.1; amends first spec §8: the
+   title and chooser are arcade screens now) -----------------------------
+   .title-screen deliberately paints no ground of its own: the persistent
+   <Atmosphere scene="title"> behind every screen is the ground, so the
+   washes, shaft and ghost glyphs show through. */
+.title-screen { position: relative; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.title-stage {
+  position: relative; z-index: 1; flex: 1; min-height: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3);
 }
-/* Spec §8 showpiece: the wordmark over a single cyan brush stroke
-   (TitleScreen.tsx supplies background-image from brushStrokeDataUri(),
-   fix wave M4 — was a plain linear-gradient bar). Height matches the
+.title-sign {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
+  padding: var(--space-4) var(--space-6) var(--space-3);
+  background: color-mix(in srgb, var(--color-system) 3%, transparent);
+}
+.title-sign::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background-color: var(--color-line);
+  -webkit-mask: var(--brush-frame-sign) center / 100% 100% no-repeat;
+  mask: var(--brush-frame-sign) center / 100% 100% no-repeat;
+}
+.title-corner { position: absolute; width: 14px; height: 14px; border: 0 solid var(--color-system); }
+.title-corner-tl { left: -4px; top: -4px; border-left-width: 2px; border-top-width: 2px; }
+.title-corner-tr { right: -4px; top: -4px; border-right-width: 2px; border-top-width: 2px; }
+.title-corner-bl { left: -4px; bottom: -4px; border-left-width: 2px; border-bottom-width: 2px; }
+.title-corner-br { right: -4px; bottom: -4px; border-right-width: 2px; border-bottom-width: 2px; }
+.title-word {
+  font-family: var(--font-display); font-size: calc(var(--text-3xl) * 1.3); font-weight: 400; line-height: 1;
+  color: var(--color-ink); letter-spacing: 0.1em;
+}
+/* The sign's rule: TitleScreen.tsx supplies background-image from
+   brushStrokeDataUri() at the sign's full width. Height matches the
    generator's own canvas height so the stroke's vertical taper isn't
    clipped or stretched. */
-.title-rule {
-  width: 12rem; height: 14px;
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
-  opacity: 0.9;
-}
+.title-rule { width: 100%; height: 14px; background-repeat: no-repeat; background-size: 100% 100%; opacity: 0.9; }
+.title-jp { font-family: var(--font-display); font-size: var(--text-lg); letter-spacing: 0.42em; color: var(--color-ink); }
 .title-tagline { font-family: var(--font-ui); font-size: var(--text-base); color: var(--color-ink-dim); }
+/* The sign flickers on like a tube at full (data-flicker=1) and bleeds in at
+   reduced (0); at full the copy and controls then follow, staggered 80ms —
+   at reduced they bleed together, no stagger (spec §6). Nothing animates at
+   off (data-motion=0). A single event per mount (spec §7.7). */
+.title-sign[data-flicker='1'] { animation: sign-on 520ms steps(1, end) both; }
+.title-sign[data-flicker='0'] { animation: screen-bleed var(--duration-bleed) var(--ease-ink) both; }
+.title-tagline, .title-screen .hint, .title-band > button { animation: screen-bleed var(--duration-bleed) var(--ease-ink) both; }
+.title-screen[data-flicker='1'] .title-tagline { animation-delay: 520ms; }
+.title-screen[data-flicker='1'] .hint { animation-delay: 600ms; }
+.title-screen[data-flicker='1'] .title-band > button:nth-child(1) { animation-delay: 680ms; }
+.title-screen[data-flicker='1'] .title-band > button:nth-child(2) { animation-delay: 760ms; }
+.title-screen[data-flicker='1'] .title-band > button:nth-child(3) { animation-delay: 840ms; }
+.title-screen[data-motion='0'] * { animation: none !important; }
+@keyframes sign-on {
+  0% { filter: brightness(0.1); } 15% { filter: brightness(2.2); } 25% { filter: brightness(0.2); }
+  35% { filter: brightness(1.9); } 45% { filter: brightness(0.6); } 60% { filter: brightness(1.4); } 80%, 100% { filter: brightness(1); }
+}
+/* The floor as a horizon at the lower third, with the deadline beneath. */
+.title-floor {
+  position: absolute; left: 0; right: 0; bottom: 30%; height: 26px; z-index: 1;
+  background-repeat: no-repeat; background-size: 100% 100%;
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--color-system) 75%, transparent)) drop-shadow(0 0 22px color-mix(in srgb, var(--color-system) 32%, transparent));
+}
+.title-floor::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: var(--color-danger); opacity: 0.45; }
+.machine-band {
+  position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: var(--space-3);
+  background: linear-gradient(to top, var(--color-underglow), transparent);
+}
+.title-band { height: 30%; flex: none; }
+/* Ghost words: outer lanes, 16% ink, dissolving into the floor at 70%. */
+.title-ghosts { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.title-ghost {
+  position: absolute; top: -12%; transform: translateX(-50%); white-space: nowrap;
+  font-family: var(--font-word); font-weight: 600; font-size: var(--size-word-play); line-height: 1;
+  color: color-mix(in srgb, var(--color-ink) calc(16% * var(--ghost-alpha)), transparent);
+  filter: blur(0.5px); opacity: 0;
+  animation-name: title-fall; animation-timing-function: linear; animation-iteration-count: infinite;
+}
+@keyframes title-fall {
+  0% { top: -12%; opacity: 0; } 6% { opacity: 1; } 84% { opacity: 1; top: 62%; } 92% { opacity: 0; top: 70%; } 100% { opacity: 0; top: 70%; }
+}
 .game-screen { position: relative; height: 100%; }
 .pixi-host {
   position: absolute;
