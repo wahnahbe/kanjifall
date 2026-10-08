@@ -22,6 +22,12 @@ interface Fx {
 const PARTICLES_Z_INDEX = 10; // above word sprites and fx, which sit at the default 0
 const SHAKE_DURATION_MS = 150;
 const SHAKE_JITTER_PX = 4;
+// Spawn-bleed blur cap (second-pass spec §4.3). Every blurred bleed is a
+// two-pass filter over the whole word, and a late wave can spawn a dozen
+// words in a second — past this many simultaneous bleeds the newcomer fades
+// in without the blur (still alpha, still flickers) rather than stacking
+// another filter pass.
+const MAX_CONCURRENT_BLEEDS = 4;
 
 // Below word sprites and fx (default 0) — words visibly fall in front of the
 // ground and disappear behind it at the kill line.
@@ -81,6 +87,10 @@ export class PixiStage {
     this.layoutFloor();
   };
   private scale: PlayScale;
+  // Refreshed on every settings notification so a sprite built after an
+  // effects change picks up the new bleed/flicker numbers; sprites already
+  // airborne keep the treatment they were built under (see WordSprite).
+  private params = visualParams(getSettings().effects);
   private shakeMs = 0;
   private destroyed = false;
   // Sentinel so the FIRST applyFilters() call always applies, no matter what
@@ -108,6 +118,7 @@ export class PixiStage {
     this.scale = playScale(app.screen.height);
     void this.mountFloor();
     this.unsubscribeSettings = subscribeSettings(() => {
+      this.params = visualParams(getSettings().effects);
       this.applyFilters();
       this.applyBackdrop();
       this.applyFloorGlow();
@@ -150,6 +161,16 @@ export class PixiStage {
       let sprite = this.sprites.get(word.instanceId);
       if (!sprite) {
         sprite = new WordSprite(word, mode, this.scale.wordPx);
+        // bleed 0 (effects off) means the word appears (spec §6 "Appear"),
+        // not fades: it never begins a spawn and so stays at full alpha.
+        if (this.params.bleed === 1) {
+          let bleeding = 0;
+          for (const other of this.sprites.values()) if (other.isBleeding) bleeding += 1;
+          sprite.beginSpawn(
+            { blurPx: this.params.spawnBlurPx, flicker: this.params.flicker },
+            bleeding < MAX_CONCURRENT_BLEEDS,
+          );
+        }
         this.sprites.set(word.instanceId, sprite);
         this.app.stage.addChild(sprite.view);
       }
