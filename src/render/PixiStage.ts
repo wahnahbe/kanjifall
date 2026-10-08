@@ -2,6 +2,7 @@ import { Application, Container, Graphics, Sprite, Text, TextStyle } from 'pixi.
 import type { Filter, Texture } from 'pixi.js';
 import { GlowFilter } from 'pixi-filters';
 import { getSettings, subscribeSettings } from '../data/settings';
+import { MOTION } from '../design/motion';
 import { cssHex, PALETTE } from '../design/palette';
 import { playScale, type PlayScale } from '../design/scale';
 import { FONT_STACK } from '../design/typography';
@@ -9,6 +10,8 @@ import { visualParams } from '../design/visualParams';
 import type { AirborneWord, GameMode } from '../engine/types';
 import { loadBrushTexture } from './brushStroke';
 import { buildFilters, filterKinds } from './filters';
+import { flareTexture } from './flareTexture';
+import { flareFrame, SLASH_ANGLE_RAD, SLASH_LENGTH_RATIO, SLASH_LIFE_MS, SLASH_SEED, slashFrame } from './killFx';
 import { Particles } from './Particles';
 import { WordSprite } from './WordSprite';
 
@@ -49,6 +52,25 @@ const FLOOR_TEXTURE_SEED = 11;
 // playMiss()'s doc comment for why this one skips the brush-stroke treatment.
 const MISS_UNDERLINE_GAP_PX = 4;
 const MISS_UNDERLINE_THICKNESS_PX = 2;
+
+// The kill slash (second-pass spec §4.3): a dry-brush stroke in ink. It is
+// displayed at about 2.6 x wordPx long (roughly 100-260px) and 0.12 x wordPx
+// tall, so the canvas is sized near that, not at the floor's 1200 — squeezing
+// a screen-width stroke down to slash scale collapses the noise wavelength
+// into speckle (the same lesson as WordSprite's underline). `displacementScale`
+// is turned down with the canvas so the short stroke's ends are not smeared.
+const SLASH_STROKE_OPTIONS = { width: 300, height: 14, displacementScale: 8 };
+// Shared and cached for the same reason as WordSprite's underline texture:
+// every kill fires a slash, and none of them may kick off its own decode.
+// Sprites never destroy their texture (updateFx's `context: true` is a
+// Graphics concern and a Sprite ignores it), so sharing one is safe. Created
+// lazily from an instance method, never at module scope — loadBrushTexture()
+// touches `Image`/`document`, which node-environment tests do not have.
+let slashTexturePromise: Promise<Texture> | null = null;
+function slashTexture(): Promise<Texture> {
+  slashTexturePromise ??= loadBrushTexture(cssHex(PALETTE.ink), SLASH_SEED, SLASH_STROKE_OPTIONS);
+  return slashTexturePromise;
+}
 
 // Kicked off the moment this module is evaluated — i.e. at app boot, in
 // flight while the player is still reading the title screen — rather than
@@ -189,17 +211,61 @@ export class PixiStage {
     }
   }
 
-  /** Scale-up + fade-out gloss tween, a kill particle burst that grows
-   *  with combo tier, and — every 5th combo step — a bigger burst plus a
-   *  `×N!` flash (skipped entirely at effects 'off': spec §5.1). */
+  /** Three things at once (second-pass spec §4.3): a brush slash drawn across
+   *  the word, an ink-droplet splatter that grows with combo tier, and a neon
+   *  flare blooming behind. Each is gated by its own visualParams number, so
+   *  effects 'off' plays none of them — the word simply vanishes. Every 5th
+   *  combo step adds a `×N!` flash (skipped at 'off': spec §5.1). */
   playKill(word: AirborneWord, combo: number): void {
-    this.spawnFx(word, word.card.gloss, PALETTE.ink, 350, (view, t) => {
-      view.scale.set(1 + t * 0.8);
-      view.alpha = 1 - t;
-    });
-
     const px = word.x * this.app.screen.width;
     const py = Math.min(word.y, 0.95) * this.app.screen.height;
+    // The kill event fires from inside handleKey()/tick(), before the next
+    // sync() has swept the dead word's sprite away, so its measured size is
+    // normally still here. If it ever is not, fall back to the nominal size
+    // and no half-width (the slash then starts at the word's centre).
+    const sprite = this.sprites.get(word.instanceId);
+    const halfW = sprite?.halfWidth ?? 0;
+    const wordPx = sprite?.wordPx ?? this.scale.wordPx;
+    const { slashAlpha, flareAlpha } = this.params;
+
+    if (flareAlpha > 0) {
+      const flare = new Sprite(flareTexture());
+      flare.anchor.set(0.5);
+      flare.position.set(px, py);
+      flare.zIndex = FLOOR_Z_INDEX + 0.5; // behind words, in front of the floor
+      const base = (wordPx * 3.2) / flare.texture.width;
+      this.pushFx(flare, MOTION.flareMs, (view, t) => {
+        const f = flareFrame(t * MOTION.flareMs);
+        view.scale.set(base * f.scale);
+        view.alpha = f.alpha * flareAlpha;
+      });
+    }
+    if (slashAlpha > 0) {
+      // Non-fatal, like the floor and the lock underline: a failed decode
+      // costs the slash, never the kill — and must not surface as an
+      // unhandled rejection.
+      void slashTexture()
+        .then((texture) => {
+          if (this.destroyed) return;
+          const slash = new Sprite(texture);
+          slash.anchor.set(0, 0.5);
+          slash.position.set(px - halfW, py);
+          slash.rotation = SLASH_ANGLE_RAD;
+          // width/height first: they set scale.x, which is then the full-width
+          // scale the draw-on animates up to.
+          slash.width = wordPx * SLASH_LENGTH_RATIO;
+          slash.height = Math.max(4, wordPx * 0.12);
+          const fullWidth = slash.scale.x;
+          this.pushFx(slash, SLASH_LIFE_MS, (view, t) => {
+            const f = slashFrame(t * SLASH_LIFE_MS);
+            view.scale.x = fullWidth * f.scaleX;
+            view.alpha = f.alpha * slashAlpha;
+          });
+        })
+        .catch((error: unknown) => {
+          console.warn('[PixiStage] slash stroke texture failed to load — kill plays without it', error);
+        });
+    }
     this.particles.killBurst(px, py, combo);
 
     if (combo > 0 && combo % 5 === 0 && getSettings().effects !== 'off') {
@@ -299,6 +365,12 @@ export class PixiStage {
     }
     const yPx = Math.min(word.y, 0.95) * this.app.screen.height;
     view.position.set(word.x * this.app.screen.width, yPx);
+    this.app.stage.addChild(view);
+    this.fx.push({ view, ageMs: 0, lifeMs, update });
+  }
+
+  /** Like spawnFx, for a ready-made display object instead of a label. */
+  private pushFx(view: Container, lifeMs: number, update: Fx['update']): void {
     this.app.stage.addChild(view);
     this.fx.push({ view, ageMs: 0, lifeMs, update });
   }
