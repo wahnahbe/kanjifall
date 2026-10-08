@@ -173,7 +173,7 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
   font-family: var(--font-mono); font-size: calc(var(--text-2xs) * var(--hud-scale));
   letter-spacing: var(--tracking-label); color: var(--color-system); opacity: 0.7;
 }
-.hud-buffer-kana { font-family: var(--font-word); font-size: var(--size-word-play); color: var(--color-ink); }
+.hud-buffer-kana { font-family: var(--font-word); font-size: var(--size-word-play); line-height: 1; color: var(--color-ink); }
 /* Spec §6: the buffer reads as a live input, not a static label — the yellow
    caret is what signals that. Static (no blink): a blinking caret would need
    to respect prefers-reduced-motion and the spec doesn't call for animation. */
