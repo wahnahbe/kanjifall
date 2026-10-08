@@ -21,6 +21,8 @@ export interface VisualParams {
   atmosphereAlpha: number;
   /** Spawn bleed-in blur radius, px. 0 = alpha-only (§4.3). */
   spawnBlurPx: number;
+  /** 1 = forms bleed in (alpha, plus blur when spawnBlurPx > 0): spawn, title sign, copy stagger; 0 = they appear (§6 "Appear"). */
+  bleed: 0 | 1;
   /** 1 = flickers happen (lock, spawn halo, settle, deadline, sign); 0 = none (§7.7). */
   flicker: 0 | 1;
   /** Kill slash, 0..1 (§4.3). */
@@ -45,17 +47,17 @@ export interface VisualParams {
 
 const FULL: VisualParams = Object.freeze({
   chromaticSplitPx: 1.4, haloAlpha: 1, glowAlpha: 1, grainAlpha: 1, atmosphereAlpha: 1,
-  spawnBlurPx: 8, flicker: 1, slashAlpha: 1, flareAlpha: 1, approachTintAlpha: 1, swellAlpha: 1,
+  spawnBlurPx: 8, bleed: 1, flicker: 1, slashAlpha: 1, flareAlpha: 1, approachTintAlpha: 1, swellAlpha: 1,
   impactAlpha: 1, shakePx: 2, transitionBlurPx: 12, transitionMs: MOTION.transitionMs, waveBeat: 'centre',
 });
 const REDUCED: VisualParams = Object.freeze({
   chromaticSplitPx: 0, haloAlpha: 0.5, glowAlpha: 0.5, grainAlpha: 0.5, atmosphereAlpha: 0.5,
-  spawnBlurPx: 0, flicker: 0, slashAlpha: 1, flareAlpha: 0.5, approachTintAlpha: 1, swellAlpha: 0,
+  spawnBlurPx: 0, bleed: 1, flicker: 0, slashAlpha: 1, flareAlpha: 0.5, approachTintAlpha: 1, swellAlpha: 0,
   impactAlpha: 0.5, shakePx: 0, transitionBlurPx: 0, transitionMs: MOTION.transitionMs, waveBeat: 'fade',
 });
 const OFF: VisualParams = Object.freeze({
   chromaticSplitPx: 0, haloAlpha: 0, glowAlpha: 0, grainAlpha: 0, atmosphereAlpha: 0,
-  spawnBlurPx: 0, flicker: 0, slashAlpha: 0, flareAlpha: 0, approachTintAlpha: 0, swellAlpha: 0,
+  spawnBlurPx: 0, bleed: 0, flicker: 0, slashAlpha: 0, flareAlpha: 0, approachTintAlpha: 0, swellAlpha: 0,
   impactAlpha: 0, shakePx: 0, transitionBlurPx: 0, transitionMs: MOTION.fastMs, waveBeat: 'slot',
 });
 
