@@ -10,11 +10,32 @@ body {
 button {
   font-family: var(--font-ui); font-size: var(--text-sm); font-weight: 500;
   color: var(--color-ink); background: var(--color-surface);
-  border: 1px solid var(--color-line); border-radius: var(--radius-sm);
+  border: 1px solid transparent; position: relative; border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-5); cursor: pointer;
   transition: background var(--duration-fast), border-color var(--duration-fast);
 }
-button:hover { background: var(--color-line-soft); border-color: var(--color-system); }
+button:hover { background: var(--color-line-soft); }
+/* Second-pass spec §3.2, brush-edged chrome. The border is a mask on a
+   pseudo-element; the token behind it is the colour. Hover, disabled and
+   selection states recolour the mask, never the border. */
+button::before, .hud-value::before, .hud-buffer::before, .picker::before {
+  content: ''; position: absolute; inset: -1px; pointer-events: none;
+  background-color: var(--color-line);
+  -webkit-mask: var(--brush-frame-wide) center / 100% 100% no-repeat;
+  mask: var(--brush-frame-wide) center / 100% 100% no-repeat;
+}
+.hud-buffer::before, .picker::before {
+  -webkit-mask-image: var(--brush-frame-tall);
+  mask-image: var(--brush-frame-tall);
+}
+button:hover::before { background-color: var(--color-system); }
+button:disabled::before, button:disabled:hover::before { background-color: var(--color-line-soft); }
+/* The primary action is a solid tab, not a frame: a torn trailing edge instead. */
+button.primary::before { display: none; }
+button.primary, .hud-tab {
+  clip-path: polygon(0 0, 100% 0, 97% 30%, 100% 55%, 96% 80%, 100% 100%, 0 100%);
+  padding-right: calc(var(--space-5) + 4px);
+}
 button:focus-visible { outline: 2px solid var(--color-system); outline-offset: 2px; }
 button.primary { background: var(--color-system); color: var(--color-ground-deep); border-color: var(--color-system); font-weight: 700; }
 button.primary:hover { background: var(--color-ink); border-color: var(--color-ink); }
@@ -27,7 +48,7 @@ button.primary:hover { background: var(--color-ink); border-color: var(--color-i
    ink-faint, so the unavailable action is still legible, not just present. */
 button:disabled, button:disabled:hover {
   cursor: not-allowed;
-  color: var(--color-ink-dim); background: var(--color-ground-lift); border-color: var(--color-line-soft);
+  color: var(--color-ink-dim); background: var(--color-ground-lift);
 }
 button.primary:disabled, button.primary:disabled:hover {
   color: var(--color-ink-dim); background: var(--color-line-soft); border-color: var(--color-line);
@@ -128,7 +149,7 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
   display: flex; align-items: center;
 }
 .hud-value {
-  background: var(--color-surface); border: 1px solid var(--color-line); border-left: none;
+  background: var(--color-surface); border: 1px solid transparent; position: relative;
   padding: 0 var(--space-3); display: flex; align-items: center; min-width: 4.5rem;
 }
 .hud-value-word { font-family: var(--font-word); font-size: calc(var(--text-lg) * var(--hud-scale)); color: var(--color-ink); }
@@ -141,7 +162,10 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
 }
 .hud-right { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); }
 .hud-pips { display: flex; gap: var(--space-1); }
-.hud-pip { width: calc(20px * var(--hud-scale)); height: calc(6px * var(--hud-scale)); transform: skewX(-22deg); }
+.hud-pip {
+  width: calc(20px * var(--hud-scale)); height: calc(6px * var(--hud-scale)); transform: skewX(-22deg);
+  clip-path: polygon(0 15%, 100% 0, 96% 100%, 4% 90%);
+}
 .hud-pip-live { background: var(--color-danger); }
 .hud-pip-spent { background: var(--color-danger-soft); }
 /* Spec §7: "Lives, score, combo, buffer" glow at effects=full only — applied
@@ -166,7 +190,7 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
 }
 .hud-buffer {
   display: flex; align-items: center; gap: var(--space-3);
-  border: 1px solid var(--color-line); background: var(--color-surface);
+  border: 1px solid transparent; position: relative; background: var(--color-surface);
   padding: var(--space-2) var(--space-5);
 }
 .hud-buffer-tick {
@@ -201,10 +225,10 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
    on top of the restored fill difference. */
 .picker.selected,
 .picker.selected:hover {
-  border-color: var(--color-system);
   background: var(--color-line-soft);
   box-shadow: inset 3px 0 0 var(--color-system);
 }
+.picker.selected::before, .picker.selected:hover::before { background-color: var(--color-system); }
 /* Same §9.3 pin as .missed td above — these render at the inherited
    --text-base too. */
 .load-error { font-size: var(--text-base); color: var(--color-danger); }
