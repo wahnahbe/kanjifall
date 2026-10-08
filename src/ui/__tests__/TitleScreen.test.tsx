@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { resetSettingsCache, updateSettings } from '../../data/settings';
@@ -51,6 +53,14 @@ describe('TitleScreen (second-pass spec §5.1)', () => {
     expect(reduced.dataset.flicker).toBe('0'); // CSS applies the stagger delays only under [data-flicker='1']
     expect(reduced.dataset.motion).toBe('1'); // bleed stays on at reduced, so the copy still bleeds in
     expect(screen.getAllByTestId('title-ghosts')[1].style.getPropertyValue('--ghost-alpha')).toBe('0.5');
+  });
+
+  it('keeps the sign flicker to three brightness steps (spec §7.7)', () => {
+    const css = readFileSync(join(process.cwd(), 'src/index.css'), 'utf8');
+    const block = /@keyframes sign-on\s*\{([\s\S]*?)\n\}/.exec(css);
+    expect(block).not.toBeNull();
+    // 0%, 25%, 50% and the 75%/100% rest are the three steps over 520ms (130ms each).
+    expect(block![1].match(/brightness\(/g)?.length).toBeLessThanOrEqual(4);
   });
 
   it('at effects off: no ghosts, no flicker, every control still present (Review Focus 5)', () => {

@@ -238,19 +238,24 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
 /* The sign flickers on like a tube at full (data-flicker=1) and bleeds in at
    reduced (0); at full the copy and controls then follow, staggered 80ms —
    at reduced they bleed together, no stagger (spec §6). Nothing animates at
-   off (data-motion=0). A single event per mount (spec §7.7). */
-.title-sign[data-flicker='1'] { animation: sign-on 520ms steps(1, end) both; }
+   off (data-motion=0). A single event per mount, three brightness steps of
+   130ms (spec §7.7). It starts only after the screen transition has settled
+   (--transition-ms, set by ScreenTransition, then the transition's own
+   two-snap settle flicker), so the two flickers never stack; the sign's
+   `both` fill holds it at brightness 0.1 until then, and the copy stagger
+   shifts with it. */
+.title-screen[data-flicker='1'] { --sign-delay: calc(var(--transition-ms, 0ms) + var(--duration-snap) * 2); }
+.title-sign[data-flicker='1'] { animation: sign-on 520ms steps(1, end) var(--sign-delay, 0ms) both; }
 .title-sign[data-flicker='0'] { animation: screen-bleed var(--duration-bleed) var(--ease-ink) both; }
 .title-tagline, .title-screen .hint, .title-band > button { animation: screen-bleed var(--duration-bleed) var(--ease-ink) both; }
-.title-screen[data-flicker='1'] .title-tagline { animation-delay: 520ms; }
-.title-screen[data-flicker='1'] .hint { animation-delay: 600ms; }
-.title-screen[data-flicker='1'] .title-band > button:nth-child(1) { animation-delay: 680ms; }
-.title-screen[data-flicker='1'] .title-band > button:nth-child(2) { animation-delay: 760ms; }
-.title-screen[data-flicker='1'] .title-band > button:nth-child(3) { animation-delay: 840ms; }
+.title-screen[data-flicker='1'] .title-tagline { animation-delay: calc(var(--sign-delay, 0ms) + 520ms); }
+.title-screen[data-flicker='1'] .hint { animation-delay: calc(var(--sign-delay, 0ms) + 600ms); }
+.title-screen[data-flicker='1'] .title-band > button:nth-child(1) { animation-delay: calc(var(--sign-delay, 0ms) + 680ms); }
+.title-screen[data-flicker='1'] .title-band > button:nth-child(2) { animation-delay: calc(var(--sign-delay, 0ms) + 760ms); }
+.title-screen[data-flicker='1'] .title-band > button:nth-child(3) { animation-delay: calc(var(--sign-delay, 0ms) + 840ms); }
 .title-screen[data-motion='0'] * { animation: none !important; }
 @keyframes sign-on {
-  0% { filter: brightness(0.1); } 15% { filter: brightness(2.2); } 25% { filter: brightness(0.2); }
-  35% { filter: brightness(1.9); } 45% { filter: brightness(0.6); } 60% { filter: brightness(1.4); } 80%, 100% { filter: brightness(1); }
+  0% { filter: brightness(0.1); } 25% { filter: brightness(2); } 50% { filter: brightness(0.4); } 75%, 100% { filter: brightness(1); }
 }
 /* The floor as a horizon at the lower third, with the deadline beneath. */
 .title-floor {
