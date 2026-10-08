@@ -77,4 +77,11 @@ describe('SetupScreen frame (second-pass spec §5.2)', () => {
       for (const selector of rule[1].split(',')) expect(selector).toContain(".setup-screen[data-flicker='1']");
     }
   });
+
+  it('keeps the decorative floor stroke out of hit-testing so the scrolling stage gets every click and wheel', () => {
+    const css = readFileSync(join(process.cwd(), 'src/index.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const rule = /(?:^|\})\s*\.title-floor\s*\{([^}]*)\}/m.exec(css);
+    expect(rule).not.toBeNull();
+    expect(rule![1]).toContain('pointer-events: none');
+  });
 });

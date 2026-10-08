@@ -259,7 +259,7 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
 }
 /* The floor as a horizon at the lower third, with the deadline beneath. */
 .title-floor {
-  position: absolute; left: 0; right: 0; bottom: 30%; height: 26px; z-index: 1;
+  position: absolute; left: 0; right: 0; bottom: 30%; height: 26px; z-index: 1; pointer-events: none;
   background-repeat: no-repeat; background-size: 100% 100%;
   filter: drop-shadow(0 0 7px color-mix(in srgb, var(--color-system) 75%, transparent)) drop-shadow(0 0 22px color-mix(in srgb, var(--color-system) 32%, transparent));
 }
