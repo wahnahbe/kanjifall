@@ -9,6 +9,7 @@ import { noticeFor } from './planNotice';
 import type { TierProgress } from './shared/api';
 import { tierAdvanceLine } from './tierAdvance';
 import { Atmosphere, type AtmosphereScene } from './ui/Atmosphere';
+import { ScreenTransition } from './ui/ScreenTransition';
 import { GameScreen } from './ui/screens/GameScreen';
 import { ImportScreen } from './ui/screens/ImportScreen';
 import { SettingsScreen } from './ui/screens/SettingsScreen';
@@ -344,7 +345,9 @@ export default function App() {
   return (
     <>
       <Atmosphere scene={scene} />
-      <div className="app-screen">{content}</div>
+      <div className="app-screen">
+        <ScreenTransition screenKey={screen}>{content}</ScreenTransition>
+      </div>
     </>
   );
 }

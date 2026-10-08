@@ -144,6 +144,23 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
 }
 .atmosphere[data-drift='0'] .atmosphere-wash, .atmosphere[data-drift='0'] .atmosphere-ghost { animation: none; }
 
+/* --- Screen transition (second-pass spec §4.4) --------------------- */
+.screen-stack { position: relative; height: 100%; }
+.screen-layer { position: absolute; inset: 0; outline: none; }
+.screen-layer-out {
+  pointer-events: none;
+  animation: screen-drain var(--transition-ms) var(--ease-drain) forwards;
+}
+.screen-layer-in { animation: screen-bleed var(--transition-ms) var(--ease-ink); }
+/* One brightness flicker as the new screen settles — light moves like neon. */
+.screen-stack[data-flicker='1'] .screen-layer-in {
+  animation: screen-bleed var(--transition-ms) var(--ease-ink),
+             screen-settle calc(var(--duration-snap) * 2) steps(1, end) var(--transition-ms);
+}
+@keyframes screen-drain { to { opacity: 0; filter: blur(var(--transition-blur)); } }
+@keyframes screen-bleed { from { opacity: 0; filter: blur(var(--transition-blur)); } }
+@keyframes screen-settle { 0% { filter: brightness(2); } 50% { filter: brightness(0.5); } 100% { filter: brightness(1); } }
+
 /* --- Title screen --------------------------------------------------- */
 .title-mark { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
 .title-word {
