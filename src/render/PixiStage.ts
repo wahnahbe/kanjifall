@@ -3,6 +3,7 @@ import type { Filter, Texture } from 'pixi.js';
 import { GlowFilter } from 'pixi-filters';
 import { getSettings, subscribeSettings } from '../data/settings';
 import { cssHex, PALETTE } from '../design/palette';
+import { playScale, type PlayScale } from '../design/scale';
 import { FONT_STACK } from '../design/typography';
 import { visualParams } from '../design/visualParams';
 import type { AirborneWord, GameMode } from '../engine/types';
@@ -72,7 +73,14 @@ export class PixiStage {
   private readonly particles: Particles;
   private readonly host: HTMLElement;
   private readonly unsubscribeSettings: () => void;
-  private readonly handleResize = (): void => this.layoutFloor();
+  private readonly handleResize = (): void => {
+    // Sprites already airborne keep the size they were built at; only new
+    // ones pick up the new size (second-pass spec §3.3). The floor keeps its
+    // mount-time height and only stretches in width, as before.
+    this.scale = playScale(this.app.screen.height);
+    this.layoutFloor();
+  };
+  private scale: PlayScale;
   private shakeMs = 0;
   private destroyed = false;
   // Sentinel so the FIRST applyFilters() call always applies, no matter what
@@ -97,6 +105,7 @@ export class PixiStage {
 
     this.applyFilters();
     this.applyBackdrop();
+    this.scale = playScale(app.screen.height);
     void this.mountFloor();
     this.unsubscribeSettings = subscribeSettings(() => {
       this.applyFilters();
@@ -140,7 +149,7 @@ export class PixiStage {
       alive.add(word.instanceId);
       let sprite = this.sprites.get(word.instanceId);
       if (!sprite) {
-        sprite = new WordSprite(word, mode);
+        sprite = new WordSprite(word, mode, this.scale.wordPx);
         this.sprites.set(word.instanceId, sprite);
         this.app.stage.addChild(sprite.view);
       }
@@ -380,7 +389,7 @@ export class PixiStage {
   private async mountFloor(): Promise<void> {
     let texture: Texture;
     try {
-      texture = await loadBrushTexture(cssHex(PALETTE.system), FLOOR_TEXTURE_SEED);
+      texture = await loadBrushTexture(cssHex(PALETTE.system), FLOOR_TEXTURE_SEED, { height: this.scale.floorPx });
     } catch (error) {
       console.warn('[PixiStage] floor stroke texture failed to load — running without it', error);
       return;

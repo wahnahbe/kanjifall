@@ -123,7 +123,7 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
 .hud-block-empty { visibility: hidden; }
 .hud-tab {
   background: var(--color-system); color: var(--color-ground-deep);
-  font-family: var(--font-ui); font-weight: 700; font-size: var(--text-2xs);
+  font-family: var(--font-ui); font-weight: 700; font-size: calc(var(--text-2xs) * var(--hud-scale));
   letter-spacing: 0.18em; padding: var(--space-1) var(--space-2);
   display: flex; align-items: center;
 }
@@ -131,17 +131,17 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
   background: var(--color-surface); border: 1px solid var(--color-line); border-left: none;
   padding: 0 var(--space-3); display: flex; align-items: center; min-width: 4.5rem;
 }
-.hud-value-word { font-family: var(--font-word); font-size: var(--text-lg); color: var(--color-ink); }
-.hud-value-accent { font-family: var(--font-ui); font-weight: 700; font-size: var(--text-lg); color: var(--color-accent); }
+.hud-value-word { font-family: var(--font-word); font-size: calc(var(--text-lg) * var(--hud-scale)); color: var(--color-ink); }
+.hud-value-accent { font-family: var(--font-ui); font-weight: 700; font-size: calc(var(--text-lg) * var(--hud-scale)); color: var(--color-accent); }
 .hud-wave { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); }
-.hud-wave-jp { font-family: var(--font-display); font-size: var(--text-lg); color: var(--color-ink); }
+.hud-wave-jp { font-family: var(--font-display); font-size: calc(var(--text-lg) * var(--hud-scale)); color: var(--color-ink); }
 .hud-wave-lat {
-  font-family: var(--font-mono); font-size: var(--text-2xs);
+  font-family: var(--font-mono); font-size: calc(var(--text-2xs) * var(--hud-scale));
   letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-accent); opacity: 0.6;
 }
 .hud-right { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); }
 .hud-pips { display: flex; gap: var(--space-1); }
-.hud-pip { width: 20px; height: 6px; transform: skewX(-22deg); }
+.hud-pip { width: calc(20px * var(--hud-scale)); height: calc(6px * var(--hud-scale)); transform: skewX(-22deg); }
 .hud-pip-live { background: var(--color-danger); }
 .hud-pip-spent { background: var(--color-danger-soft); }
 /* Spec §7: "Lives, score, combo, buffer" glow at effects=full only — applied
@@ -168,10 +168,10 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
   padding: var(--space-2) var(--space-5); margin-bottom: var(--space-8);
 }
 .hud-buffer-tick {
-  font-family: var(--font-mono); font-size: var(--text-2xs);
+  font-family: var(--font-mono); font-size: calc(var(--text-2xs) * var(--hud-scale));
   letter-spacing: var(--tracking-label); color: var(--color-system); opacity: 0.7;
 }
-.hud-buffer-kana { font-family: var(--font-word); font-size: var(--text-2xl); color: var(--color-ink); }
+.hud-buffer-kana { font-family: var(--font-word); font-size: var(--size-word-play); color: var(--color-ink); }
 /* Spec §6: the buffer reads as a live input, not a static label — the yellow
    caret is what signals that. Static (no blink): a blinking caret would need
    to respect prefers-reduced-motion and the spec doesn't call for animation. */

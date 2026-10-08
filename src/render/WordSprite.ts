@@ -11,15 +11,15 @@ import { reticleBrackets } from './reticle';
 
 const BASE_STYLE: Partial<TextStyle> = {
   fontFamily: FONT_STACK,
-  fontSize: 40,
   fill: PALETTE.ink,
 };
 
 const HINT_STYLE: Partial<TextStyle> = {
   fontFamily: FONT_STACK,
-  fontSize: 26,
   fill: PALETTE.inkDim,
 };
+// Recall hint renders at this fraction of the word size (was a fixed 26 at 40).
+const HINT_SIZE_RATIO = 0.65;
 
 const HINT_FADE_MS = 300;
 // Was a flat 34px offset, independent of the falling word's own measured
@@ -116,6 +116,9 @@ function underlineTexture(): Promise<Texture> {
 
 export class WordSprite {
   readonly view: Container;
+  /** The font size this word was built at (second-pass spec §3.3). Fixed for
+   *  the sprite's lifetime, like its effects treatment. */
+  readonly wordPx: number;
   private readonly text: Text;
   private hintText: Text | null = null;
   private locked = false;
@@ -128,14 +131,15 @@ export class WordSprite {
   // settings-change path exists during play).
   private readonly glowAlpha: number;
 
-  constructor(word: AirborneWord, mode: GameMode) {
+  constructor(word: AirborneWord, mode: GameMode, wordPx: number) {
     const display = mode === 'recall'
       ? word.card.gloss
       : word.card.kanji ?? word.card.kana[0];
     const resolution = Math.min(Math.max(window.devicePixelRatio, 1) * 2, 4);
     const { chromaticSplitPx, haloAlpha, glowAlpha } = visualParams(getSettings().effects);
     this.glowAlpha = glowAlpha;
-    const fontSize = BASE_STYLE.fontSize ?? 0;
+    this.wordPx = wordPx;
+    const fontSize = wordPx;
 
     this.view = new Container();
 
@@ -150,7 +154,7 @@ export class WordSprite {
       for (const [tint, dx] of offsets) {
         const ghost = new Text({
           text: display,
-          style: new TextStyle({ ...BASE_STYLE }),
+          style: new TextStyle({ ...BASE_STYLE, fontSize }),
           resolution,
         });
         ghost.anchor.set(0.5);
@@ -165,6 +169,7 @@ export class WordSprite {
       text: display,
       style: new TextStyle({
         ...BASE_STYLE,
+        fontSize,
         // Word halo (spec §7): a soft glow behind the glyph, strength tied
         // to haloAlpha. Omitted entirely at 0 rather than passed with
         // alpha: 0, so effects 'off' renders genuinely flat, not a
@@ -193,7 +198,7 @@ export class WordSprite {
     if (this.hintText !== null) return;
     this.hintText = new Text({
       text: kanji,
-      style: new TextStyle({ ...HINT_STYLE }),
+      style: new TextStyle({ ...HINT_STYLE, fontSize: Math.round(this.wordPx * HINT_SIZE_RATIO) }),
       resolution: 2,
     });
     this.hintText.anchor.set(0.5);
@@ -230,6 +235,12 @@ export class WordSprite {
 
   setPosition(xPx: number, yPx: number): void {
     this.view.position.set(xPx, yPx);
+  }
+
+  /** Half the rendered glyph width — the kill slash anchors at the word's
+   *  left edge (second-pass spec §4.3). */
+  get halfWidth(): number {
+    return this.text.width / 2;
   }
 
   /** Builds the brackets synchronously (cheap Graphics fill) and starts the
