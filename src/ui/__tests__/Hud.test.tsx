@@ -61,4 +61,15 @@ describe('Hud', () => {
       expect(screen.getByTestId('score').closest('.hud')?.className.includes('hud-glow')).toBe(effects === 'full');
     });
   });
+
+  // Second-pass spec §3.4: the buffer lives in the machine band below the
+  // kill line, never inside the playfield where a centre-lane word falls
+  // straight through it.
+  it('renders the kana buffer inside the machine band, the last child of the HUD', () => {
+    render(<Hud snapshot={snapshot} />);
+    const band = screen.getByTestId('kana-buffer').closest('.hud-band');
+    expect(band).not.toBeNull();
+    expect(band?.parentElement?.className).toContain('hud');
+    expect(band?.parentElement?.lastElementChild).toBe(band);
+  });
 });

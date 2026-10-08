@@ -30,6 +30,9 @@
   --color-line-soft: rgba(0, 229, 255, 0.16);
   --color-danger-soft: rgba(255, 42, 60, 0.16);
   --color-grid-line: rgba(0, 229, 255, 0.05);
+  /* The cyan underglow that fills the machine band below the kill line
+     (second-pass spec §3.4). */
+  --color-underglow: rgba(0, 229, 255, 0.10);
   /* Task 11 QA: was 0.03 — at that alpha the 1px repeating-linear-gradient
      lines (index.css .pixi-host::before) read as crisp diagonal scratches
      rather than the "very low opacity" paper texture spec §5.1 calls for,

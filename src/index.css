@@ -76,7 +76,7 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
 .game-screen { position: relative; height: 100%; }
 .pixi-host {
   position: absolute;
-  inset: 0;
+  inset: 0 0 var(--size-machine-band) 0;
   --grain-alpha: 1;
   background-color: var(--color-ground);
   background-image:
@@ -156,16 +156,18 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
 .hud-glow .hud-value-accent { text-shadow: 0 0 8px var(--color-accent); }
 .hud-glow .hud-pip-live { box-shadow: 0 0 6px var(--color-danger); }
 .hud-glow .hud-buffer { box-shadow: 0 0 8px var(--color-line); }
+/* Second-pass spec §3.4: the band is the machine. It sits under the kill
+   line (the canvas's bottom edge), holds the buffer, and carries the cyan
+   underglow that used to have nowhere to go. */
+.hud-band {
+  margin-top: auto; height: var(--size-machine-band); flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(to top, var(--color-underglow), transparent);
+}
 .hud-buffer {
-  /* margin-bottom raised from the brief's --space-5 (24px): the floor's
-     dry-brush stroke sits FLOOR_Y_RATIO=1.0 (PixiStage.ts), anchored to the
-     screen's bottom edge, ~26px tall plus ~12px of glow bleed — a ~38px band
-     that --space-5 would have driven the buffer straight into. --space-8
-     (48px) clears the glow with a visible gap so the buffer reads as its own
-     element instead of crowding the floor. */
-  margin-top: auto; align-self: center; display: flex; align-items: center; gap: var(--space-3);
+  display: flex; align-items: center; gap: var(--space-3);
   border: 1px solid var(--color-line); background: var(--color-surface);
-  padding: var(--space-2) var(--space-5); margin-bottom: var(--space-8);
+  padding: var(--space-2) var(--space-5);
 }
 .hud-buffer-tick {
   font-family: var(--font-mono); font-size: calc(var(--text-2xs) * var(--hud-scale));
@@ -175,7 +177,7 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
 /* Spec §6: the buffer reads as a live input, not a static label — the yellow
    caret is what signals that. Static (no blink): a blinking caret would need
    to respect prefers-reduced-motion and the spec doesn't call for animation. */
-.hud-buffer-caret { width: 3px; height: 1.8rem; background: var(--color-accent); }
+.hud-buffer-caret { width: 3px; height: calc(var(--size-word-play) * 0.72); background: var(--color-accent); }
 .overlay {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: var(--space-4);

@@ -38,10 +38,12 @@ export function Hud({ snapshot }: { snapshot: EngineSnapshot }) {
           </div>
         </div>
       </div>
-      <div className="hud-buffer" data-testid="kana-buffer">
-        <span className="hud-buffer-tick">IN</span>
-        <span className="hud-buffer-kana">{snapshot.bufferKana || ' '}</span>
-        <span className="hud-buffer-caret" aria-hidden="true" />
+      <div className="hud-band">
+        <div className="hud-buffer" data-testid="kana-buffer">
+          <span className="hud-buffer-tick">IN</span>
+          <span className="hud-buffer-kana">{snapshot.bufferKana || ' '}</span>
+          <span className="hud-buffer-caret" aria-hidden="true" />
+        </div>
       </div>
     </div>
   );
