@@ -181,14 +181,14 @@ Reduced: crossfade without blur or flicker. Off: a 120ms crossfade (`--duration-
 
 ### 4.5 The wave-start beat
 
-A wave begins today with the HUD label changing. The engine already pauses into `waveIntro` at every wave start (`pauseOnWaveStart`), and the ceremony overlay calls `resume()` when it is done. The beat slots in front of the ceremony and owns the first `--duration-beat` of that pause:
+A wave begins today with the HUD label changing. The engine already pauses into `waveIntro` at every wave start (`pauseOnWaveStart`), and the ceremony overlay calls `resume()` when it is done. The beat slots in behind the ceremony and owns the last `--duration-beat` of that pause:
 
 1. The playfield is live but empty. 第N波 in `--font-display` at 2.6× the word size bleeds in at the centre over `--duration-bleed`, with `wave NN` in `--font-mono` accent beneath it.
 2. A band of light, 22% of the playfield high, blurred, in `--color-system`, rises from the floor to the top over 700ms and fades as it goes.
 3. The header holds, then drains over `--duration-bleed` as the HUD's own wave label (hidden until now) bleeds in.
 4. Words arrive after the beat.
 
-Ordering inside the pause: beat, then ceremonies for any new cards, then whichever ran last calls `resume()`. The plan verifies the one configuration where the pause is off (`introduceWords: false`): there the beat is the HUD label bleeding in and nothing more, because there is no pause to own.
+**Amended 2026-10-07, during planning (Task 11).** Ordering inside the pause: ceremonies for any new cards first, then the beat, then `resume()` — the beat is what finally resumes. The spec originally put the beat first; the keystone e2e's ceremony loop (`clearCeremony`) exits as soon as no ceremony is visible, so a beat-first order would have ended it before the ceremony appeared, and the flow must stay untouched. Narratively it also reads better: learn the words, then the wave announces itself. The plan verifies the one configuration where the pause is off (`introduceWords: false`): there the beat is the HUD label bleeding in and nothing more, because there is no pause to own.
 
 The wave number is state: at `off` the header simply appears in its slot. At `reduced`: the header fades in at the centre and out again, no light sweep.
 

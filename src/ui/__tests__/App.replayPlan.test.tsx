@@ -2,6 +2,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MOTION } from '../../design/motion';
 import { DEFAULT_CONFIG } from '../../engine/constants';
 import { mulberry32 } from '../../engine/rng';
 import { Spawner } from '../../engine/Spawner';
@@ -217,10 +218,11 @@ describe('App replay wiring never lets an un-introduced card spawn', () => {
     // App.tsx's introducedIdsRef.
     await screen.findByTestId('ceremony', {}, { timeout: 3000 });
     await userEvent.keyboard('{Escape}');
-    // The ceremony's onComplete (wired to resume) fires once its one card is
-    // done - proof the introduction went through App's real handler, not
-    // just AcquisitionCeremony's own internal state.
-    await waitFor(() => expect(resume).toHaveBeenCalled());
+    // Once its one card is done the ceremony hands the pause to the wave-start
+    // beat (second-pass spec §4.5, real timers here), which calls resume one
+    // --duration-beat later - proof the introduction went through App's real
+    // handler, not just AcquisitionCeremony's own internal state.
+    await waitFor(() => expect(resume).toHaveBeenCalled(), { timeout: MOTION.beatMs + 2000 });
 
     // Jump to results and press Play again, exactly like the test above.
     mockSnapshot = snap({ status: 'gameOver', missed: [] });

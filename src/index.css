@@ -161,6 +161,43 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
 @keyframes screen-bleed { from { opacity: 0; filter: blur(var(--transition-blur)); } }
 @keyframes screen-settle { 0% { filter: brightness(2); } 50% { filter: brightness(0.5); } 100% { filter: brightness(1); } }
 
+/* --- Wave-start beat (second-pass spec §4.5) ------------------------ */
+/* The label bleeds in only where visualParams().bleed is 1 (Hud adds
+   hud-wave-bleed); at effects off it simply appears in its slot. */
+.hud-wave-bleed { transition: opacity var(--duration-bleed) var(--ease-ink); }
+.hud-wave-hidden { opacity: 0; }
+.wave-start {
+  position: absolute; inset: 0 0 var(--size-machine-band) 0; z-index: 2; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2);
+}
+.wave-start-jp {
+  font-family: var(--font-display); font-size: calc(var(--size-word-play) * 2.6); line-height: 1;
+  color: var(--color-ink); letter-spacing: 0.18em;
+  animation: wave-bleed var(--duration-bleed) var(--ease-ink) both,
+             wave-drain var(--duration-bleed) var(--ease-drain) calc(var(--duration-beat) - var(--duration-bleed)) forwards;
+}
+.wave-start-lat {
+  font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--color-accent); opacity: 0.75;
+  animation: wave-bleed var(--duration-bleed) var(--ease-ink) both,
+             wave-drain var(--duration-bleed) var(--ease-drain) calc(var(--duration-beat) - var(--duration-bleed)) forwards;
+}
+.wave-start-sweep {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 22%; filter: blur(14px);
+  background: linear-gradient(to top, transparent, color-mix(in srgb, var(--color-system) 28%, transparent) 50%, transparent);
+  animation: wave-sweep 700ms var(--ease-ink) forwards;
+}
+.wave-start[data-beat='fade'] .wave-start-sweep { display: none; }
+.wave-start[data-beat='fade'] .wave-start-jp, .wave-start[data-beat='fade'] .wave-start-lat {
+  animation: wave-fade-in var(--duration-bleed) var(--ease-ink) both,
+             wave-fade-out var(--duration-bleed) var(--ease-drain) calc(var(--duration-beat) - var(--duration-bleed)) forwards;
+}
+@keyframes wave-bleed { from { opacity: 0; filter: blur(10px); } to { opacity: 1; filter: blur(0); } }
+@keyframes wave-drain { to { opacity: 0; filter: blur(6px); } }
+@keyframes wave-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wave-fade-out { to { opacity: 0; } }
+@keyframes wave-sweep { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-350%); opacity: 0; } }
+
 /* --- Title screen --------------------------------------------------- */
 .title-mark { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
 .title-word {

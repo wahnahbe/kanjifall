@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { playScale } from '../../design/scale';
 import type { Card, EngineSnapshot } from '../../engine/types';
 import { Hud } from '../hud/Hud';
 import { ImeWarning } from '../hud/ImeWarning';
+import { WaveStart } from '../WaveStart';
 import { AcquisitionCeremony } from './AcquisitionCeremony';
 import { ResultsScreen } from './ResultsScreen';
 
@@ -45,20 +46,32 @@ export function GameScreen({
     return () => window.removeEventListener('resize', apply);
   }, []);
 
+  // Second-pass spec §4.5 (ordering amendment, plan Task 11): the ceremony
+  // owns the pause first; when it completes, the beat owns the rest and is
+  // what finally calls onIntroComplete (= engine.resume). Reset for every
+  // new pause so wave N+1 starts at its own ceremony.
+  const [introPhase, setIntroPhase] = useState<'ceremony' | 'beat'>('ceremony');
+  useEffect(() => {
+    if (snapshot.status !== 'waveIntro') setIntroPhase('ceremony');
+  }, [snapshot.status, snapshot.wave]);
+
   return (
     <div className="game-screen" ref={rootRef} data-testid="game-screen">
       <div className="pixi-host" ref={hostRef} />
-      <Hud snapshot={snapshot} />
+      <Hud snapshot={snapshot} waveLabelHidden={snapshot.status === 'waveIntro'} />
       <ImeWarning />
       {snapshot.status === 'playing' && planNotice !== null && (
         <p className="plan-notice" data-testid="plan-notice">{planNotice}</p>
       )}
-      {snapshot.status === 'waveIntro' && (
+      {snapshot.status === 'waveIntro' && introPhase === 'ceremony' && (
         <AcquisitionCeremony
           cards={introCards}
           onIntroduced={onIntroduced}
-          onComplete={onIntroComplete}
+          onComplete={() => setIntroPhase('beat')}
         />
+      )}
+      {snapshot.status === 'waveIntro' && introPhase === 'beat' && (
+        <WaveStart wave={snapshot.wave} onDone={onIntroComplete} />
       )}
       {snapshot.status === 'gameOver' && (
         <ResultsScreen

@@ -1,13 +1,20 @@
+import { visualParams } from '../../design/visualParams';
 import type { EngineSnapshot } from '../../engine/types';
 import { useSettings } from '../useSettings';
 import { pipStates } from './pips';
 
-export function Hud({ snapshot }: { snapshot: EngineSnapshot }) {
+export function Hud({ snapshot, waveLabelHidden = false }: { snapshot: EngineSnapshot; waveLabelHidden?: boolean }) {
   // Spec §7: "Lives, score, combo, buffer" glow on their accents at `full`
   // only — flat at `reduced` and `off`. useSettings() (not a one-off
   // getSettings() read) so a live settings change repaints immediately,
   // matching every other effects-driven surface in the HUD/playfield.
-  const glowFull = useSettings().effects === 'full';
+  const { effects } = useSettings();
+  const glowFull = effects === 'full';
+  // Second-pass spec §4.5 / §6: the wave label bleeds in when the beat hands
+  // over to it, except at effects off, where it simply appears in its slot.
+  const waveClass = ['hud-wave', waveLabelHidden ? 'hud-wave-hidden' : '', visualParams(effects).bleed === 1 ? 'hud-wave-bleed' : '']
+    .filter(Boolean)
+    .join(' ');
   return (
     <div className={glowFull ? 'hud hud-glow' : 'hud'}>
       <div className="hud-stripe" />
@@ -16,7 +23,7 @@ export function Hud({ snapshot }: { snapshot: EngineSnapshot }) {
           <span className="hud-tab">SCORE</span>
           <span className="hud-value hud-value-word" data-testid="score">{snapshot.score}</span>
         </div>
-        <div className="hud-wave">
+        <div className={waveClass}>
           <span className="hud-wave-jp">第{snapshot.wave}波</span>
           <span className="hud-wave-lat" data-testid="wave">wave {snapshot.wave}</span>
         </div>
