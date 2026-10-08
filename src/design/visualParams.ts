@@ -13,11 +13,13 @@ export interface VisualParams {
   glowAlpha: number;
   /** Backdrop grain + fibre strength, 0..1. */
   grainAlpha: number;
+  /** Atmosphere washes, shaft, vignette, ghost glyphs, 0..1 (second-pass spec §3.1). */
+  atmosphereAlpha: number;
 }
 
-const FULL: VisualParams = Object.freeze({ chromaticSplitPx: 1.4, haloAlpha: 1, glowAlpha: 1, grainAlpha: 1 });
-const REDUCED: VisualParams = Object.freeze({ chromaticSplitPx: 0, haloAlpha: 0.5, glowAlpha: 0.5, grainAlpha: 0.5 });
-const OFF: VisualParams = Object.freeze({ chromaticSplitPx: 0, haloAlpha: 0, glowAlpha: 0, grainAlpha: 0 });
+const FULL: VisualParams = Object.freeze({ chromaticSplitPx: 1.4, haloAlpha: 1, glowAlpha: 1, grainAlpha: 1, atmosphereAlpha: 1 });
+const REDUCED: VisualParams = Object.freeze({ chromaticSplitPx: 0, haloAlpha: 0.5, glowAlpha: 0.5, grainAlpha: 0.5, atmosphereAlpha: 0.5 });
+const OFF: VisualParams = Object.freeze({ chromaticSplitPx: 0, haloAlpha: 0, glowAlpha: 0, grainAlpha: 0, atmosphereAlpha: 0 });
 
 export function visualParams(effects: Settings['effects']): VisualParams {
   if (effects === 'off') return OFF;

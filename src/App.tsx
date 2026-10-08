@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ReactElement } from 'react';
 import { DataLoadError, isListPool, loadPool, type PlayablePool, type PoolId } from './data/loader';
 import { drainOutbox } from './data/outbox';
 import { fetchRunPlan, toEnginePlan } from './data/planClient';
@@ -7,6 +8,7 @@ import type { Card, EnginePlan, GameMode } from './engine/types';
 import { noticeFor } from './planNotice';
 import type { TierProgress } from './shared/api';
 import { tierAdvanceLine } from './tierAdvance';
+import { Atmosphere, type AtmosphereScene } from './ui/Atmosphere';
 import { GameScreen } from './ui/screens/GameScreen';
 import { ImportScreen } from './ui/screens/ImportScreen';
 import { SettingsScreen } from './ui/screens/SettingsScreen';
@@ -260,8 +262,12 @@ export default function App() {
       .catch((error: unknown) => console.warn('kotoba outbox drain failed', error));
   }, []);
 
+  const scene: AtmosphereScene =
+    screen === 'title' ? 'title' : screen === 'setup' ? 'chooser' : screen === 'game' ? 'game' : 'calm';
+
+  let content: ReactElement;
   if (screen === 'game') {
-    return (
+    content = (
       <GameScreen
         snapshot={snapshot}
         hostRef={hostRef}
@@ -306,9 +312,8 @@ export default function App() {
         onTitle={() => setScreen('title')}
       />
     );
-  }
-  if (screen === 'import') {
-    return (
+  } else if (screen === 'import') {
+    content = (
       <ImportScreen
         onSaved={(list) => {
           importedListRef.current = list;
@@ -317,9 +322,8 @@ export default function App() {
         onBack={() => setScreen('setup')}
       />
     );
-  }
-  if (screen === 'setup') {
-    return (
+  } else if (screen === 'setup') {
+    content = (
       <SetupScreen
         loading={loading}
         error={loadError}
@@ -329,12 +333,18 @@ export default function App() {
         initialListSelection={importedListRef.current}
       />
     );
+  } else if (screen === 'stats') {
+    content = <StatsScreen onBack={() => setScreen('title')} />;
+  } else if (screen === 'settings') {
+    content = <SettingsScreen onBack={() => setScreen('title')} />;
+  } else {
+    content = <TitleScreen onStart={() => setScreen('setup')} onStats={() => setScreen('stats')} onSettings={() => setScreen('settings')} />;
   }
-  if (screen === 'stats') {
-    return <StatsScreen onBack={() => setScreen('title')} />;
-  }
-  if (screen === 'settings') {
-    return <SettingsScreen onBack={() => setScreen('title')} />;
-  }
-  return <TitleScreen onStart={() => setScreen('setup')} onStats={() => setScreen('stats')} onSettings={() => setScreen('settings')} />;
+
+  return (
+    <>
+      <Atmosphere scene={scene} />
+      <div className="app-screen">{content}</div>
+    </>
+  );
 }

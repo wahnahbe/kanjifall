@@ -8,6 +8,7 @@ describe('visualParams (visual-identity spec §7)', () => {
     expect(p.haloAlpha).toBe(1);
     expect(p.glowAlpha).toBe(1);
     expect(p.grainAlpha).toBeGreaterThan(0);
+    expect(p.atmosphereAlpha).toBe(1);
   });
 
   it('reduced drops the chromatic split but keeps glow and grain', () => {
@@ -17,11 +18,12 @@ describe('visualParams (visual-identity spec §7)', () => {
     expect(p.haloAlpha).toBeGreaterThan(0);
     expect(p.glowAlpha).toBe(0.5);
     expect(p.grainAlpha).toBeGreaterThan(0);
+    expect(p.atmosphereAlpha).toBe(0.5);
   });
 
   it('off strips all decoration', () => {
     expect(visualParams('off')).toEqual({
-      chromaticSplitPx: 0, haloAlpha: 0, glowAlpha: 0, grainAlpha: 0,
+      chromaticSplitPx: 0, haloAlpha: 0, glowAlpha: 0, grainAlpha: 0, atmosphereAlpha: 0,
     });
   });
 

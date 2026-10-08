@@ -88,6 +88,62 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
 }
 .hint { color: var(--color-ink-faint); font-size: var(--text-xs); font-family: var(--font-mono); letter-spacing: 0.06em; }
 
+/* --- Atmosphere (second-pass spec §3.1) -------------------------------
+   One persistent layer behind every screen. CSS owns the backdrop; Pixi
+   owns anything tied to game coordinates. No blend modes: the sumi tint is
+   baked into its SVG. Washes animate transform only, on promoted layers, so
+   their blur rasterizes once. Brightness ceiling: nothing here lifts the
+   ground by more than ~8% luminance (spec §7.6). */
+.atmosphere {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+  background: var(--gradient-ground);
+}
+.app-screen { position: relative; z-index: 1; height: 100%; }
+.atmosphere-depth {
+  position: absolute; inset: 0; opacity: var(--atmosphere-alpha);
+  transition: opacity var(--duration-transition) var(--ease-drain);
+}
+.atmosphere[data-scene='calm'] .atmosphere-depth { opacity: 0; }
+.atmosphere-depth > * { position: absolute; }
+.atmosphere-wash { border-radius: 50%; filter: blur(30px); will-change: transform; }
+.atmosphere-wash-system {
+  left: -12%; top: 8%; width: 56%; height: 46%;
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--color-system) 8.5%, transparent), transparent 70%);
+  animation: atmosphere-sway 46s ease-in-out infinite alternate;
+}
+.atmosphere-wash-cool {
+  right: -16%; top: 34%; width: 62%; height: 52%;
+  background: radial-gradient(ellipse at center, var(--color-ground-wash), transparent 70%);
+  animation: atmosphere-sway 58s ease-in-out infinite alternate-reverse;
+}
+.atmosphere-wash-deep {
+  left: 22%; top: -24%; width: 52%; height: 42%;
+  background: radial-gradient(ellipse at center, var(--color-ground-wash-deep), transparent 70%);
+}
+@keyframes atmosphere-sway { from { transform: translate(0, 0); } to { transform: translate(4%, 3%); } }
+/* The feColorMatrix numbers below are tint multipliers inside the noise
+   mask (the cool ink wash), not colour literals. */
+.atmosphere-sumi {
+  inset: 0; opacity: 0.11; background-size: cover;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.006 0.012' numOctaves='3' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 0.75  0 0 0 0 0.9  0 0 0 0 1  0 0 0 1.5 -0.55'/%3E%3CfeGaussianBlur stdDeviation='5'/%3E%3C/filter%3E%3Crect width='600' height='400' filter='url(%23s)'/%3E%3C/svg%3E");
+}
+.atmosphere-shaft {
+  left: 50%; bottom: var(--size-machine-band); width: 28%; height: 72%; transform: translateX(-50%);
+  background: linear-gradient(to top, color-mix(in srgb, var(--color-system) 11%, transparent), color-mix(in srgb, var(--color-system) 3%, transparent) 45%, transparent 80%);
+  filter: blur(16px);
+}
+.atmosphere-ghost {
+  font-family: var(--font-word); font-weight: 600; line-height: 1; font-size: 12vw;
+  color: color-mix(in srgb, var(--color-ink) 4.5%, transparent); filter: blur(2.4px);
+  animation: atmosphere-drift 70s ease-in-out infinite alternate; will-change: transform;
+}
+@keyframes atmosphere-drift { from { transform: translateY(-5%); } to { transform: translateY(5%); } }
+.atmosphere-vignette {
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 60%, transparent 48%, color-mix(in srgb, var(--color-ground-deep) 70%, transparent) 100%);
+}
+.atmosphere[data-drift='0'] .atmosphere-wash, .atmosphere[data-drift='0'] .atmosphere-ghost { animation: none; }
+
 /* --- Title screen --------------------------------------------------- */
 .title-mark { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
 .title-word {
@@ -111,12 +167,7 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
   position: absolute;
   inset: 0 0 var(--size-machine-band) 0;
   --grain-alpha: 1;
-  background-color: var(--color-ground);
-  background-image:
-    repeating-linear-gradient(to right, var(--color-grid-line) 0 1px, transparent 1px 76px),
-    var(--gradient-ground);
-  background-repeat: repeat, no-repeat;
-  background-size: auto, 100% 100%;
+  background-image: repeating-linear-gradient(to right, var(--color-grid-line) 0 1px, transparent 1px 76px);
 }
 .pixi-host::before {
   content: '';
