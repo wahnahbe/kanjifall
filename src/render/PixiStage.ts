@@ -54,12 +54,18 @@ const MISS_UNDERLINE_GAP_PX = 4;
 const MISS_UNDERLINE_THICKNESS_PX = 2;
 
 // The kill slash (second-pass spec §4.3): a dry-brush stroke in ink. It is
-// displayed at about 2.6 x wordPx long (roughly 100-260px) and 0.12 x wordPx
-// tall, so the canvas is sized near that, not at the floor's 1200 — squeezing
+// displayed at about 2.6 x wordPx long (roughly 100-260px) and half a
+// word-height tall, so the canvas is sized near that, not at the floor's 1200 — squeezing
 // a screen-width stroke down to slash scale collapses the noise wavelength
 // into speckle (the same lesson as WordSprite's underline). `displacementScale`
 // is turned down with the canvas so the short stroke's ends are not smeared.
 const SLASH_STROKE_OPTIONS = { width: 300, height: 14, displacementScale: 8 };
+// The slash sprite's displayed height. The stroke texture paints a bar only
+// 5/26 of its canvas (the floor's proportions), so the sprite has to be far
+// taller than the ink it shows: half a word-height gives about 5px of ink at
+// 52px words, a brush cut rather than a hairline.
+const SLASH_THICKNESS_RATIO = 0.5;
+const SLASH_MIN_THICKNESS_PX = 8;
 // Shared and cached for the same reason as WordSprite's underline texture:
 // every kill fires a slash, and none of them may kick off its own decode.
 // Sprites never destroy their texture (updateFx's `context: true` is a
@@ -312,7 +318,7 @@ export class PixiStage {
           // width/height first: they set scale.x, which is then the full-width
           // scale the draw-on animates up to.
           slash.width = wordPx * SLASH_LENGTH_RATIO;
-          slash.height = Math.max(4, wordPx * 0.12);
+          slash.height = Math.max(SLASH_MIN_THICKNESS_PX, wordPx * SLASH_THICKNESS_RATIO);
           const fullWidth = slash.scale.x;
           this.pushFx(slash, SLASH_LIFE_MS, (view, t) => {
             const f = slashFrame(t * SLASH_LIFE_MS);
