@@ -112,6 +112,10 @@ a level (e.g. 私 わたし/わたくし) are merged into one card that accepts
 every reading — reading mode shows only the kanji, so separate cards would
 be indistinguishable yet reject each other's correct answers.
 
+The favicon (`public/favicon.svg`, the kanji 落 in the display face) is
+likewise generated and committed: `npm run build:favicon` regenerates it from
+the bundled Yuji Syuku font and the colour tokens.
+
 ## Documentation
 
 Design specs and implementation plans live in `docs/superpowers/` —
