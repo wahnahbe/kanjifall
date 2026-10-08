@@ -241,9 +241,11 @@ export class PixiStage {
       const texture = tryFlareTexture();
       if (texture === null) return;
       swell = new Sprite(texture);
-      // Centred on the kill line, not bottom-anchored: the stage ends at the
-      // floor, so only the upper half shows, as light welling up from under
-      // it. A bottom anchor floated the whole glow ~75px above the floor.
+      // Centred on the kill line, not bottom-anchored: the flare texture is a
+      // centred radial, so a bottom anchor puts its centre half a (squashed)
+      // texture height, ~75px, above the floor and the glow floats in mid-air.
+      // The stage ends at the floor, so centred, only the upper half shows, as
+      // light welling up from under it.
       swell.anchor.set(0.5);
       swell.tint = PALETTE.danger;
       swell.zIndex = FLOOR_Z_INDEX + 0.25;
@@ -361,7 +363,9 @@ export class PixiStage {
     const impactTex = impactAlpha > 0 ? tryFlareTexture() : null;
     if (impactTex !== null) {
       const impact = new Sprite(impactTex);
-      impact.anchor.set(0.5); // centred on the floor line, same as the swell
+      // Centred on the floor line for the same reason as the swell: the flare
+      // texture is a centred radial, so a bottom anchor would float the glow.
+      impact.anchor.set(0.5);
       impact.tint = PALETTE.danger;
       impact.position.set(px, killY);
       impact.zIndex = FLOOR_Z_INDEX + 0.5;

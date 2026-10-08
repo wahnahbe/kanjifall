@@ -306,8 +306,14 @@ export class WordSprite {
   /** Second-pass spec §4.3 Approach: over the last fifth of the fall the halo
    *  warms from cyan toward vermillion. The halo is baked into the glyph
    *  texture, so rather than re-rasterizing every frame, a second copy with a
-   *  danger-coloured halo sits behind the first and cross-fades in. Built
-   *  lazily on the first non-zero progress; most words die before it exists. */
+   *  danger-coloured halo sits in front of the base copy and fades in. In
+   *  front, not behind: its glyph is the same ink over the same ink (no visible
+   *  change), and its red halo composites over the cyan one at alpha = progress
+   *  x tintAlpha, a weighted lerp of the halo colour wherever the halo has
+   *  coverage. Behind, the red only showed at the cyan halo's outer fringe.
+   *  Added directly after the base text, so the brackets, underline and recall
+   *  hint (added later) still draw over it. Built lazily on the first non-zero
+   *  progress; most words die before it exists. */
   setApproach(progress: number): void {
     if (this.approachTintAlpha === 0 || this.haloAlpha === 0) return;
     if (progress <= 0) {
@@ -326,7 +332,7 @@ export class WordSprite {
         resolution: this.resolution,
       });
       this.hotText.anchor.set(0.5);
-      this.view.addChildAt(this.hotText, this.view.getChildIndex(this.text));
+      this.view.addChildAt(this.hotText, this.view.getChildIndex(this.text) + 1);
     }
     this.hotText.alpha = progress * this.approachTintAlpha;
   }
