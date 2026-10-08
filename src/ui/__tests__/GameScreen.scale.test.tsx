@@ -33,6 +33,6 @@ describe('GameScreen scale custom properties (second-pass spec §3.3)', () => {
     act(() => {
       window.dispatchEvent(new Event('resize'));
     });
-    expect(root.style.getPropertyValue('--size-word-play')).toBe('65px'); // round(1000 × 0.065)
+    expect(root.style.getPropertyValue('--size-word-play')).toBe('72px'); // round(1000 × 0.0756) = 76, clamped to 72
   });
 });

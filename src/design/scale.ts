@@ -15,7 +15,9 @@ export interface PlayScale {
 
 export const WORD_PX_MIN = 44;
 export const WORD_PX_MAX = 72;
-export const WORD_HEIGHT_RATIO = 0.065; // 52px at 800 tall
+// 0.065 of the window: the playfield is the window minus the 14% machine
+// band, so 52px at an 800px-tall window (688px playfield).
+export const WORD_HEIGHT_RATIO = 0.0756;
 export const REFERENCE_WORD_PX = 40; // the first pass's fixed size, for proportion
 export const HUD_SCALE = 1.15;
 
