@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MOTION } from '../../design/motion';
 import { PALETTE } from '../../design/palette';
 import {
-  APPROACH_START_Y, approachProgress, approachTint, deadlineFlickerAlpha, impactFrame, swellScaleX,
+  APPROACH_START_Y, approachMix, approachProgress, approachTint, deadlineFlickerAlpha, impactFrame, swellScaleX,
 } from '../approach';
 
 describe('approachProgress (second-pass spec §4.3 Approach)', () => {
@@ -22,6 +22,23 @@ describe('approachTint', () => {
     const mid = approachTint(0.5);
     expect(mid).not.toBe(PALETTE.system);
     expect(mid).not.toBe(PALETTE.danger);
+  });
+});
+
+describe('approachMix', () => {
+  it('runs cyan → neutral → red without ever dimming the glyph', () => {
+    expect(approachMix(0, 1)).toEqual({ hot: 0, base: 1 });
+    expect(approachMix(0.25, 1)).toEqual({ hot: 0.5, base: 1 });
+    expect(approachMix(0.5, 1)).toEqual({ hot: 1, base: 1 });
+    expect(approachMix(0.75, 1)).toEqual({ hot: 1, base: 0.5 });
+    expect(approachMix(1, 1)).toEqual({ hot: 1, base: 0 });
+    for (const p of [0, 0.1, 0.3, 0.5, 0.7, 0.9, 1]) {
+      const { hot, base } = approachMix(p, 1);
+      expect(1 - (1 - hot) * (1 - base)).toBeCloseTo(1, 10); // composite glyph opacity
+    }
+  });
+  it('is a no-op at tintAlpha 0', () => {
+    expect(approachMix(1, 0)).toEqual({ hot: 0, base: 1 });
   });
 });
 

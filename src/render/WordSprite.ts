@@ -7,7 +7,7 @@ import { cssHex, PALETTE } from '../design/palette';
 import { FONT_STACK } from '../design/typography';
 import { visualParams } from '../design/visualParams';
 import type { AirborneWord, GameMode } from '../engine/types';
-import { approachTint } from './approach';
+import { approachMix, approachTint } from './approach';
 import { HEIGHT as BRUSH_STROKE_HEIGHT, loadBrushTexture, type BrushStrokeOptions } from './brushStroke';
 import { reticleBrackets } from './reticle';
 import { lockFlickerAlpha, spawnFrame, type SpawnParams } from './spawnTween';
@@ -306,18 +306,24 @@ export class WordSprite {
   /** Second-pass spec §4.3 Approach: over the last fifth of the fall the halo
    *  warms from cyan toward vermillion. The halo is baked into the glyph
    *  texture, so rather than re-rasterizing every frame, a second copy with a
-   *  danger-coloured halo sits in front of the base copy and fades in. In
-   *  front, not behind: its glyph is the same ink over the same ink (no visible
-   *  change), and its red halo composites over the cyan one at alpha = progress
-   *  x tintAlpha, a weighted lerp of the halo colour wherever the halo has
-   *  coverage. Behind, the red only showed at the cyan halo's outer fringe.
-   *  Added directly after the base text, so the brackets, underline and recall
-   *  hint (added later) still draw over it. Built lazily on the first non-zero
-   *  progress; most words die before it exists. */
+   *  danger-coloured halo sits in front of the base copy and the two crossfade
+   *  in two phases (approachMix): first the red-halo copy fades in over the
+   *  cyan one (cyan to neutral), then the cyan copy fades out beneath it
+   *  (neutral to red). Over the base alone the red only ever reached neutral,
+   *  because the cyan halo stays underneath an overlay. Both copies carry the
+   *  same ink glyph and one of them is always at alpha 1, so the glyph never
+   *  dims. The chromatic-split ghosts sit behind both copies and are
+   *  untouched. Added directly after the base text, so the brackets,
+   *  underline and recall hint (added later) still draw over it. Built lazily
+   *  on the first non-zero mix; most words die before it exists. */
   setApproach(progress: number): void {
     if (this.approachTintAlpha === 0 || this.haloAlpha === 0) return;
-    if (progress <= 0) {
-      if (this.hotText !== null) this.hotText.alpha = 0;
+    const { hot, base } = approachMix(progress, this.approachTintAlpha);
+    if (hot === 0) {
+      if (this.hotText !== null) {
+        this.hotText.alpha = 0;
+        this.text.alpha = 1;
+      }
       return;
     }
     if (this.hotText === null) {
@@ -334,7 +340,8 @@ export class WordSprite {
       this.hotText.anchor.set(0.5);
       this.view.addChildAt(this.hotText, this.view.getChildIndex(this.text) + 1);
     }
-    this.hotText.alpha = progress * this.approachTintAlpha;
+    this.hotText.alpha = hot;
+    this.text.alpha = base;
   }
 
   /** Second-pass spec §4.3: bleed in from blur while the light flickers on.

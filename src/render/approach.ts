@@ -22,6 +22,16 @@ export function approachTint(progress: number): number {
   return mixColor(PALETTE.system, PALETTE.danger, progress);
 }
 
+/** Halo crossfade for the approach (spec §4.3): first half, the red-halo copy
+ *  fades in over the cyan one (cyan → neutral); second half, the cyan copy
+ *  fades out under it (neutral → red). One of the two is always at alpha 1,
+ *  so the glyph — identical ink in both copies — never dims. `tintAlpha` is
+ *  visualParams.approachTintAlpha; at 0 the base stays at 1 and the hot copy at 0. */
+export function approachMix(progress: number, tintAlpha: number): { hot: number; base: number } {
+  const p = Math.min(1, Math.max(0, progress)) * Math.min(1, Math.max(0, tintAlpha));
+  return { hot: Math.min(1, 2 * p), base: p <= 0.5 ? 1 : 1 - (2 * p - 1) };
+}
+
 export function swellScaleX(progress: number): number {
   return SWELL_SCALE_MIN + (1 - SWELL_SCALE_MIN) * Math.min(1, Math.max(0, progress));
 }
