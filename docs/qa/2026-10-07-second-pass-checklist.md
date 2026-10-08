@@ -92,11 +92,11 @@ amendment. Each fix is its own commit, with its covering tests re-run and
   clamp ends) and `GameScreen.scale.test.tsx` (1000px → 72px). All three
   changed assertions failed against the old ratio.
 - `213381f` fix: kill slash reads as a brush cut, not a hairline (F2).
-  `SLASH_THICKNESS_RATIO` 0.5 and `SLASH_MIN_THICKNESS_PX` 8, beside
-  `SLASH_STROKE_OPTIONS`. No unit test pins a Pixi sprite's size, so this was
-  confirmed in the browser: a 26px sprite with about 5px of ink at 52px
-  words (`judge-slash-crop.png`). `killFx.test.ts` and
-  `presenceInvariant.test.ts` were re-run.
+  Half a word-height, never under 8px. Covering: `killFx.test.ts`, added by
+  `eaa5160`, which also moved the height into the pure `slashHeightPx`
+  (52 → 26, 44 → 22, the 8px floor only below 16px). That test fails
+  against the old 0.12 / 4px values. Confirmed in the browser too: a 26px
+  sprite with about 5px of ink at 52px words (`judge-slash-crop.png`).
 - `92103fd` fix: wide brush frame matches its controls' aspect so strokes
   keep their weight (F3). `--brush-frame-wide` 200×40 → 100×40, and a plain
   button in a picker row centres instead of stretching. Covering:
@@ -109,7 +109,13 @@ amendment. Each fix is its own commit, with its covering tests re-run and
   and a new `TitleScreen.test.tsx` case (reduced → `data-drift="0"`, each
   ghost carries its `--rest-top`).
 - `d26065c` fix: the 降 ghost glyph sits off the light shaft (F6). 34% → 18%.
-  Covering: `Atmosphere.test.tsx`. The brightness ceiling was re-sampled (§2).
+  Covering: `Atmosphere.test.tsx` › "keeps 降 off the light shaft", added by
+  `c41464b`. It requires the glyph's right edge (left + 12%, one em of the
+  12vw font) to clear the shaft's left edge at 36%, and it fails at the old
+  34%. The brightness ceiling was re-sampled (§2).
+
+The two covering tests (`eaa5160`, `c41464b`) were added after review: the
+F2 and F6 commits had landed without an assertion that a revert would break.
 
 F4 (the sign's height) is a spec amendment only, landed with this
 checklist. F7 and F8 are deferred: both pre-date this pass.
@@ -155,18 +161,18 @@ Status column says what became of each.
 
 ## 8. `npm run check` / e2e
 
-At the final tree, after the five fixes:
+At the final tree, after the five fixes and the two covering tests:
 
 ```
 $ npm run check
 tsc -b && oxlint && vitest run --passWithNoTests
  Test Files  75 passed (75)
-      Tests  526 passed (526)
+      Tests  529 passed (529)
 
 $ npx playwright test -c playwright.edge.tmp.config.ts   # repo config + use.channel 'msedge'; temporary, deleted
 Running 3 tests using 2 workers
   ok 2 e2e\game.spec.ts:106:1 › reading mode: intro → dismiss → type reading → kill scores (17.1s)
-  ok 1 e2e\import.spec.ts:101:1 › import a list and play it: ceremony, kill, persistence (17.1s)
+  ok 1 e2e\import.spec.ts:101:1 › import a list and play it: ceremony, kill, persistence (17.2s)
   ok 3 e2e\game.spec.ts:158:1 › recall mode: gloss prompt still killed by typing the reading (2.3s)
   3 passed (21.6s)
 ```
