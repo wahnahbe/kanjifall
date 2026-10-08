@@ -84,8 +84,8 @@ Shipped words are a fixed 40px regardless of window size, which is exactly the f
 One pure function in `src/design/scale.ts`:
 
 ```
-playScale(stageHeightPx) → { wordPx, floorPx, hudScale }
-  wordPx   = clamp(44, round(stageHeightPx × 0.065), 72)   // 52 at 800 tall
+playScale(playfieldHeightPx) → { wordPx, floorPx, hudScale }
+  wordPx   = clamp(44, round(playfieldHeightPx × 0.0756), 72)   // 0.065 of the window; 52 at 800 tall
   floorPx  = round(brushStroke.HEIGHT × wordPx / 40)       // 34 at 52
   hudScale = 1.15
 ```
@@ -201,7 +201,7 @@ The wave number is state: at `off` the header simply appears in its slot. At `re
 Structure, top to bottom:
 - The hazard stripe.
 - The atmosphere (§3.1) in its title scene: the three ghost glyphs plus **six ghost words falling** in the outer lanes, at 6%, 13%, 21%, 79%, 85% and 94% of the width, so none can ever pass behind the sign or the controls. Each is `--font-word` at the play word size, `--color-ink` at 16% alpha, `filter: blur(0.5px)`, falling over 14–19s on staggered offsets, and dissolving into a gradient band just above the floor. They are a fixed ambient list (雨 勉強 光 図書館 女 犬), never the live deck. Six is the ceiling; four is the next stop down if it reads as busy.
-- **The sign**, centred at 37% of the height: a brush-edged frame (§3.2) with four reticle corners reused from `reticleBrackets`' geometry, containing "KanjiFall" in `--font-display` at `--text-3xl × 1.3`, the cyan brush stroke at the sign's full width, and 漢字落 in `--font-display` at `--text-lg` with 0.42em tracking. On mount at full the sign **flickers on** like a tube over 520ms (a stepped brightness keyframe of three steps — 0.1, 2, 0.4, 1 — starting after the screen transition has settled, so it never stacks with the transition's own flicker; §7.7). Reduced: bleeds in. Off: appears.
+- **The sign**, centred with its copy in the stage above the band, landing at about a third of the height: a brush-edged frame (§3.2) with four reticle corners reused from `reticleBrackets`' geometry, containing "KanjiFall" in `--font-display` at `--text-3xl × 1.3`, the cyan brush stroke at the sign's full width, and 漢字落 in `--font-display` at `--text-lg` with 0.42em tracking. On mount at full the sign **flickers on** like a tube over 520ms (a stepped brightness keyframe of three steps — 0.1, 2, 0.4, 1 — starting after the screen transition has settled, so it never stacks with the transition's own flicker; §7.7). Reduced: bleeds in. Off: appears.
 - Tagline and the keyboard hint, as today, bleeding in after the sign on `--duration-bleed` with an 80ms stagger.
 - **The floor stroke raised to a horizon** at 30% from the bottom, with the deadline beneath it and the underglow filling the machine band.
 - The machine band holds the three controls in a row: Start (primary, solid tab with the torn edge), Stats, Settings (brush-edged). They bleed in last.
@@ -222,7 +222,7 @@ No new settings. Everything maps onto `effects: 'full' | 'reduced' | 'off'` and 
 |---|---|---|---|---|
 | Atmosphere washes, shaft, vignette, sumi | decoration | On | Half opacity | Off |
 | Ghost glyphs (game) | decoration | Drift | Static, half | Off |
-| Ghost words falling (title, chooser) | decoration | Fall | Half opacity | Off |
+| Ghost words falling (title, chooser) | decoration | Fall | Static, half opacity | Off |
 | Brush-edged chrome | structure | Glow | Flat | Flat |
 | Spawn bleed / halo flicker | decoration | Both | Alpha only | Appear |
 | Lock reticle + underline | state | Snap + flicker | Snap | Snap |
