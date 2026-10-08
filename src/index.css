@@ -31,16 +31,25 @@ button::before, .hud-value::before, .hud-buffer::before, .picker::before {
 button:hover::before { background-color: var(--color-system); }
 button:disabled::before, button:disabled:hover::before { background-color: var(--color-line-soft); }
 /* The primary action is a solid tab, not a frame: a torn trailing edge instead.
-   (.hud-tab gets the same torn edge on a pseudo-element, below, so its glow
-   can survive the clip.) */
-button.primary::before { display: none; }
-button.primary {
+   The solid shape (and its torn clip-path) lives on the ::before, not on the
+   button: a clip-path on the button itself would also clip its :focus-visible
+   outline, which sits entirely outside the border box. (.hud-tab does the
+   same, so its glow survives too.) The state colours below recolour this
+   pseudo-element; the button's own background and border stay transparent,
+   because an unclipped straight border would draw over the torn edge. The
+   inset -1px makes the shape cover the border box, as the fill used to. */
+button.primary::before {
+  inset: -1px; z-index: -1; background: var(--color-system);
+  -webkit-mask: none; mask: none;
   clip-path: polygon(0 0, 100% 0, 97% 30%, 100% 55%, 96% 80%, 100% 100%, 0 100%);
+}
+button.primary {
+  z-index: 0; background: transparent;
   padding-right: calc(var(--space-5) + 4px);
 }
 button:focus-visible { outline: 2px solid var(--color-system); outline-offset: 2px; }
-button.primary { background: var(--color-system); color: var(--color-ground-deep); border-color: var(--color-system); font-weight: 700; }
-button.primary:hover { background: var(--color-ink); border-color: var(--color-ink); }
+button.primary { color: var(--color-ground-deep); font-weight: 700; }
+button.primary:hover::before { background: var(--color-ink); }
 /* Disabled reads as unavailable via token swaps, not opacity — an opacity
    blanket on .primary's dark-on-cyan text would drag its contrast the wrong
    way. Declared after :hover so it wins when a disabled control is also
@@ -53,8 +62,9 @@ button:disabled, button:disabled:hover {
   color: var(--color-ink-dim); background: var(--color-ground-lift);
 }
 button.primary:disabled, button.primary:disabled:hover {
-  color: var(--color-ink-dim); background: var(--color-line-soft); border-color: var(--color-line);
+  color: var(--color-ink-dim); background: transparent;
 }
+button.primary:disabled::before, button.primary:disabled:hover::before { background: var(--color-line-soft); }
 /* Text inputs and the import textarea (ImportScreen is the only screen with
    free-text entry) — not named in the brief's shared-shell block, but left
    at browser defaults they render as stark white boxes that break the calm
