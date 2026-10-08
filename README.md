@@ -33,6 +33,10 @@ an example sentence, and you type it once before it ever falls:
   it with the same ceremony + review treatment.
 - **Local-first analytics** — everything lives in one SQLite file on your
   machine; nothing leaves it.
+- **Brushed ink lit as neon** — a sumi atmosphere behind the playfield,
+  brush-edged chrome, and a motion grammar where forms move like ink and
+  light moves like neon. Everything decorative scales with the effects
+  setting; everything that carries game state renders at every level.
 
 ## Run it locally
 

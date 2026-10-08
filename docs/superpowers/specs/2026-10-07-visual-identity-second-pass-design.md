@@ -1,7 +1,7 @@
 # Visual Identity, Second Pass — Design Spec
 
 **Date:** 2026-10-07
-**Status:** Approved pending final user review
+**Status:** Implemented — see docs/superpowers/plans/2026-10-07-visual-identity-second-pass.md
 **Scope:** Atmosphere and ink material on the playfield, a motion language for every moment of play, screen transitions, a wave-start beat, and a title showpiece. Presentation only. No engine, data, or server changes.
 **Builds on:** `2026-08-15-visual-identity-design.md`. This spec inherits its token layer (§3), its effects/settings contract (§7), and its legibility rules (§9) without restating them. Where it amends that spec it says so explicitly. It also inherits the juice pass's load-bearing boundary: the Pixi layer, the React HUD, and audio are passive consumers of engine events.
 **Comps:** the approved mockups live in `.superpowers/brainstorm/1820-1791402381/content/` (gitignored, local to the machine the brainstorm ran on): `backdrop.html`, `chrome.html`, `scale.html`, `motion-v2.html`, `transitions.html`, `title-v2.html`. The spec is the source of truth; the comps show intent.
@@ -119,7 +119,7 @@ The band is the machine: the buffer and, on the title and chooser, the controls 
 
 **Ink is the body, neon is the light.** Forms move like ink: they bleed in from blur, splatter, drip, drain. Light moves like neon: it flickers on, flares, pulses once. Every moment below is built from those two vocabularies and nothing else. A new moment added later must be describable in them.
 
-Two constraints hold everywhere. Nothing decorative may flash more than three times per event or last longer than 300ms per flicker, and every flicker is gone at `effects: 'reduced'`, which `prefers-reduced-motion` already selects by default. Anything that conveys state keeps its first-spec behaviour at every level.
+Two constraints hold everywhere. Nothing decorative may flash more than three times per event or last longer than 300ms per step, and every flicker is gone at `effects: 'reduced'`, which `prefers-reduced-motion` already selects by default. Anything that conveys state keeps its first-spec behaviour at every level.
 
 ### 4.2 Motion tokens
 
