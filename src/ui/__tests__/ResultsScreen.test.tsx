@@ -135,7 +135,7 @@ describe('tier celebration (juice-pass spec §6)', () => {
     expect(sfx.tierFanfare).toHaveBeenCalledTimes(1);
   });
 
-  it('leaving the results screen does not replay the fanfare from the draining copy', () => {
+  it('leaving the results screen does not replay the fanfare while it drains', () => {
     const { rerender } = render(
       <ScreenTransition screenKey="x">
         <ResultsScreen snapshot={snap({ status: 'gameOver' })} tierAdvance="N5 tier 2"
@@ -144,7 +144,7 @@ describe('tier celebration (juice-pass spec §6)', () => {
     );
     expect(sfx.tierFanfare).toHaveBeenCalledTimes(1);
     rerender(<ScreenTransition screenKey="y"><p>Title</p></ScreenTransition>);
-    // The draining copy of the results screen really is mounted (and still shows the banner)...
+    // The results screen is still on stage, draining (the same instance, not a fresh mount)...
     expect(within(screen.getByTestId('screen-out')).getByTestId('results')).toBeInTheDocument();
     // ...but it must not have played the fanfare a second time.
     expect(sfx.tierFanfare).toHaveBeenCalledTimes(1);

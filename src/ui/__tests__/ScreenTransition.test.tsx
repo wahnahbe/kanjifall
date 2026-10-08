@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetSettingsCache, updateSettings } from '../../data/settings';
 import { MOTION } from '../../design/motion';
-import { ScreenTransition, useIsOutgoingLayer } from '../ScreenTransition';
+import { ScreenTransition } from '../ScreenTransition';
 
 describe('ScreenTransition (second-pass spec §4.4)', () => {
   beforeEach(() => { vi.useFakeTimers(); localStorage.clear(); resetSettingsCache(); });
@@ -48,12 +49,37 @@ describe('ScreenTransition (second-pass spec §4.4)', () => {
     expect(screen.queryByTestId('screen-out')).toBeNull();
   });
 
-  it('marks the draining copy as outgoing so screens can skip mount side effects', () => {
-    function Probe() { return <p data-testid="probe">{useIsOutgoingLayer() ? 'outgoing' : 'live'}</p>; }
-    const { rerender } = render(<ScreenTransition screenKey="a"><Probe /></ScreenTransition>);
-    expect(screen.getByTestId('probe')).toHaveTextContent('live');
+  it('keeps the draining screen instance mounted: its state survives the change, nothing remounts', () => {
+    function Counter() {
+      const [n, setN] = useState(0);
+      return <button data-testid="counter" onClick={() => setN((v) => v + 1)}>{n}</button>;
+    }
+    const { rerender } = render(<ScreenTransition screenKey="a"><Counter /></ScreenTransition>);
+    fireEvent.click(screen.getByTestId('counter'));
+    fireEvent.click(screen.getByTestId('counter'));
     rerender(<ScreenTransition screenKey="b"><p>B</p></ScreenTransition>);
-    expect(screen.getByTestId('screen-out').textContent).toContain('outgoing');
+    // A remounted copy would start again at 0.
+    expect(within(screen.getByTestId('screen-out')).getByTestId('counter')).toHaveTextContent('2');
+  });
+
+  it('coming back to a screen that is still draining mounts it fresh, with no key collision', () => {
+    // A screen reads its initial props at mount (Setup's preselected list), so
+    // a return trip inside the window must not revive the old instance's state.
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    function Counter() {
+      const [n, setN] = useState(0);
+      return <button data-testid="counter" onClick={() => setN((v) => v + 1)}>{n}</button>;
+    }
+    const { rerender } = render(<ScreenTransition screenKey="a"><Counter /></ScreenTransition>);
+    fireEvent.click(screen.getByTestId('counter'));
+    rerender(<ScreenTransition screenKey="b"><p>B</p></ScreenTransition>);
+    act(() => vi.advanceTimersByTime(100));
+    rerender(<ScreenTransition screenKey="a"><Counter /></ScreenTransition>);
+    expect(within(screen.getByTestId('screen-in')).getByTestId('counter')).toHaveTextContent('0');
+    expect(screen.getAllByTestId('screen-out')).toHaveLength(1);
+    expect(screen.getByTestId('screen-out')).toHaveTextContent('B');
+    expect(errors).not.toHaveBeenCalled(); // React's duplicate-key warning goes through console.error
+    errors.mockRestore();
   });
 
   it('is never a cut: at effects off it is a 120ms crossfade with no blur', () => {

@@ -166,8 +166,8 @@ describe('SetupScreen tier-preview fetch carries the selected mode (final-review
   });
 });
 
-describe('SetupScreen inside the draining transition layer', () => {
-  it('does not refetch tiers or lists when its outgoing copy mounts', async () => {
+describe('SetupScreen draining out through the screen transition', () => {
+  it('does not refetch tiers or lists while it drains', async () => {
     const fetchMock = stubPlanFetch({
       n5: [{ level: 5, index: 1, totalTiers: 64, size: 10, solid: 0, amnestied: 0, unreachable: 0 }],
     });
@@ -181,7 +181,7 @@ describe('SetupScreen inside the draining transition layer', () => {
     const callsWhileLive = fetchMock.mock.calls.length; // the plan and the lists, once each
 
     rerender(<ScreenTransition screenKey="title"><p>Title</p></ScreenTransition>);
-    // The draining copy of Setup really is mounted...
+    // Setup is still on stage, draining (the same instance, not a fresh mount)...
     expect(within(screen.getByTestId('screen-out')).getByTestId('setup')).toBeInTheDocument();
     await act(async () => {});
     // ...but its mount did not go back to the network.
