@@ -10,11 +10,13 @@ interface WaveStartProps {
 }
 
 /** Second-pass spec §4.5: 第N波 bleeds in large at the centre while a band of
- *  light rises from the floor, then drains as the HUD label bleeds in. Owns
- *  the last --duration-beat of the waveIntro pause, after any ceremony
- *  (ordering amendment, plan Task 11). The number itself is state: at
- *  `waveBeat === 'slot'` nothing renders here and the HUD label simply
- *  appears, because onDone fires immediately. */
+ *  light rises from the floor, then the header drains. The HUD wave label
+ *  stays hidden for the whole intro and bleeds in once play resumes (a
+ *  ~40ms gap after the drain, imperceptible). Owns the last --duration-beat
+ *  of the waveIntro pause, after any ceremony (ordering amendment, plan
+ *  Task 11). The number itself is state: at `waveBeat === 'slot'` nothing
+ *  renders here and the HUD label simply appears, because onDone fires
+ *  immediately. */
 export function WaveStart({ wave, onDone }: WaveStartProps) {
   const { waveBeat } = visualParams(useSettings().effects);
   const doneRef = useRef(false);

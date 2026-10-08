@@ -11,14 +11,19 @@ const base: EngineSnapshot = {
   kills: 0, wrongSubmits: 0, bufferKana: '', bufferRomaji: '', lockedIds: [], missed: [], timeMs: 0,
 };
 const neko: Card = { id: 'neko', kanji: '猫', kana: ['ねこ'], gloss: 'cat', pos: 'n', jlpt: 5, source: 'jlpt' };
+const inu: Card = { id: 'inu', kanji: '犬', kana: ['いぬ'], gloss: 'dog', pos: 'n', jlpt: 5, source: 'jlpt' };
 
-function renderIntro(introCards: Card[], onIntroComplete: () => void, snapshot = base) {
-  return render(
+function introScreen(introCards: Card[], onIntroComplete: () => void, snapshot = base) {
+  return (
     <GameScreen
       snapshot={snapshot} hostRef={{ current: null }} introCards={introCards} planNotice={null} tierAdvance={null}
       onIntroduced={() => {}} onIntroComplete={onIntroComplete} onRevenge={() => {}} onPlayAgain={() => {}} onTitle={() => {}}
-    />,
+    />
   );
+}
+
+function renderIntro(introCards: Card[], onIntroComplete: () => void, snapshot = base) {
+  return render(introScreen(introCards, onIntroComplete, snapshot));
 }
 
 describe('GameScreen: ceremony, then the beat, then resume (second-pass spec §4.5 as amended)', () => {
@@ -48,6 +53,31 @@ describe('GameScreen: ceremony, then the beat, then resume (second-pass spec §4
     expect(resume).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(MOTION.beatMs));
     expect(resume).toHaveBeenCalledTimes(1);
+  });
+
+  it('resets to the ceremony for the next pause: wave 3 gets its own ceremony and its own beat', () => {
+    const resume = vi.fn();
+    const { rerender } = renderIntro([neko], resume);
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    act(() => vi.advanceTimersByTime(MOTION.beatMs));
+    expect(resume).toHaveBeenCalledTimes(1);
+
+    // The engine resumed: play, then the next wave pauses again.
+    rerender(introScreen([neko], resume, { ...base, status: 'playing' }));
+    rerender(introScreen([inu], resume, { ...base, status: 'waveIntro', wave: 3 }));
+    expect(screen.getByTestId('ceremony')).toBeInTheDocument();
+    expect(screen.queryByTestId('wave-start')).toBeNull();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(screen.queryByTestId('ceremony')).toBeNull();
+    expect(screen.getByTestId('wave-start')).toHaveTextContent('第3波');
+    expect(resume).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(MOTION.beatMs));
+    expect(resume).toHaveBeenCalledTimes(2);
   });
 
   it('hides the HUD wave label during the intro and shows it while playing', () => {
