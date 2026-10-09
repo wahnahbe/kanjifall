@@ -212,7 +212,7 @@ The setup screen inherits the title's structure: hazard stripe, atmosphere with 
 
 ### 5.3 The wordmark and the favicon
 
-漢字落 is the identity's Japanese wordmark and appears only on the title sign and in the README. `public/favicon.svg` becomes 落 in the display face, as a committed SVG path (generated once by `scripts/build-favicon.mjs` from the Fontsource WOFF with opentype.js; deterministic, re-run only if the face changes), filled `--color-ink` with a `--color-system` edge, on `--color-ground`. The first spec's deferred wordmark question is closed by this.
+漢字落 is the identity's Japanese wordmark and appears only on the title sign and in the README. `public/favicon.svg` becomes 落 in the display face, as a committed SVG path (generated once by `scripts/build-favicon.ts` (run with `npm run build:favicon`) from the Fontsource WOFF with opentype.js; deterministic, re-run only if the face changes), filled `--color-ink` with a `--color-system` edge, on `--color-ground`. The first spec's deferred wordmark question is closed by this.
 
 ## 6. Effects and settings contract
 
@@ -257,7 +257,7 @@ Six phases, each leaving the game shippable:
 5. **First impression.** Title, chooser, favicon script and asset.
 6. **Effects and a11y pass.** Every row of §6 at every level × `crt`, the `prefers-reduced-motion` pass, the §9 stroke-detail screenshot at the new word size with the atmosphere on, and the README screenshots refreshed.
 
-Files touched: `src/ui/tokens.css`, `src/design/{motion,scale,visualParams}.ts` and their tests, `src/render/{PixiStage,WordSprite,Particles,particleSim,brushStroke}.ts`, new `src/render/approach.ts`, `src/ui/hud/Hud.tsx`, `src/ui/screens/{GameScreen,TitleScreen,SetupScreen}.tsx`, new `src/ui/{Atmosphere,ScreenTransition,WaveStart}.tsx`, `src/App.tsx`, `src/index.css`, `public/favicon.svg`, new `scripts/build-favicon.mjs`, `README.md` screenshots.
+Files touched: `src/ui/tokens.css`, `src/design/{motion,scale,visualParams}.ts` and their tests, `src/render/{PixiStage,WordSprite,Particles,particleSim,brushStroke}.ts`, new `src/render/approach.ts`, `src/ui/hud/Hud.tsx`, `src/ui/screens/{GameScreen,TitleScreen,SetupScreen}.tsx`, new `src/ui/{Atmosphere,ScreenTransition,WaveStart}.tsx`, `src/App.tsx`, `src/index.css`, `public/favicon.svg`, new `scripts/build-favicon.ts`, `README.md` screenshots.
 
 ## 9. Testing
 
