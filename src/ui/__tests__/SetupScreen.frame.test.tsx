@@ -78,6 +78,18 @@ describe('SetupScreen frame (second-pass spec §5.2)', () => {
     }
   });
 
+  it('re-times the chooser hints and band buttons with a compound selector that outranks the title rules by specificity', () => {
+    const css = readFileSync(join(process.cwd(), 'src/index.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const delayRules = [...css.matchAll(/([^{}]*\.setup-screen[^{}]*)\{[^}]*animation-delay[^}]*\}/g)];
+    const retimed = delayRules
+      .map((rule) => rule[1].trim())
+      .filter((selector) => /\.hint(?![\w-])|\.title-band > button/.test(selector));
+    expect(retimed).toHaveLength(3);
+    // Same specificity as `.title-screen[data-flicker='1'] .hint` would tie and
+    // lean on source order; the extra class makes the win independent of it.
+    for (const selector of retimed) expect(selector).toMatch(/^\.title-screen\.setup-screen\[data-flicker='1'\]/);
+  });
+
   it('keeps the decorative floor stroke out of hit-testing so the scrolling stage gets every click and wheel', () => {
     const css = readFileSync(join(process.cwd(), 'src/index.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     const rule = /(?:^|\})\s*\.title-floor\s*\{([^}]*)\}/m.exec(css);
