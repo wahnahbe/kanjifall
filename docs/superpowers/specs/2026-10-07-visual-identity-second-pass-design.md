@@ -168,7 +168,7 @@ Reduced: splash halved (existing), glow at half alpha, no flicker, no shake (exi
 
 ### 4.4 Screen transitions
 
-Screens change by hard cut today (`App.tsx` renders one screen per `useState` value). This spec adds one `ScreenTransition` wrapper around that switch, and the same transition is used in every direction: title ⇄ chooser, chooser → game, game → results, results → title, title ⇄ stats/settings, chooser ⇄ import, and the server-error screen.
+Screens change by hard cut today (`App.tsx` renders one screen per `useState` value). This spec adds one `ScreenTransition` wrapper around that switch, and the same transition is used in every direction: title ⇄ chooser, chooser → game, game → title, title ⇄ stats/settings, chooser ⇄ import. Results and the chooser's load error are states inside the game and chooser screens (`App.tsx` has no screen value for either), not screen switches, so they do not transition; the results screen's Title button is the game → title switch.
 
 Behaviour over `--duration-transition`:
 - The outgoing screen stays mounted in an absolutely positioned layer with `pointer-events: none` and `inert`, and drains: `filter: blur(0 → 12px)`, opacity 1 → 0, `--ease-drain`.
