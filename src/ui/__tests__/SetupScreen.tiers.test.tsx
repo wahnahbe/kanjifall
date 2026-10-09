@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SetupScreen } from '../screens/SetupScreen';
+import { ScreenTransition } from '../ScreenTransition';
 
 const noop = () => {};
 
@@ -162,5 +163,28 @@ describe('SetupScreen tier-preview fetch carries the selected mode (final-review
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('mode=recall')),
     );
+  });
+});
+
+describe('SetupScreen draining out through the screen transition', () => {
+  it('does not refetch tiers or lists while it drains', async () => {
+    const fetchMock = stubPlanFetch({
+      n5: [{ level: 5, index: 1, totalTiers: 64, size: 10, solid: 0, amnestied: 0, unreachable: 0 }],
+    });
+    const { rerender } = render(
+      <ScreenTransition screenKey="setup">
+        <SetupScreen loading={false} error={null} onBegin={noop} onBack={noop}
+          onImport={noop} initialListSelection={null} />
+      </ScreenTransition>,
+    );
+    await waitFor(() => expect(screen.getByTestId('tier-progress')).toBeInTheDocument());
+    const callsWhileLive = fetchMock.mock.calls.length; // the plan and the lists, once each
+
+    rerender(<ScreenTransition screenKey="title"><p>Title</p></ScreenTransition>);
+    // Setup is still on stage, draining (the same instance, not a fresh mount)...
+    expect(within(screen.getByTestId('screen-out')).getByTestId('setup')).toBeInTheDocument();
+    await act(async () => {});
+    // ...but its mount did not go back to the network.
+    expect(fetchMock).toHaveBeenCalledTimes(callsWhileLive);
   });
 });

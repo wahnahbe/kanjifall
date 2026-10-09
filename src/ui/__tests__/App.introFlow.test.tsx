@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { MOTION } from '../../design/motion';
 import type { Card, EngineSnapshot } from '../../engine/types';
 
 const start = vi.fn();
@@ -52,9 +53,9 @@ describe('App plan wiring', () => {
     const { rerender } = render(<App />);
 
     // Nothing to introduce: the real AcquisitionCeremony (not mocked) never
-    // renders for an empty card list, and its onComplete (wired to resume)
-    // fires immediately — proving App's wiring doesn't get stuck behind an
-    // empty ceremony when the plan is unavailable.
+    // renders for an empty card list, and its onComplete hands the pause to
+    // the wave-start beat, which then calls resume — proving App's wiring
+    // doesn't get stuck behind an empty ceremony when the plan is unavailable.
     expect(screen.queryByTestId('ceremony')).toBeNull();
     // Awaited, not a bare expect: setPlanNotice and setScreen batch into one
     // commit, so the notice above lands together with the ceremony's mount —
@@ -63,7 +64,9 @@ describe('App plan wiring', () => {
     // setTimeout(0). Node's timers phase beats its check phase whenever ~1ms
     // of jitter intervenes, so a bare expect read resume one task too early
     // and failed ~1 run in 12.
-    await waitFor(() => expect(resume).toHaveBeenCalled());
+    // The beat (second-pass spec §4.5, real timers here) owns the end of the
+    // pause, so resume lands one --duration-beat after the empty ceremony.
+    await waitFor(() => expect(resume).toHaveBeenCalled(), { timeout: MOTION.beatMs + 2000 });
 
     // GameScreen gates plan-notice on status === 'playing' (it must not sit
     // under the ceremony/results overlays — see GameScreen.planNotice.test.tsx

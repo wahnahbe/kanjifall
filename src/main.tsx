@@ -13,7 +13,10 @@ import '@fontsource/chakra-petch/latin-700.css'
 import '@fontsource/ibm-plex-mono/latin-400.css'
 import '@fontsource/ibm-plex-mono/latin-600.css'
 import './index.css'
+import { installBrushChrome } from './ui/brushChrome'
 import App from './App.tsx'
+
+installBrushChrome(document.documentElement)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

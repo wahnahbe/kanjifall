@@ -27,6 +27,11 @@ export function cssHex(n: number): string {
   return `#${n.toString(16).padStart(6, '0')}`;
 }
 
+/** `rgba(r, g, b, a)` for canvas gradients that need alpha stops. */
+export function cssRgba(n: number, alpha: number): string {
+  return `rgba(${(n >> 16) & 0xff}, ${(n >> 8) & 0xff}, ${n & 0xff}, ${alpha})`;
+}
+
 /** Recharts and other string-colour APIs need a CSS colour, not a number.
  *  Reads the live custom property so tokens.css stays the source of truth.
  *  Guarded for non-browser test environments: under Node (this repo's

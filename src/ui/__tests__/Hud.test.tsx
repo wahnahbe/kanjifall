@@ -61,4 +61,42 @@ describe('Hud', () => {
       expect(screen.getByTestId('score').closest('.hud')?.className.includes('hud-glow')).toBe(effects === 'full');
     });
   });
+
+  // Second-pass spec §4.5 / §6: the HUD wave label is the slot the beat hands
+  // over to. It bleeds in (opacity transition) at full and reduced, but at
+  // off the header simply appears in its slot — no transition class at all.
+  describe('wave label bleed-in (second-pass spec §4.5)', () => {
+    beforeEach(() => {
+      localStorage.clear();
+      resetSettingsCache();
+    });
+    afterEach(() => {
+      localStorage.clear();
+      resetSettingsCache();
+    });
+
+    it.each([['full', true], ['reduced', true], ['off', false]] as const)(
+      'effects=%s: transition class present = %s, hidden flag honoured',
+      (effects, bleeds) => {
+        updateSettings({ effects });
+        const { rerender } = render(<Hud snapshot={snapshot} waveLabelHidden />);
+        const label = (): Element | null => screen.getByTestId('wave').closest('.hud-wave');
+        expect(label()?.className.includes('hud-wave-bleed')).toBe(bleeds);
+        expect(label()?.className).toContain('hud-wave-hidden');
+        rerender(<Hud snapshot={snapshot} />);
+        expect(label()?.className).not.toContain('hud-wave-hidden');
+      },
+    );
+  });
+
+  // Second-pass spec §3.4: the buffer lives in the machine band below the
+  // kill line, never inside the playfield where a centre-lane word falls
+  // straight through it.
+  it('renders the kana buffer inside the machine band, the last child of the HUD', () => {
+    render(<Hud snapshot={snapshot} />);
+    const band = screen.getByTestId('kana-buffer').closest('.hud-band');
+    expect(band).not.toBeNull();
+    expect(band?.parentElement?.className).toContain('hud');
+    expect(band?.parentElement?.lastElementChild).toBe(band);
+  });
 });

@@ -2,6 +2,14 @@
 // repo's immutability norm; the pool never escapes the render layer.
 import type { Settings } from '../data/settings';
 
+export type ParticleShape = 'dot' | 'droplet';
+
+export interface BurstOptions {
+  shape?: ParticleShape;
+  /** Px/s of extra upward launch speed; defaults to the standard kill bias. */
+  upwardBias?: number;
+}
+
 export interface SimParticle {
   x: number;
   y: number;
@@ -11,6 +19,9 @@ export interface SimParticle {
   lifeMs: number;
   color: number;
   size: number;
+  shape: ParticleShape;
+  /** In [0, 1): fixes a droplet's irregular outline for its whole life. */
+  seed: number;
 }
 
 export const PARTICLE_CAP = 200;
@@ -45,7 +56,9 @@ export function spawnBurst(
   color: number,
   count: number,
   rng: () => number,
+  options: BurstOptions = {},
 ): void {
+  const upwardBias = options.upwardBias ?? UPWARD_BIAS;
   for (let i = 0; i < count; i += 1) {
     if (pool.length >= PARTICLE_CAP) pool.shift();
     const angle = rng() * Math.PI * 2;
@@ -54,11 +67,14 @@ export function spawnBurst(
       x,
       y,
       vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed - UPWARD_BIAS,
+      vy: Math.sin(angle) * speed - upwardBias,
       ageMs: 0,
       lifeMs: LIFE_MIN_MS + rng() * LIFE_RANGE_MS,
       color,
       size: SIZE_MIN + rng() * SIZE_RANGE,
+      // Drawn after `size` so every earlier field's rng sequence is unchanged.
+      shape: options.shape ?? 'dot',
+      seed: rng(),
     });
   }
 }

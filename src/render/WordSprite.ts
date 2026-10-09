@@ -1,27 +1,34 @@
-import { Container, Graphics, Sprite, Text, TextStyle } from 'pixi.js';
+import { BlurFilter, Container, Graphics, Sprite, Text, TextStyle } from 'pixi.js';
 import type { Filter, Texture } from 'pixi.js';
 import { GlowFilter } from 'pixi-filters';
 import { getSettings } from '../data/settings';
+import { MOTION } from '../design/motion';
 import { cssHex, PALETTE } from '../design/palette';
 import { FONT_STACK } from '../design/typography';
 import { visualParams } from '../design/visualParams';
 import type { AirborneWord, GameMode } from '../engine/types';
+import { approachMix, approachTint } from './approach';
 import { HEIGHT as BRUSH_STROKE_HEIGHT, loadBrushTexture, type BrushStrokeOptions } from './brushStroke';
 import { reticleBrackets } from './reticle';
+import { lockFlickerAlpha, spawnFrame, type SpawnParams } from './spawnTween';
 
 const BASE_STYLE: Partial<TextStyle> = {
   fontFamily: FONT_STACK,
-  fontSize: 40,
   fill: PALETTE.ink,
 };
 
 const HINT_STYLE: Partial<TextStyle> = {
   fontFamily: FONT_STACK,
-  fontSize: 26,
   fill: PALETTE.inkDim,
 };
+// Recall hint renders at this fraction of the word size (was a fixed 26 at 40).
+const HINT_SIZE_RATIO = 0.65;
 
 const HINT_FADE_MS = 300;
+// The lock flicker (snap 0.9, dip 0.2, settle 1 — spec §4.3) spans two snap
+// steps; past that lockFlickerAlpha() is a flat 1 and the per-frame loop has
+// nothing left to write.
+const MOTION_LOCK_SETTLE_MS = MOTION.snapMs * 2;
 // Was a flat 34px offset, independent of the falling word's own measured
 // height — Task 7 flagged (but never tested) that this could crowd the
 // target underline in recall mode; Task 11's browser walk confirmed it does
@@ -116,6 +123,9 @@ function underlineTexture(): Promise<Texture> {
 
 export class WordSprite {
   readonly view: Container;
+  /** The font size this word was built at (second-pass spec §3.3). Fixed for
+   *  the sprite's lifetime, like its effects treatment. */
+  readonly wordPx: number;
   private readonly text: Text;
   private hintText: Text | null = null;
   private locked = false;
@@ -127,15 +137,41 @@ export class WordSprite {
   // than reactive (see task-7-report.md's "ruled not to fix" — no in-flight
   // settings-change path exists during play).
   private readonly glowAlpha: number;
+  // Same fixed-for-life posture: the lock flicker follows the effects level
+  // the word was built under (spec §7.7 — flicker is a single event, gone
+  // whenever it is 0).
+  private readonly flicker: 0 | 1;
+  // Same again for the approach warm-up (second-pass spec §4.3): the halo
+  // strength and the tint strength this word was built under. The danger-halo
+  // copy is built lazily by setApproach(), so it needs the label, the
+  // resolution and the halo alpha to rebuild the same glyph later.
+  private readonly approachTintAlpha: number;
+  private readonly haloAlpha: number;
+  private hotText: Text | null = null;
+  private readonly display: string;
+  private readonly resolution: number;
+  // Non-null from beginSpawn() until the bleed completes (or the sprite is
+  // destroyed). `filter` is the short-lived BlurFilter, null when the blur is
+  // skipped (alpha-only levels, or past PixiStage's concurrency cap).
+  private spawn: { ageMs: number; params: SpawnParams; filter: BlurFilter | null } | null = null;
+  // Infinity = not locked (or already settled), so the per-frame lock branch
+  // in update() short-circuits on its `< MOTION_LOCK_SETTLE_MS` test.
+  private lockAgeMs = Number.POSITIVE_INFINITY;
 
-  constructor(word: AirborneWord, mode: GameMode) {
+  constructor(word: AirborneWord, mode: GameMode, wordPx: number) {
     const display = mode === 'recall'
       ? word.card.gloss
       : word.card.kanji ?? word.card.kana[0];
     const resolution = Math.min(Math.max(window.devicePixelRatio, 1) * 2, 4);
-    const { chromaticSplitPx, haloAlpha, glowAlpha } = visualParams(getSettings().effects);
+    const { chromaticSplitPx, haloAlpha, glowAlpha, flicker, approachTintAlpha } = visualParams(getSettings().effects);
     this.glowAlpha = glowAlpha;
-    const fontSize = BASE_STYLE.fontSize ?? 0;
+    this.flicker = flicker;
+    this.approachTintAlpha = approachTintAlpha;
+    this.haloAlpha = haloAlpha;
+    this.display = display;
+    this.resolution = resolution;
+    this.wordPx = wordPx;
+    const fontSize = wordPx;
 
     this.view = new Container();
 
@@ -150,7 +186,7 @@ export class WordSprite {
       for (const [tint, dx] of offsets) {
         const ghost = new Text({
           text: display,
-          style: new TextStyle({ ...BASE_STYLE }),
+          style: new TextStyle({ ...BASE_STYLE, fontSize }),
           resolution,
         });
         ghost.anchor.set(0.5);
@@ -165,6 +201,7 @@ export class WordSprite {
       text: display,
       style: new TextStyle({
         ...BASE_STYLE,
+        fontSize,
         // Word halo (spec §7): a soft glow behind the glyph, strength tied
         // to haloAlpha. Omitted entirely at 0 rather than passed with
         // alpha: 0, so effects 'off' renders genuinely flat, not a
@@ -193,7 +230,7 @@ export class WordSprite {
     if (this.hintText !== null) return;
     this.hintText = new Text({
       text: kanji,
-      style: new TextStyle({ ...HINT_STYLE }),
+      style: new TextStyle({ ...HINT_STYLE, fontSize: Math.round(this.wordPx * HINT_SIZE_RATIO) }),
       resolution: 2,
     });
     this.hintText.anchor.set(0.5);
@@ -210,8 +247,35 @@ export class WordSprite {
     this.view.addChild(this.hintText);
   }
 
-  /** Per-frame: advance the hint fade. */
+  /** Per-frame: advance the spawn bleed, the lock flicker and the hint fade. */
   update(deltaMS: number): void {
+    if (this.spawn !== null) {
+      this.spawn.ageMs += deltaMS;
+      const frame = spawnFrame(this.spawn.ageMs, this.spawn.params);
+      // The halo is baked into the Text's texture (dropShadow), so the light
+      // cannot be scaled on its own without re-rasterizing the glyph — the
+      // flicker multiplies the whole sprite's alpha instead, so the lit glyph
+      // flickers on like a tube.
+      this.view.alpha = frame.alpha * frame.lightScale;
+      if (this.spawn.filter !== null) this.spawn.filter.strength = frame.blurPx;
+      if (frame.done) {
+        // Detach before destroying so the view never holds a dead filter.
+        this.view.filters = [];
+        this.spawn.filter?.destroy(true);
+        this.spawn = null;
+        this.view.alpha = 1;
+      }
+    }
+    // The reticle and underline are separate objects from the Text, so unlike
+    // the spawn flicker the lock flicker can address them directly. Both are
+    // null until a word is first locked (and the underline until its texture
+    // decodes — ensureTargetArt() catches it up with the current lock age).
+    if (this.lockAgeMs < MOTION_LOCK_SETTLE_MS) {
+      this.lockAgeMs += deltaMS;
+      const alpha = lockFlickerAlpha(this.lockAgeMs, this.flicker);
+      if (this.brackets !== null) this.brackets.alpha = alpha;
+      if (this.underline !== null) this.underline.alpha = alpha;
+    }
     if (this.hintText !== null && this.hintText.alpha < 1) {
       this.hintText.alpha = Math.min(1, this.hintText.alpha + deltaMS / HINT_FADE_MS);
     }
@@ -223,13 +287,85 @@ export class WordSprite {
   setLocked(locked: boolean): void {
     if (locked === this.locked) return;
     this.locked = locked;
+    this.lockAgeMs = locked ? 0 : Number.POSITIVE_INFINITY;
     this.ensureTargetArt();
     if (this.brackets !== null) this.brackets.visible = locked;
     if (this.underline !== null) this.underline.visible = locked;
+    // A re-lock restarts the flicker from its first step rather than from
+    // wherever the previous lock left the alpha.
+    if (locked) {
+      if (this.brackets !== null) this.brackets.alpha = lockFlickerAlpha(0, this.flicker);
+      if (this.underline !== null) this.underline.alpha = lockFlickerAlpha(0, this.flicker);
+    }
   }
 
   setPosition(xPx: number, yPx: number): void {
     this.view.position.set(xPx, yPx);
+  }
+
+  /** Second-pass spec §4.3 Approach: over the last fifth of the fall the halo
+   *  warms from cyan toward vermillion. The halo is baked into the glyph
+   *  texture, so rather than re-rasterizing every frame, a second copy with a
+   *  danger-coloured halo sits in front of the base copy and the two crossfade
+   *  in two phases (approachMix): first the red-halo copy fades in over the
+   *  cyan one (cyan to neutral), then the cyan copy fades out beneath it
+   *  (neutral to red). Over the base alone the red only ever reached neutral,
+   *  because the cyan halo stays underneath an overlay. Both copies carry the
+   *  same ink glyph and one of them is always at alpha 1, so the glyph never
+   *  dims. The chromatic-split ghosts sit behind both copies and are
+   *  untouched. Added directly after the base text, so the brackets,
+   *  underline and recall hint (added later) still draw over it. Built lazily
+   *  on the first non-zero mix; most words die before it exists. */
+  setApproach(progress: number): void {
+    if (this.approachTintAlpha === 0 || this.haloAlpha === 0) return;
+    const { hot, base } = approachMix(progress, this.approachTintAlpha);
+    if (hot === 0) {
+      if (this.hotText !== null) {
+        this.hotText.alpha = 0;
+        this.text.alpha = 1;
+      }
+      return;
+    }
+    if (this.hotText === null) {
+      this.hotText = new Text({
+        text: this.display,
+        style: new TextStyle({
+          ...BASE_STYLE,
+          fontSize: this.wordPx,
+          dropShadow: { color: approachTint(1), blur: HALO_BLUR, distance: 0, alpha: this.haloAlpha },
+          padding: HALO_PADDING,
+        }),
+        resolution: this.resolution,
+      });
+      this.hotText.anchor.set(0.5);
+      this.view.addChildAt(this.hotText, this.view.getChildIndex(this.text) + 1);
+    }
+    this.hotText.alpha = hot;
+    this.text.alpha = base;
+  }
+
+  /** Second-pass spec §4.3: bleed in from blur while the light flickers on.
+   *  `withBlur` is PixiStage's concurrency cap — past four simultaneous
+   *  bleeds the blur is skipped so late waves never stack filters. PixiStage
+   *  skips this call entirely at `bleed === 0` (effects off, spec §6
+   *  "Appear"): a sprite that never begins a spawn simply stays at alpha 1. */
+  beginSpawn(params: SpawnParams, withBlur: boolean): void {
+    const filter = withBlur && params.blurPx > 0 ? new BlurFilter({ strength: params.blurPx, quality: 2 }) : null;
+    if (filter !== null) this.view.filters = [filter];
+    this.view.alpha = 0;
+    this.spawn = { ageMs: 0, params, filter };
+  }
+
+  /** True from beginSpawn() until the bleed completes; PixiStage counts these
+   *  to enforce its concurrent-blur cap. */
+  get isBleeding(): boolean {
+    return this.spawn !== null;
+  }
+
+  /** Half the rendered glyph width — the kill slash anchors at the word's
+   *  left edge (second-pass spec §4.3). */
+  get halfWidth(): number {
+    return this.text.width / 2;
   }
 
   /** Builds the brackets synchronously (cheap Graphics fill) and starts the
@@ -287,6 +423,10 @@ export class WordSprite {
         underline.width = width * UNDERLINE_WIDTH_RATIO; // width only, like the floor — never stretches the stroke's thickness
         underline.position.set(0, halfH + UNDERLINE_GAP_PX + texture.height / 2);
         underline.visible = this.locked;
+        // The texture decodes after the lock began: join the flicker at its
+        // current step (flat 1 once settled or when never locked) instead of
+        // popping in at full alpha mid-dip.
+        underline.alpha = lockFlickerAlpha(this.lockAgeMs, this.flicker);
         // Same glow rule as the brackets above (spec §7).
         if (this.glowAlpha > 0) {
           underline.filters = [
@@ -306,15 +446,27 @@ export class WordSprite {
       });
   }
 
-  /** Frees the reticle/underline GlowFilter's compiled GPU program before the
-   *  view itself is torn down — Container.destroy() never touches a child's
-   *  .filters (same gap PixiStage.destroyFilters()'s doc comment documents
-   *  for the stage's own filters and the floor's). Safe to call unconditionally:
-   *  brackets/underline are null until a word is ever locked, and filters are
-   *  only ever assigned when glowAlpha > 0. */
+  /** Frees the reticle/underline GlowFilter's compiled GPU program, and the
+   *  BlurFilter of a spawn bleed still in flight, before the view itself is
+   *  torn down. Container.destroy() never touches a child's .filters (same
+   *  gap PixiStage.destroyFilters()'s doc comment documents for the stage's
+   *  own filters and the floor's). Safe to call unconditionally:
+   *  brackets/underline are null until a word is ever locked, glow filters are
+   *  only ever assigned when glowAlpha > 0, and a spawn exists only between
+   *  beginSpawn() and the bleed's end. */
   destroy(): void {
     this.destroyFilters(this.brackets?.filters);
     this.destroyFilters(this.underline?.filters);
+    // A word killed mid-bleed still owns its BlurFilter — the per-frame loop
+    // that would have released it at done never runs again. Same
+    // destroy(true) as the lock-art filters above. BlurFilter keeps no
+    // compiled program of its own (it lives on its two private pass
+    // filters, which Pixi shares across every blur through its program
+    // cache), so this releases the filter itself and leaves that shared
+    // program alone for the next bleed — destroying the passes' programs
+    // would break any other sprite still bleeding.
+    this.spawn?.filter?.destroy(true);
+    this.spawn = null;
     // context: true frees the brackets Graphics's owned GraphicsContext —
     // Container.destroy({children:true}) forwards this same options object
     // to each child's own destroy(), and Graphics.destroy() only frees its

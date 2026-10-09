@@ -9,4 +9,8 @@ describe('chromaticSplitAllowed (visual-identity spec §9.1)', () => {
   it('allows the split at the play font size', () => {
     expect(chromaticSplitAllowed(40)).toBe(true);
   });
+
+  it('is satisfied by every size playScale can produce (second-pass spec §3.3)', () => {
+    expect(chromaticSplitAllowed(44)).toBe(true);
+  });
 });

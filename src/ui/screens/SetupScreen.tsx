@@ -2,8 +2,12 @@ import { useEffect, useState } from 'react';
 import { isListPool, POOL_LABELS, type PlayablePool, type PoolId } from '../../data/loader';
 import { fetchLists } from '../../data/listsClient';
 import { fetchRunPlan } from '../../data/planClient';
+import { visualParams } from '../../design/visualParams';
 import type { GameMode } from '../../engine/types';
 import type { ListSummary, TierProgress } from '../../shared/api';
+import { useSettings } from '../useSettings';
+import { TitleGhosts } from './TitleGhosts';
+import { TITLE_FLOOR_URL } from './titleFloor';
 
 interface SetupScreenProps {
   loading: boolean;
@@ -24,6 +28,10 @@ const POOLS: PoolId[] = ['n5', 'n4', 'n3', 'n2', 'mixed'];
 export function SetupScreen(
   { loading, error, onBegin, onBack, onImport, initialListSelection }: SetupScreenProps,
 ) {
+  // The chooser carries the title's motion gate (second-pass spec §5.2, §6):
+  // both numbers come from visualParams, never from effects === 'off'.
+  const { effects } = useSettings();
+  const { flicker, bleed } = visualParams(effects);
   const [mode, setMode] = useState<GameMode>('reading');
   const [pool, setPool] = useState<PlayablePool>(
     initialListSelection ? `list:${initialListSelection.id}` : 'n5',
@@ -66,8 +74,11 @@ export function SetupScreen(
   }, [listRow, pool]);
 
   return (
-    <div className="screen-center" data-testid="setup">
-      <h2>Choose your run</h2>
+    <div className="title-screen setup-screen" data-testid="setup" data-motion={bleed} data-flicker={flicker}>
+      <div className="hud-stripe" />
+      <TitleGhosts dim />
+      <div className="title-stage">
+        <h2 className="setup-heading">Choose your run</h2>
       <div className="picker-row">
         {MODES.map((m) => (
           <button
@@ -132,7 +143,9 @@ export function SetupScreen(
       {error !== null && (
         <p className="load-error" data-testid="load-error">{error}</p>
       )}
-      <div className="picker-row">
+      </div>
+      <div className="title-floor" style={{ backgroundImage: `url("${TITLE_FLOOR_URL}")` }} aria-hidden="true" />
+      <div className="machine-band title-band">
         <button className="primary" data-testid="begin-button" disabled={loading} onClick={() => onBegin(mode, pool)}>
           {loading ? 'Loading words…' : 'Begin'}
         </button>

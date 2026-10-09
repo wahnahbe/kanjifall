@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { EASE, MOTION } from '../motion';
 import { PALETTE } from '../palette';
 import { FONT_STACK } from '../typography';
 
@@ -59,5 +60,42 @@ describe('token parity (visual-identity spec §3.3)', () => {
   // drift from tokens.css's own --font-word — this pins all three together.
   it('typography.ts FONT_STACK equals tokens.css --font-word', () => {
     expect(FONT_STACK).toBe(readCssFontWord());
+  });
+
+  /** `--duration-bleed` → `bleedMs`; `--ease-ink` → `ink`. */
+  function readCssMotion(): { durations: Map<string, number>; eases: Map<string, string> } {
+    const css = readFileSync(join(process.cwd(), 'src/ui/tokens.css'), 'utf8');
+    const durations = new Map<string, number>();
+    for (const [, name, ms] of css.matchAll(/--duration-([a-z]+):\s*(\d+)ms\s*;/g)) {
+      durations.set(`${name}Ms`, Number(ms));
+    }
+    const eases = new Map<string, string>();
+    for (const [, name, value] of css.matchAll(/--ease-([a-z]+):\s*([^;]+);/g)) {
+      eases.set(name, value.trim());
+    }
+    return { durations, eases };
+  }
+
+  // Second-pass spec §4.2: motion tokens get the same CSS↔TS parity as colours.
+  it('every --duration-* token has an equal MOTION entry, and vice versa', () => {
+    const { durations } = readCssMotion();
+    for (const [key, ms] of durations) {
+      expect(MOTION, `tokens.css declares --duration-${key} but MOTION does not`).toHaveProperty(key);
+      expect(MOTION[key as keyof typeof MOTION]).toBe(ms);
+    }
+    for (const key of Object.keys(MOTION)) {
+      expect(durations.has(key), `MOTION.${key} has no --duration-* token`).toBe(true);
+    }
+  });
+
+  it('every --ease-* token has an equal EASE entry, and vice versa', () => {
+    const { eases } = readCssMotion();
+    for (const [key, value] of eases) {
+      expect(EASE, `tokens.css declares --ease-${key} but EASE does not`).toHaveProperty(key);
+      expect(EASE[key as keyof typeof EASE]).toBe(value);
+    }
+    for (const key of Object.keys(EASE)) {
+      expect(eases.has(key), `EASE.${key} has no --ease-* token`).toBe(true);
+    }
   });
 });

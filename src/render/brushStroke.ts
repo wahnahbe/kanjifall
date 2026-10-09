@@ -81,6 +81,50 @@ export function brushStrokeDataUri(cssColor: string, seed: number, options: Brus
   return `data:image/svg+xml,${encoded}`;
 }
 
+/** Options for `brushFrameDataUri`. Width and height are required: a frame
+ *  is always drawn at the aspect of the box it masks, so the stroke weight
+ *  does not visibly distort under `preserveAspectRatio='none'`. */
+export interface BrushFrameOptions {
+  width: number;
+  height: number;
+  /** Edge raggedness; keep at or under 2% of the shorter side. Default 3.5. */
+  displacementScale?: number;
+  /** Default 1.8. */
+  strokeWidth?: number;
+}
+
+const FRAME_BASE_FREQUENCY = '0.05 0.4';
+const FRAME_NUM_OCTAVES = 2;
+const FRAME_DISPLACEMENT_SCALE = 3.5;
+const FRAME_STROKE_WIDTH = 1.8;
+
+/** A dry-brush rectangle outline for CSS `mask-image` (second-pass spec
+ *  §3.2): the same turbulence-displacement construction as the floor, drawn
+ *  as a white stroke so the element's `background-color` (a token) supplies
+ *  the colour. Colour never enters this SVG, which is what keeps the
+ *  "no literals outside tokens" rule intact. */
+export function brushFrameDataUri(seed: number, options: BrushFrameOptions): string {
+  const { width, height } = options;
+  const displacementScale = options.displacementScale ?? FRAME_DISPLACEMENT_SCALE;
+  const strokeWidth = options.strokeWidth ?? FRAME_STROKE_WIDTH;
+  const inset = strokeWidth;
+  const svg =
+    `<svg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}' preserveAspectRatio='none'>` +
+    `<filter id='b' x='-10%' y='-20%' width='120%' height='140%'>` +
+    `<feTurbulence type='fractalNoise' baseFrequency='${FRAME_BASE_FREQUENCY}' numOctaves='${FRAME_NUM_OCTAVES}' seed='${seed}'/>` +
+    `<feDisplacementMap in='SourceGraphic' scale='${displacementScale}' xChannelSelector='R' yChannelSelector='G'/>` +
+    `</filter>` +
+    `<rect x='${inset}' y='${inset}' width='${width - inset * 2}' height='${height - inset * 2}' ` +
+    `fill='none' stroke='white' stroke-width='${strokeWidth}' stroke-linejoin='round' filter='url(#b)'/>` +
+    `</svg>`;
+  const encoded = svg
+    .replaceAll('<', '%3C')
+    .replaceAll('>', '%3E')
+    .replaceAll('#', '%23')
+    .replaceAll('"', '%22');
+  return `data:image/svg+xml,${encoded}`;
+}
+
 /** Decodes the stroke into a Pixi texture. Kept separate from the pure
  *  generator so the generator stays unit-testable in a node environment.
  *  Must only ever be called from an instance method (never module scope) —

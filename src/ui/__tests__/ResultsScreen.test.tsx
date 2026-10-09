@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { StrictMode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +11,7 @@ vi.mock('../../audio/sfx', () => ({
 }));
 import { sfx } from '../../audio/sfx';
 import { ResultsScreen } from '../screens/ResultsScreen';
+import { ScreenTransition } from '../ScreenTransition';
 
 const card = (id: string): Card => ({
   id, kanji: '字', kana: ['かな'], gloss: 'g', pos: 'n', jlpt: 5, source: 'jlpt',
@@ -131,6 +132,21 @@ describe('tier celebration (juice-pass spec §6)', () => {
       onRevenge={noop} onPlayAgain={noop} onTitle={noop} />);
     expect(screen.queryByTestId('tier-celebration')).toBeNull();
     expect(screen.getByTestId('tier-advance')).toBeInTheDocument();
+    expect(sfx.tierFanfare).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaving the results screen does not replay the fanfare while it drains', () => {
+    const { rerender } = render(
+      <ScreenTransition screenKey="x">
+        <ResultsScreen snapshot={snap({ status: 'gameOver' })} tierAdvance="N5 tier 2"
+          onRevenge={noop} onPlayAgain={noop} onTitle={noop} />
+      </ScreenTransition>,
+    );
+    expect(sfx.tierFanfare).toHaveBeenCalledTimes(1);
+    rerender(<ScreenTransition screenKey="y"><p>Title</p></ScreenTransition>);
+    // The results screen is still on stage, draining (the same instance, not a fresh mount)...
+    expect(within(screen.getByTestId('screen-out')).getByTestId('results')).toBeInTheDocument();
+    // ...but it must not have played the fanfare a second time.
     expect(sfx.tierFanfare).toHaveBeenCalledTimes(1);
   });
 

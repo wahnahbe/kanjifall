@@ -30,6 +30,9 @@
   --color-line-soft: rgba(0, 229, 255, 0.16);
   --color-danger-soft: rgba(255, 42, 60, 0.16);
   --color-grid-line: rgba(0, 229, 255, 0.05);
+  /* The cyan underglow that fills the machine band below the kill line
+     (second-pass spec §3.4). */
+  --color-underglow: rgba(0, 229, 255, 0.10);
   /* Task 11 QA: was 0.03 — at that alpha the 1px repeating-linear-gradient
      lines (index.css .pixi-host::before) read as crisp diagonal scratches
      rather than the "very low opacity" paper texture spec §5.1 calls for,
@@ -37,6 +40,11 @@
      at effects 'full'/'reduced', gone at 'off' (--grain-alpha), unchanged
      everywhere else. */
   --color-fibre: rgba(207, 216, 238, 0.015);
+  /* Ground-family washes for the atmosphere (second-pass spec §3.1, §3.5):
+     CSS-only rgba, excluded from hex parity like --color-surface. Never on
+     text or chrome. */
+  --color-ground-wash: rgba(110, 130, 180, 0.12);
+  --color-ground-wash-deep: rgba(90, 100, 140, 0.11);
   /* Fix wave: .screen-center and .stats-screen each had their own inline
      linear-gradient — a three-stop and a two-stop version respectively —
      which drifted from each other despite spec §8 saying calm screens share
@@ -70,12 +78,29 @@
   --space-8: 3rem;
   --space-10: 5rem;
 
+  /* --- play-layer sizes (second-pass spec §3.3, §3.4) ---------------- */
+  --size-machine-band: clamp(72px, 14vh, 120px);
+  /* Defaults only: GameScreen rewrites both from playScale() at runtime. */
+  --size-word-play: 52px;
+  --hud-scale: 1.15;
+
   /* --- radius (this world is hard-edged) ---------------------------- */
   --radius-sm: 2px;
   --radius-md: 4px;
 
-  /* --- duration ----------------------------------------------------- */
+  /* --- duration (second-pass spec §4.2) ----------------------------- */
   --duration-fast: 120ms;
   --duration-base: 220ms;
   --duration-slow: 600ms;
+  --duration-bleed: 260ms;      /* spawn bleed-in, header bleed, control stagger */
+  --duration-snap: 90ms;        /* one flicker step: lock, spawn halo, settle */
+  --duration-slash: 120ms;      /* the kill slash drawing itself */
+  --duration-flare: 420ms;      /* kill flare, impact glow */
+  --duration-burst: 480ms;      /* droplet life (splatter and splash) */
+  --duration-transition: 360ms; /* screen crossfade */
+  --duration-beat: 1200ms;      /* the wave-start beat, end to end */
+  /* Forms arrive decelerating; forms leave accelerating. Flicker is not an
+     easing — it is a stepped keyframe over --duration-snap multiples. */
+  --ease-ink: cubic-bezier(0.15, 0.85, 0.35, 1);
+  --ease-drain: cubic-bezier(0.6, 0, 0.9, 0.6);
 }

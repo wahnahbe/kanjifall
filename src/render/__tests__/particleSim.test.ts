@@ -27,6 +27,17 @@ describe('particle sim (pure)', () => {
     expect(pool.length).toBe(PARTICLE_CAP);
   });
 
+  it('defaults to dots with the standard upward bias, and takes droplets with a custom one', () => {
+    const dots: SimParticle[] = [];
+    spawnBurst(dots, 0, 0, 0xffffff, 1, rng);
+    expect(dots[0].shape).toBe('dot');
+    expect(dots[0].seed).toBe(0.5);
+    const drops: SimParticle[] = [];
+    spawnBurst(drops, 0, 0, 0xffffff, 1, rng, { shape: 'droplet', upwardBias: 220 });
+    expect(drops[0].shape).toBe('droplet');
+    expect(drops[0].vy).toBe(dots[0].vy - 160); // 220 − 60 more upward
+  });
+
   it('stepParticles integrates and expires in place', () => {
     const pool: SimParticle[] = [];
     spawnBurst(pool, 100, 100, 0xffffff, 5, rng);
