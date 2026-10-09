@@ -7,8 +7,10 @@ import { resetSettingsCache, updateSettings } from '../../data/settings';
 
 vi.mock('../../data/listsClient', () => ({ fetchLists: vi.fn().mockResolvedValue(null) }));
 vi.mock('../../data/planClient', () => ({ fetchRunPlan: vi.fn().mockResolvedValue(null) }));
+vi.mock('../screens/titleFloor', () => ({ TITLE_FLOOR_URL: 'title-floor-sentinel.svg' }));
 
 import { SetupScreen } from '../screens/SetupScreen';
+import { TitleScreen } from '../screens/TitleScreen';
 
 function renderSetup() {
   return render(<SetupScreen loading={false} error={null} onBegin={() => {}} onBack={() => {}} onImport={() => {}} initialListSelection={null} />);
@@ -30,16 +32,16 @@ describe('SetupScreen frame (second-pass spec §5.2)', () => {
   });
 
   it('draws its horizon with the shared title floor stroke, not a copy of it', () => {
-    // jsdom's CSSOM discards a data-URI background-image, so the stroke can't
-    // be read back off the element; pin the sharing at the source instead.
-    const screens = join(process.cwd(), 'src/ui/screens');
-    const setup = readFileSync(join(screens, 'SetupScreen.tsx'), 'utf8');
-    const title = readFileSync(join(screens, 'TitleScreen.tsx'), 'utf8');
-    for (const source of [setup, title]) expect(source).toContain("import { TITLE_FLOOR_URL } from './titleFloor';");
-    expect(setup).not.toContain('brushStrokeDataUri');
-    expect(title).not.toMatch(/FLOOR_SEED/);
+    // Both screens read TITLE_FLOOR_URL from titleFloor.ts; a private copy of
+    // the stroke would not pick up the mocked value.
     renderSetup();
-    expect(screen.getByTestId('setup').querySelector('.title-floor')).toHaveAttribute('aria-hidden', 'true');
+    render(<TitleScreen onStart={() => {}} onStats={() => {}} onSettings={() => {}} />);
+    const roots = [screen.getByTestId('setup'), screen.getByTestId('title')];
+    for (const root of roots) {
+      const floor = root.querySelector('.title-floor') as HTMLElement;
+      expect(floor).toHaveAttribute('aria-hidden', 'true');
+      expect(floor.style.backgroundImage).toContain('title-floor-sentinel.svg');
+    }
   });
 
   it('derives its motion gate from visualParams, not from effects === off', () => {
