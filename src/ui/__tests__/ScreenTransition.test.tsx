@@ -49,6 +49,16 @@ describe('ScreenTransition (second-pass spec §4.4)', () => {
     expect(screen.queryByTestId('screen-out')).toBeNull();
   });
 
+  it('still drops the outgoing screen when the effects setting changes mid-drain', () => {
+    const { rerender } = render(<ScreenTransition screenKey="title"><p>Title</p></ScreenTransition>);
+    rerender(<ScreenTransition screenKey="setup"><p>Setup</p></ScreenTransition>);
+    act(() => vi.advanceTimersByTime(100));
+    act(() => { updateSettings({ effects: 'off' }); }); // transitionMs 360 → 120 while Title drains
+    expect(screen.getByTestId('screen-out')).toHaveTextContent('Title');
+    act(() => vi.advanceTimersByTime(MOTION.fastMs));
+    expect(screen.queryByTestId('screen-out')).toBeNull();
+  });
+
   it('keeps the draining screen instance mounted: its state survives the change, nothing remounts', () => {
     function Counter() {
       const [n, setN] = useState(0);

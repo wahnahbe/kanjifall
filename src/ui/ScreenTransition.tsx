@@ -59,9 +59,16 @@ export function ScreenTransition({ screenKey, children }: ScreenTransitionProps)
     if (previousRef.current.key === screenKey) return;
     const incoming = incomingRef.current;
     if (incoming !== null && !incoming.contains(document.activeElement)) incoming.focus({ preventScroll: true });
+  }, [screenKey]);
+
+  // The drain timer belongs to the layer it clears: it starts when an
+  // outgoing layer appears, restarts when a newer one replaces it, and
+  // follows transitionMs if the effects setting changes mid-drain.
+  useEffect(() => {
+    if (outgoing === null) return;
     const timer = window.setTimeout(() => setOutgoing(null), transitionMs);
     return () => window.clearTimeout(timer);
-  }, [screenKey, transitionMs]);
+  }, [outgoing, transitionMs]);
 
   useEffect(() => {
     previousRef.current = { key: screenKey, node: children, visit: current.visit };
