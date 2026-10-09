@@ -62,6 +62,16 @@ npm run dev
 `npm run dev` plays at the port Vite prints (5173, or 5174+ if 5173 is
 taken), proxying `/api` through to the API on port 8790.
 
+The API port is fixed at 8790 (override it with `KOTOBA_PORT`, which both
+the server and the Vite proxy honor), so only one instance runs at a time.
+If the API logs `FAILED to listen on port 8790` / `EADDRINUSE`, another
+KanjiFall instance is still up — an earlier `npm run dev` or `npm start`, an
+e2e run, or a dev server launched from a Claude Code preview — and
+`npm run dev` tears itself down. Stop it (Windows:
+`netstat -ano | findstr :8790` then `taskkill /PID <pid> /T /F`; macOS/Linux:
+`lsof -i :8790`), or run this instance on another port:
+`npx cross-env KOTOBA_PORT=8791 npm run dev`.
+
 ### How to play
 
 Type `a–z` romaji — it converts to kana as you type. **Enter** submits,

@@ -3,10 +3,11 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { execFile } from 'node:child_process';
 import type { Hono } from 'hono';
 import { buildApp } from './app';
+import { apiPort } from './apiPort';
 import { connect, DbOpenError } from './db/connect';
 
 const dbPath = process.env.KOTOBA_DB ?? 'data/kotoba.db';
-const port = Number(process.env.KOTOBA_PORT ?? 8790);
+const port = apiPort();
 const args = process.argv.slice(2);
 const shouldServeDist = args.includes('--dist');
 const shouldOpen = args.includes('--open');
