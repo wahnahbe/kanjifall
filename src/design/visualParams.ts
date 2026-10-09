@@ -24,7 +24,7 @@ export interface VisualParams {
   drift: 0 | 1;
   /** Spawn bleed-in blur radius, px. 0 = alpha-only (§4.3). */
   spawnBlurPx: number;
-  /** 1 = forms bleed in (alpha, plus blur when spawnBlurPx > 0): spawn, title sign, copy stagger; 0 = they appear (§6 "Appear"). */
+  /** 1 = forms bleed in (alpha, plus blur when spawnBlurPx > 0): spawn, title sign; 0 = they appear (§6 "Appear"). The copy stagger is gated by flicker, not by bleed. */
   bleed: 0 | 1;
   /** 1 = flickers happen (lock, spawn halo, settle, deadline, sign); 0 = none (§7.7). */
   flicker: 0 | 1;

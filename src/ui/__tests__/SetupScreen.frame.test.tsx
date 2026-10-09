@@ -7,8 +7,10 @@ import { resetSettingsCache, updateSettings } from '../../data/settings';
 
 vi.mock('../../data/listsClient', () => ({ fetchLists: vi.fn().mockResolvedValue(null) }));
 vi.mock('../../data/planClient', () => ({ fetchRunPlan: vi.fn().mockResolvedValue(null) }));
+vi.mock('../screens/titleFloor', () => ({ TITLE_FLOOR_URL: 'title-floor-sentinel.svg' }));
 
 import { SetupScreen } from '../screens/SetupScreen';
+import { TitleScreen } from '../screens/TitleScreen';
 
 function renderSetup() {
   return render(<SetupScreen loading={false} error={null} onBegin={() => {}} onBack={() => {}} onImport={() => {}} initialListSelection={null} />);
@@ -30,16 +32,16 @@ describe('SetupScreen frame (second-pass spec §5.2)', () => {
   });
 
   it('draws its horizon with the shared title floor stroke, not a copy of it', () => {
-    // jsdom's CSSOM discards a data-URI background-image, so the stroke can't
-    // be read back off the element; pin the sharing at the source instead.
-    const screens = join(process.cwd(), 'src/ui/screens');
-    const setup = readFileSync(join(screens, 'SetupScreen.tsx'), 'utf8');
-    const title = readFileSync(join(screens, 'TitleScreen.tsx'), 'utf8');
-    for (const source of [setup, title]) expect(source).toContain("import { TITLE_FLOOR_URL } from './titleFloor';");
-    expect(setup).not.toContain('brushStrokeDataUri');
-    expect(title).not.toMatch(/FLOOR_SEED/);
+    // Both screens read TITLE_FLOOR_URL from titleFloor.ts; a private copy of
+    // the stroke would not pick up the mocked value.
     renderSetup();
-    expect(screen.getByTestId('setup').querySelector('.title-floor')).toHaveAttribute('aria-hidden', 'true');
+    render(<TitleScreen onStart={() => {}} onStats={() => {}} onSettings={() => {}} />);
+    const roots = [screen.getByTestId('setup'), screen.getByTestId('title')];
+    for (const root of roots) {
+      const floor = root.querySelector('.title-floor') as HTMLElement;
+      expect(floor).toHaveAttribute('aria-hidden', 'true');
+      expect(floor.style.backgroundImage).toContain('title-floor-sentinel.svg');
+    }
   });
 
   it('derives its motion gate from visualParams, not from effects === off', () => {
@@ -76,6 +78,18 @@ describe('SetupScreen frame (second-pass spec §5.2)', () => {
     for (const rule of delayRules) {
       for (const selector of rule[1].split(',')) expect(selector).toContain(".setup-screen[data-flicker='1']");
     }
+  });
+
+  it('re-times the chooser hints and band buttons with a compound selector that outranks the title rules by specificity', () => {
+    const css = readFileSync(join(process.cwd(), 'src/index.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const delayRules = [...css.matchAll(/([^{}]*\.setup-screen[^{}]*)\{[^}]*animation-delay[^}]*\}/g)];
+    const retimed = delayRules
+      .map((rule) => rule[1].trim())
+      .filter((selector) => /\.hint(?![\w-])|\.title-band > button/.test(selector));
+    expect(retimed).toHaveLength(3);
+    // Same specificity as `.title-screen[data-flicker='1'] .hint` would tie and
+    // lean on source order; the extra class makes the win independent of it.
+    for (const selector of retimed) expect(selector).toMatch(/^\.title-screen\.setup-screen\[data-flicker='1'\]/);
   });
 
   it('keeps the decorative floor stroke out of hit-testing so the scrolling stage gets every click and wheel', () => {
