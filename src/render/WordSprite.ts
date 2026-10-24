@@ -88,14 +88,17 @@ const RETICLE_GLOW_OUTER_STRENGTH = 1.6;
 const UNDERLINE_GLOW_DISTANCE = 5;
 const UNDERLINE_GLOW_OUTER_STRENGTH = 1.6;
 
-const HALO_BLUR = 18;
+// Exported so lightGlyph.ts, which rebuilds a lit word's glyph detached from
+// the sprite for the lapse and relit flickers (lapse spec §6.2, §6.3), reads
+// the same halo numbers instead of re-typing them.
+export const HALO_BLUR = 18;
 // TextStyle._getFinalPadding() sizes the backing canvas from `padding` and
 // filter padding only — it does not know about dropShadow.blur. Without
 // this, the shadow's soft falloff is hard-clipped at the canvas edge and
 // reads as a visible rectangle around the glyph instead of fading out
 // (visual-identity review, fix round 1). 1.5x the blur radius comfortably
 // covers the falloff.
-const HALO_PADDING = HALO_BLUR * 1.5;
+export const HALO_PADDING = HALO_BLUR * 1.5;
 
 // Spec §9.1: kanji stroke detail wins over any effect. The chromatic split
 // must never apply below this font size, no matter what visualParams says —
