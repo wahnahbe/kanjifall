@@ -207,6 +207,8 @@ export class GameEngine {
       backspaceCount: 0,
       hintShown: false,
       wasTargeted: false,
+      light: 'plain',
+      comeback: false,
     };
     this.words.push(word);
     this.nextSpawnAt = this.timeMs + plan.spawnIntervalMs;
@@ -238,10 +240,10 @@ export class GameEngine {
     this.lives -= 1;
     this.combo = 0;
     this.refreshLocks();
-    this.emit({ type: 'wordMissed', word });
+    this.emit({ type: 'wordMissed', word, lapse: false, light: word.light });
     if (this.lives <= 0) {
       this.status = 'gameOver';
-      this.emit({ type: 'gameOver', score: this.score, wave: this.wave });
+      this.emit({ type: 'gameOver', score: this.score, wave: this.wave, ownedIds: [] });
     }
   }
 
@@ -284,7 +286,7 @@ export class GameEngine {
     this.score += points;
     this.buffer.clear();
     this.refreshLocks();
-    this.emit({ type: 'wordKilled', word, msToKill, points, combo: this.combo });
+    this.emit({ type: 'wordKilled', word, msToKill, points, combo: this.combo, relit: false });
   }
 
   private refreshLocks(): void {

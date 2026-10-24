@@ -21,6 +21,9 @@ export type GameMode = 'reading' | 'recall';
 export interface SeenCardRef {
   id: string;
   weight: number;
+  /** The card is a conquered one; absent means false. The server computes it,
+   *  the engine only reads it (the lapse). */
+  owned?: boolean;
 }
 
 /** What this run may introduce and review. Injected — the engine never derives it. */
@@ -34,6 +37,10 @@ export interface EnginePlan {
   perWaveNewCap: number;
 }
 
+/** A word's lit state while it falls: 'lit' words are owned cards, 'dark' ones
+ *  are lapsed comebacks, everything else is 'plain'. */
+export type LightState = 'plain' | 'lit' | 'dark';
+
 export interface AirborneWord {
   instanceId: number;
   card: Card;
@@ -46,18 +53,20 @@ export interface AirborneWord {
   backspaceCount: number;
   hintShown: boolean; // recall-mode grace hint (always false in M1)
   wasTargeted: boolean;
+  light: LightState;
+  comeback: boolean;
 }
 
 export type GameEvent =
   | { type: 'wordSpawned'; word: AirborneWord }
-  | { type: 'wordKilled'; word: AirborneWord; msToKill: number; points: number; combo: number }
-  | { type: 'wordMissed'; word: AirborneWord }
+  | { type: 'wordKilled'; word: AirborneWord; msToKill: number; points: number; combo: number; relit: boolean }
+  | { type: 'wordMissed'; word: AirborneWord; lapse: boolean; light: LightState }
   | { type: 'wrongSubmit'; submittedKana: string }
   | { type: 'bufferChanged'; kana: string; romaji: string; lockedIds: number[] }
   | { type: 'waveStarting'; wave: number; cards: Card[]; newCards: Card[] }
   | { type: 'resumed'; wave: number }
   | { type: 'waveCleared'; wave: number }
-  | { type: 'gameOver'; score: number; wave: number };
+  | { type: 'gameOver'; score: number; wave: number; ownedIds: string[] };
 
 export type GameStatus = 'idle' | 'waveIntro' | 'playing' | 'gameOver';
 

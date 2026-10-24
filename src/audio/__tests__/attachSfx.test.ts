@@ -16,11 +16,11 @@ describe('attachSfx', () => {
   it('maps the five in-run events to their voices, combo included', () => {
     const player = fakePlayer();
     const listen = attachSfx(player);
-    listen({ type: 'wordKilled', word, msToKill: 400, points: 10, combo: 7 } as GameEvent);
-    listen({ type: 'wordMissed', word } as GameEvent);
+    listen({ type: 'wordKilled', word, msToKill: 400, points: 10, combo: 7, relit: false } as GameEvent);
+    listen({ type: 'wordMissed', word, lapse: false, light: 'plain' } as GameEvent);
     listen({ type: 'wrongSubmit', submittedKana: 'x' } as GameEvent);
     listen({ type: 'waveCleared', wave: 1 } as GameEvent);
-    listen({ type: 'gameOver', score: 1, wave: 1 } as GameEvent);
+    listen({ type: 'gameOver', score: 1, wave: 1, ownedIds: [] } as GameEvent);
     expect(player.kill).toHaveBeenCalledWith(7);
     expect(player.miss).toHaveBeenCalledTimes(1);
     expect(player.wrongSubmit).toHaveBeenCalledTimes(1);

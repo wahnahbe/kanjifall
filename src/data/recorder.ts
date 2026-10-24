@@ -102,6 +102,7 @@ export class RunRecorder {
       wasTargeted: word.wasTargeted,
       airborneCount: view.words.length,
       speedLevel: view.snapshot.wave,
+      comeback: word.comeback,
       createdAt: Date.now(),
     };
   }

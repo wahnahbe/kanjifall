@@ -42,6 +42,7 @@ function makeAttempt(overrides: Partial<AttemptEvent> = {}): AttemptEvent {
     backspaceCount: 0,
     hintShown: false,
     wasTargeted: true,
+    comeback: false,
     airborneCount: 1,
     speedLevel: 1,
     createdAt: Date.now(),

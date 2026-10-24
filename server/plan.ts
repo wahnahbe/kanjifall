@@ -216,12 +216,12 @@ export function computeRunPlan(
   }
 
   const newCardIds: string[] = [];
-  const seenCards: { id: string; weight: number }[] = [];
+  const seenCards: { id: string; weight: number; owned: boolean }[] = [];
   for (const card of poolCards) {
     const { id } = card;
     const group = grouped.get(id);
     if (introduced.has(id)) {
-      seenCards.push({ id, weight: cardWeight(group, nowMs) });
+      seenCards.push({ id, weight: cardWeight(group, nowMs), owned: false });
     } else if (activeTierIds.has(id) && !isModeUnreachable(card, mode)) {
       newCardIds.push(id);
     }
@@ -262,11 +262,11 @@ function computeListRunPlan(
 
   const { grouped, introduced } = loadPlanningState(handle, nowMs);
   const newCardIds: string[] = [];
-  const seenCards: { id: string; weight: number }[] = [];
+  const seenCards: { id: string; weight: number; owned: boolean }[] = [];
   for (const member of members) {
     const group = grouped.get(member.id);
     if (introduced.has(member.id)) {
-      seenCards.push({ id: member.id, weight: cardWeight(group, nowMs) });
+      seenCards.push({ id: member.id, weight: cardWeight(group, nowMs), owned: false });
     } else if (!(mode === 'reading' && member.kanji === null)) {
       // The mode-unreachable rule (final-review Fix 1) without a gate to
       // feed: a kana-only member simply can't be introduced in reading mode.

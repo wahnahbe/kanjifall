@@ -36,6 +36,8 @@ function makeWord(overrides: Partial<AirborneWord> = {}): AirborneWord {
     backspaceCount: 0,
     hintShown: false,
     wasTargeted: false,
+    light: 'plain',
+    comeback: false,
     ...overrides,
   };
 }
@@ -151,7 +153,7 @@ describe('wordKilled (rule 2)', () => {
     const otherWord = makeWord({ instanceId: 8, card: makeCard('inu', ['いぬ']) });
     const view = { words: [otherWord], snapshot: makeSnapshot({ wave: 3 }) };
 
-    recorder.onEvent({ type: 'wordKilled', word, msToKill: 1_499.6, points: 100, combo: 1 }, view);
+    recorder.onEvent({ type: 'wordKilled', word, msToKill: 1_499.6, points: 100, combo: 1, relit: false }, view);
     recorder.onEvent({ type: 'waveCleared', wave: 3 }, view);
     await flush();
 
@@ -167,6 +169,7 @@ describe('wordKilled (rule 2)', () => {
       wasTargeted: true,
       airborneCount: 1, // view.words.length at event time (the killed word already removed)
       speedLevel: 3, // view.snapshot.wave
+      comeback: false,
       createdAt: NOW,
     }]);
     expect(body.wrongSubmits).toEqual([]);
@@ -180,7 +183,7 @@ describe('wordKilled (rule 2)', () => {
 
     const word = makeWord({ firstKeyAt: null });
     const view = { words: [], snapshot: makeSnapshot() };
-    recorder.onEvent({ type: 'wordKilled', word, msToKill: 50, points: 10, combo: 1 }, view);
+    recorder.onEvent({ type: 'wordKilled', word, msToKill: 50, points: 10, combo: 1, relit: false }, view);
     recorder.onEvent({ type: 'waveCleared', wave: 1 }, view);
     await flush();
 
@@ -197,7 +200,7 @@ describe('wordMissed (rule 3)', () => {
     const word = makeWord({ card: makeCard('inu', ['いぬ']), spawnedAt: 2_000, firstKeyAt: null });
     const view = { words: [], snapshot: makeSnapshot({ wave: 2 }) };
 
-    recorder.onEvent({ type: 'wordMissed', word }, view);
+    recorder.onEvent({ type: 'wordMissed', word, lapse: false, light: 'plain' }, view);
     recorder.onEvent({ type: 'waveCleared', wave: 2 }, view);
     await flush();
 
@@ -212,6 +215,7 @@ describe('wordMissed (rule 3)', () => {
       wasTargeted: false,
       airborneCount: 0,
       speedLevel: 2,
+      comeback: false,
       createdAt: NOW,
     }]);
   });
@@ -268,7 +272,7 @@ describe('waveCleared flush (rule 5)', () => {
 
     const word = makeWord();
     const view = { words: [], snapshot: makeSnapshot({ wave: 1 }) };
-    recorder.onEvent({ type: 'wordKilled', word, msToKill: 500, points: 10, combo: 1 }, view);
+    recorder.onEvent({ type: 'wordKilled', word, msToKill: 500, points: 10, combo: 1, relit: false }, view);
     recorder.onEvent({ type: 'waveCleared', wave: 1 }, view);
     await flush();
 
@@ -295,7 +299,7 @@ describe('waveCleared flush (rule 5)', () => {
 
     const word = makeWord();
     const view = { words: [], snapshot: makeSnapshot({ wave: 1 }) };
-    recorder.onEvent({ type: 'wordKilled', word, msToKill: 500, points: 10, combo: 1 }, view);
+    recorder.onEvent({ type: 'wordKilled', word, msToKill: 500, points: 10, combo: 1, relit: false }, view);
     recorder.onEvent({ type: 'waveCleared', wave: 1 }, view);
     await flush();
     await vi.advanceTimersByTimeAsync(500);
@@ -321,7 +325,7 @@ describe('gameOver (rule 6)', () => {
 
     const word = makeWord();
     recorder.onEvent(
-      { type: 'wordKilled', word, msToKill: 500, points: 10, combo: 1 },
+      { type: 'wordKilled', word, msToKill: 500, points: 10, combo: 1, relit: false },
       { words: [], snapshot: makeSnapshot({ wave: 1 }) },
     );
 
@@ -330,7 +334,7 @@ describe('gameOver (rule 6)', () => {
       wave: 4, score: 5_000, maxCombo: 7, kills: 10, wrongSubmits: 2,
       missed: [makeCard('a', ['あ']), makeCard('b', ['い'])], timeMs: 80_000,
     });
-    recorder.onEvent({ type: 'gameOver', score: 5_000, wave: 4 }, { words: [], snapshot });
+    recorder.onEvent({ type: 'gameOver', score: 5_000, wave: 4, ownedIds: [] }, { words: [], snapshot });
     await flush();
 
     expect(finalizeBodyOf()).toEqual({
@@ -351,7 +355,7 @@ describe('gameOver (rule 6)', () => {
     await flush();
 
     recorder.onEvent(
-      { type: 'gameOver', score: 0, wave: 1 },
+      { type: 'gameOver', score: 0, wave: 1, ownedIds: [] },
       { words: [], snapshot: makeSnapshot({ kills: 0, wrongSubmits: 0, missed: [] }) },
     );
     await flush();
@@ -366,7 +370,7 @@ describe('gameOver (rule 6)', () => {
     const recorder = new RunRecorder(ctx);
     await flush();
 
-    recorder.onEvent({ type: 'gameOver', score: 0, wave: 1 }, { words: [], snapshot: makeSnapshot() });
+    recorder.onEvent({ type: 'gameOver', score: 0, wave: 1, ownedIds: [] }, { words: [], snapshot: makeSnapshot() });
     await flush();
 
     expect(fetchMock).toHaveBeenCalledTimes(2); // createRun + one finalize attempt, no retry
@@ -387,14 +391,14 @@ describe('createRun-failure ordering', () => {
 
     const word = makeWord();
     const view = { words: [], snapshot: makeSnapshot({ wave: 1 }) };
-    recorder.onEvent({ type: 'wordKilled', word, msToKill: 100, points: 10, combo: 1 }, view);
+    recorder.onEvent({ type: 'wordKilled', word, msToKill: 100, points: 10, combo: 1, relit: false }, view);
     recorder.onEvent({ type: 'waveCleared', wave: 1 }, view);
     await flush();
 
     expect(pushOutboxMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ kind: 'events' }));
 
     recorder.onEvent(
-      { type: 'gameOver', score: 0, wave: 1 },
+      { type: 'gameOver', score: 0, wave: 1, ownedIds: [] },
       { words: [], snapshot: makeSnapshot({ wave: 1 }) },
     );
     await flush();
@@ -442,7 +446,7 @@ describe('outbox storage resilience', () => {
     // since createRunFailed is true, it routes to outbox without attempting the network
     const word = makeWord();
     const view = { words: [], snapshot: makeSnapshot({ wave: 1 }) };
-    recorder.onEvent({ type: 'wordKilled', word, msToKill: 100, points: 10, combo: 1 }, view);
+    recorder.onEvent({ type: 'wordKilled', word, msToKill: 100, points: 10, combo: 1, relit: false }, view);
     recorder.onEvent({ type: 'waveCleared', wave: 1 }, view);
 
     // Flush the pipeline; should not throw and should successfully queue to outbox

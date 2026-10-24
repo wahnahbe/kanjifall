@@ -23,6 +23,7 @@ export const attemptSchema = z.object({
   wasTargeted: z.boolean(),
   airborneCount: z.number().int().nonnegative(),
   speedLevel: z.number().int().positive(),
+  comeback: z.boolean().default(false),
   createdAt: z.number().int().positive(),
 });
 
@@ -118,7 +119,7 @@ export type TierProgress = z.infer<typeof tierProgressSchema>;
 
 export const runPlanSchema = z.object({
   newCardIds: z.array(z.string()),
-  seenCards: z.array(z.object({ id: z.string(), weight: z.number().positive() })),
+  seenCards: z.array(z.object({ id: z.string(), weight: z.number().positive(), owned: z.boolean().default(false) })),
   runBudget: z.number().int().nonnegative(),
   tiers: z.array(tierProgressSchema),
 });
