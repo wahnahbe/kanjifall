@@ -2,9 +2,16 @@ import { LANES } from './constants';
 import type { Card, EngineConfig, EnginePlan } from './types';
 
 export interface WavePlan {
+  /**
+   * `[...comebacks, ...newCards, ...review]`, at most the wave size long. Only
+   * a caller handing over more comebacks than the wave size could stretch it
+   * (they are never dropped); the engine's lives keep that below the base size.
+   */
   cards: Card[];
-  /** Subset of `cards` being introduced this wave; they lead `cards`. */
+  /** Subset of `cards` being introduced this wave; they follow the comebacks. */
   newCards: Card[];
+  /** Lapsed cards owed their one comeback (lapse spec §5.4); they lead `cards`. */
+  comebacks: Card[];
   fallSpeed: number;
   spawnIntervalMs: number;
 }
@@ -49,11 +56,25 @@ export class Spawner {
     this.perWaveNewCap = Math.max(0, plan.perWaveNewCap);
   }
 
-  planWave(wave: number): WavePlan {
+  /**
+   * `comebacks` are lapsed cards the engine owes a comeback (lapse spec §5.4).
+   * They lead the wave and displace review draws, so the wave size is
+   * unchanged. When comebacks plus introductions would exceed the size, the
+   * introductions give way - the budget is only spent on cards actually
+   * introduced, so the deferred ones simply arrive in a later wave - and a
+   * comeback is never dropped. A comeback card is also kept out of this
+   * wave's review draw, so it falls exactly once.
+   */
+  planWave(wave: number, comebacks: readonly Card[] = []): WavePlan {
     const c = this.config;
     const size = Math.min(c.baseWaveSize + c.waveSizeGrowth * (wave - 1), c.maxWaveSize);
 
-    const introduceCount = Math.min(this.budgetRemaining, this.perWaveNewCap, this.newPool.length, size);
+    const introduceCount = Math.min(
+      this.budgetRemaining,
+      this.perWaveNewCap,
+      this.newPool.length,
+      Math.max(0, size - comebacks.length),
+    );
     const newCards = this.shuffled(this.newPool).slice(0, introduceCount);
     const introducedIds = new Set(newCards.map((card) => card.id));
     this.newPool = this.newPool.filter((card) => !introducedIds.has(card.id));
@@ -71,11 +92,19 @@ export class Spawner {
       ...newCards.map((card) => ({ card, weight: JUST_INTRODUCED_WEIGHT })),
     ];
 
-    const cards = [...newCards, ...this.drawSeen(size - newCards.length)];
+    const cards = [
+      ...comebacks,
+      ...newCards,
+      ...this.drawSeen(
+        size - comebacks.length - newCards.length,
+        new Set(comebacks.map((card) => card.id)),
+      ),
+    ];
 
     return {
       cards,
       newCards,
+      comebacks: [...comebacks],
       fallSpeed: Math.min(c.baseFallSpeed * (1 + c.fallSpeedGrowth * (wave - 1)), c.maxFallSpeed),
       spawnIntervalMs: Math.max(
         Math.round(c.baseSpawnIntervalMs * c.spawnIntervalDecay ** (wave - 1)),
@@ -99,13 +128,20 @@ export class Spawner {
    * proper acquisition moment — the planner keys seen status on
    * introductions alone, so the attempts recorded here don't burn them in
    * (seen-requires-introduction fix, 2026-08-09).
+   *
+   * `exclude` holds the ids of this wave's comebacks (lapse spec §5.4). They
+   * are filtered out of the source before drawing, so a comeback never falls
+   * twice in one wave; a source emptied that way yields `[]`, as an empty
+   * source always has. With nothing to exclude the source - and so every
+   * seeded draw - is exactly what it was before comebacks existed.
    */
-  private drawSeen(count: number): Card[] {
+  private drawSeen(count: number, exclude: ReadonlySet<string>): Card[] {
     if (count <= 0) return [];
-    const source: readonly WeightedCard[] =
+    const base: readonly WeightedCard[] =
       this.seenPool.length > 0
         ? this.seenPool
         : this.newPool.map((card) => ({ card, weight: 1 }));
+    const source = base.filter((entry) => !exclude.has(entry.card.id));
     if (source.length === 0) return [];
     const drawn: Card[] = [];
     let candidates: readonly WeightedCard[] = source;
