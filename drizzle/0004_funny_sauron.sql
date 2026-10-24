@@ -1,0 +1,1 @@
+ALTER TABLE `attempts` ADD `comeback` integer DEFAULT false NOT NULL;

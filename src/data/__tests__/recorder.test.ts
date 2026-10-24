@@ -176,6 +176,20 @@ describe('wordKilled (rule 2)', () => {
     expect(typeof body.batchId).toBe('string');
   });
 
+  it('copies word.comeback into the attempt row', async () => {
+    fetchMock.mockResolvedValue(ok());
+    const recorder = new RunRecorder(ctx);
+    await flush();
+
+    const word = makeWord({ comeback: true });
+    const view = { words: [], snapshot: makeSnapshot() };
+    recorder.onEvent({ type: 'wordKilled', word, msToKill: 50, points: 10, combo: 1, relit: false }, view);
+    recorder.onEvent({ type: 'waveCleared', wave: 1 }, view);
+    await flush();
+
+    expect(eventsBodyOf().attempts[0]).toMatchObject({ comeback: true });
+  });
+
   it('msToFirstKey is null when the word was never targeted', async () => {
     fetchMock.mockResolvedValue(ok());
     const recorder = new RunRecorder(ctx);
