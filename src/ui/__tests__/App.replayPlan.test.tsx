@@ -7,6 +7,7 @@ import { DEFAULT_CONFIG } from '../../engine/constants';
 import { mulberry32 } from '../../engine/rng';
 import { Spawner } from '../../engine/Spawner';
 import type { Card, EnginePlan, EngineSnapshot } from '../../engine/types';
+import type { RunOptions } from '../useEngine';
 
 const start = vi.fn();
 const resume = vi.fn();
@@ -39,7 +40,7 @@ function stubFetch(
   pool: Card[],
   plan: {
     newCardIds: string[];
-    seenCards: { id: string; weight: number }[];
+    seenCards: { id: string; weight: number; owned?: boolean }[];
     tiers: {
       level: number;
       index: number | null;
@@ -51,10 +52,15 @@ function stubFetch(
     }[];
     runBudget: number;
   },
+  // planFails: the plan endpoint rejects, so fetchRunPlan returns null and the
+  // run starts with no plan at all (spec §7: the server being down never
+  // blocks play).
+  options: { planFails?: boolean } = {},
 ) {
   vi.stubGlobal('fetch', vi.fn((url: string) => {
     const u = String(url);
     if (u.includes('/api/plan')) {
+      if (options.planFails) return Promise.reject(new Error('plan endpoint down'));
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(plan) } as Response);
     }
     if (u.includes('/data/jlpt-')) {
@@ -67,6 +73,19 @@ function stubFetch(
     // any failure and queues to the outbox, so rejecting is safe.
     return Promise.reject(new Error(`unhandled fetch in test: ${u}`));
   }));
+}
+
+/**
+ * What the real engine does when a run ends: it hands the `onEvent` App gave
+ * `start()` a gameOver carrying every card that is lit or dark at that point.
+ * The mocked useEngine emits nothing on its own, so the tests fire it.
+ */
+function endRun(startCall: number, ownedIds: string[]): void {
+  const options = start.mock.calls[startCall]?.[0] as RunOptions;
+  options.onEvent?.(
+    { type: 'gameOver', score: 0, wave: 1, ownedIds },
+    { words: [], snapshot: mockSnapshot },
+  );
 }
 
 beforeEach(() => {
@@ -232,8 +251,9 @@ describe('App replay wiring never lets an un-introduced card spawn', () => {
 
     const replayPlan = start.mock.calls[1]?.[0]?.plan as EnginePlan | undefined;
     // The run-start snapshot's seenCards was empty; only this run's actual
-    // introduction should appear, at weight 1.
-    expect(replayPlan?.seenCards).toEqual([{ id: 'new-a', weight: 1 }]);
+    // introduction should appear, at weight 1. It was introduced but never
+    // killed (no gameOver event carried it), so it replays plain.
+    expect(replayPlan?.seenCards).toEqual([{ id: 'new-a', weight: 1, owned: false }]);
 
     // Feed exactly what App handed the engine into a real Spawner, across
     // several waves: the introduced card must be drawable (not starved) and
@@ -249,5 +269,170 @@ describe('App replay wiring never lets an un-introduced card spawn', () => {
       expect(wave.cards.length).toBeGreaterThan(0);
       for (const c of wave.cards) expect(c.id).toBe('new-a');
     }
+  });
+});
+
+/**
+ * A replay is a new run, and the lapse is decided by what the player has
+ * cleared BEFORE it starts: a word killed three minutes ago must fall lit in
+ * the replay, or dropping it would not be a lapse. The engine hands App
+ * every card lit or dark at the end of the run (gameOver.ownedIds); App
+ * carries it into the replay plan's seenCards. These tests drive the real App
+ * wiring and read the plan it hands the (mocked) engine's second start().
+ */
+describe('App replay wiring carries the run\'s owned cards forward', () => {
+  const tiers = [{ level: 5, index: 1, totalTiers: 1, size: 2, solid: 0, amnestied: 0, unreachable: 0 }];
+  const ownedOf = (plan: EnginePlan, id: string) => plan.seenCards.find((s) => s.id === id)?.owned;
+
+  it('onPlayAgain: a card killed in the run just played starts the replay owned', async () => {
+    const seenA = card('seen-a');
+    const seenB = card('seen-b');
+    window.history.pushState({}, '', '/?mode=reading&pool=n5');
+    stubFetch([seenA, seenB], {
+      newCardIds: [],
+      seenCards: [{ id: 'seen-a', weight: 1, owned: false }, { id: 'seen-b', weight: 1, owned: false }],
+      tiers,
+      runBudget: 0,
+    });
+    mockSnapshot = snap({ status: 'playing' });
+
+    const { rerender } = render(<App />);
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+
+    // The run ends having killed seen-a only.
+    endRun(0, ['seen-a']);
+    mockSnapshot = snap({ status: 'gameOver', missed: [] });
+    rerender(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: /play again/i }));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+
+    const plan = start.mock.calls[1]?.[0]?.plan as EnginePlan;
+    expect(ownedOf(plan, 'seen-a')).toBe(true);
+    expect(ownedOf(plan, 'seen-b')).toBe(false);
+  });
+
+  it('onRevenge: the same wiring lights the missed card the run had killed before', async () => {
+    const seenA = card('seen-a');
+    const seenB = card('seen-b');
+    window.history.pushState({}, '', '/?mode=reading&pool=n5');
+    stubFetch([seenA, seenB], {
+      newCardIds: [],
+      seenCards: [{ id: 'seen-a', weight: 1, owned: false }, { id: 'seen-b', weight: 1, owned: false }],
+      tiers,
+      runBudget: 0,
+    });
+    mockSnapshot = snap({ status: 'playing' });
+
+    const { rerender } = render(<App />);
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+
+    // seen-a was killed and then dropped later in the run (a lapse leaves it
+    // dark, which still counts as owned); it is what Revenge replays.
+    endRun(0, ['seen-a']);
+    mockSnapshot = snap({ status: 'gameOver', missed: [seenA] });
+    rerender(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: /revenge round/i }));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+
+    const plan = start.mock.calls[1]?.[0]?.plan as EnginePlan;
+    expect(ownedOf(plan, 'seen-a')).toBe(true);
+    expect(ownedOf(plan, 'seen-b')).toBe(false);
+  });
+
+  it('a card the plan already owned stays owned even when the gameOver event omits it', async () => {
+    const seenA = card('seen-a');
+    const seenB = card('seen-b');
+    window.history.pushState({}, '', '/?mode=reading&pool=n5');
+    stubFetch([seenA, seenB], {
+      newCardIds: [],
+      seenCards: [{ id: 'seen-a', weight: 1, owned: true }, { id: 'seen-b', weight: 1, owned: false }],
+      tiers,
+      runBudget: 0,
+    });
+    mockSnapshot = snap({ status: 'playing' });
+
+    const { rerender } = render(<App />);
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+
+    endRun(0, []);
+    mockSnapshot = snap({ status: 'gameOver', missed: [] });
+    rerender(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: /play again/i }));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+
+    const plan = start.mock.calls[1]?.[0]?.plan as EnginePlan;
+    expect(ownedOf(plan, 'seen-a')).toBe(true);
+    expect(ownedOf(plan, 'seen-b')).toBe(false);
+  });
+
+  it('a no-plan run (fetch of /api/plan fails) still lights the cards it killed on replay', async () => {
+    const seenA = card('seen-a');
+    const seenB = card('seen-b');
+    window.history.pushState({}, '', '/?mode=reading&pool=n5');
+    stubFetch(
+      [seenA, seenB],
+      { newCardIds: [], seenCards: [], tiers, runBudget: 0 },
+      { planFails: true },
+    );
+    mockSnapshot = snap({ status: 'playing' });
+
+    const { rerender } = render(<App />);
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+    // fetchRunPlan returned null: the run really started without a plan.
+    expect(start.mock.calls[0]?.[0]?.plan).toBeUndefined();
+
+    endRun(0, ['seen-a']);
+    mockSnapshot = snap({ status: 'gameOver', missed: [] });
+    rerender(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: /play again/i }));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+
+    const plan = start.mock.calls[1]?.[0]?.plan as EnginePlan;
+    expect(ownedOf(plan, 'seen-a')).toBe(true);
+    expect(ownedOf(plan, 'seen-b')).toBe(false);
+  });
+
+  it('a fresh run from Setup clears the previous run\'s ownedIds', async () => {
+    const seenA = card('seen-a');
+    const seenB = card('seen-b');
+    window.history.pushState({}, '', '/?mode=reading&pool=n5');
+    stubFetch([seenA, seenB], {
+      newCardIds: [],
+      seenCards: [{ id: 'seen-a', weight: 1, owned: false }, { id: 'seen-b', weight: 1, owned: false }],
+      tiers,
+      runBudget: 0,
+    });
+    mockSnapshot = snap({ status: 'playing' });
+
+    const { rerender } = render(<App />);
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+
+    // Run 1 kills seen-a; its replay (start #2) starts with seen-a lit, which
+    // proves ownedIdsRef was filled.
+    endRun(0, ['seen-a']);
+    mockSnapshot = snap({ status: 'gameOver', missed: [] });
+    rerender(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: /play again/i }));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+    expect(ownedOf(start.mock.calls[1]?.[0]?.plan as EnginePlan, 'seen-a')).toBe(true);
+
+    // Back out to the title and begin a genuinely fresh run from Setup
+    // (start #3). Its plan comes from the server, where seen-a is not owned.
+    await userEvent.click(await screen.findByRole('button', { name: /^title$/i }));
+    await userEvent.click(await screen.findByTestId('start-button'));
+    await userEvent.click(await screen.findByTestId('begin-button'));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(3));
+
+    // Run 3 ends WITHOUT a gameOver event (the mock engine emits nothing on
+    // its own, and none is fired here), so whatever Play again sees can only
+    // be what beginFromPool left in ownedIdsRef. Firing one with [] would
+    // overwrite the ref and hide a missing reset.
+    expect(mockSnapshot.status).toBe('gameOver');
+    await userEvent.click(await screen.findByRole('button', { name: /play again/i }));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(4));
+
+    const plan = start.mock.calls[3]?.[0]?.plan as EnginePlan;
+    expect(ownedOf(plan, 'seen-a')).toBe(false);
+    expect(ownedOf(plan, 'seen-b')).toBe(false);
   });
 });

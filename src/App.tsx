@@ -72,16 +72,27 @@ function runFromUrl(): { mode: GameMode; pool: PlayablePool } | null {
  * every pool card was review-eligible at uniform weight, and the replay
  * keeps exactly that - introducedThisRun is moot there, since nothing was
  * ever locked to begin with.
+ *
+ * A replay is a new run, so the lapse is decided by what the player had
+ * cleared BEFORE it starts: every seen card is owned (starts lit) if the
+ * plan already said so OR the run just played ended with it lit or dark
+ * (ownedIds, from the engine's gameOver event - plan-owned cards plus
+ * everything it killed). Without that, a word killed three minutes ago would
+ * fall plain in the replay and dropping it would not be a lapse. This holds
+ * for the null-original and introduced-this-run entries too: a card killed
+ * in a run with no plan, or introduced and killed in the same run, replays
+ * lit. No round-trip: the engine already knows, the server need not.
  */
 function replayPlan(
   original: EnginePlan | null,
   pool: readonly Card[],
   introducedThisRun: ReadonlySet<string>,
+  ownedIds: ReadonlySet<string>,
 ): EnginePlan {
   if (original === null) {
     return {
       newCardIds: [],
-      seenCards: pool.map((c) => ({ id: c.id, weight: 1 })),
+      seenCards: pool.map((c) => ({ id: c.id, weight: 1, owned: ownedIds.has(c.id) })),
       runBudget: 0,
       perWaveNewCap: 0,
     };
@@ -95,10 +106,13 @@ function replayPlan(
   const alreadySeen = new Set(original.seenCards.map((s) => s.id));
   const introduced = [...introducedThisRun]
     .filter((id) => !alreadySeen.has(id))
-    .map((id) => ({ id, weight: 1 }));
+    .map((id) => ({ id, weight: 1, owned: ownedIds.has(id) }));
   return {
     newCardIds: original.newCardIds,
-    seenCards: [...original.seenCards, ...introduced],
+    seenCards: [
+      ...original.seenCards.map((s) => ({ ...s, owned: (s.owned ?? false) || ownedIds.has(s.id) })),
+      ...introduced,
+    ],
     runBudget: 0,
     perWaveNewCap: 0,
   };
@@ -135,6 +149,13 @@ export default function App() {
   // into replayPlan's seen list so a replay never starves cards this run
   // itself introduced (see replayPlan's doc comment).
   const introducedIdsRef = useRef<Set<string>>(new Set());
+  // Every card that was lit or dark when the run just played ended: the
+  // gameOver event's ownedIds (the plan's owned cards plus everything the run
+  // killed). Same lifecycle as introducedIdsRef: filled by the run's own
+  // gameOver, reset only when a fresh run begins (beginFromPool), so a replay
+  // of a replay still remembers the whole chain. Folded into replayPlan's seen
+  // list so a replay starts with what the last run cleared already lit.
+  const ownedIdsRef = useRef<Set<string>>(new Set());
   const recorderRef = useRef<RunRecorder | null>(null);
   const [planNotice, setPlanNotice] = useState<string | null>(null);
   // The plain results-screen line for this run, or null (tiered spec §5.4).
@@ -161,7 +182,13 @@ export default function App() {
       const recorder = new RunRecorder({ runId: crypto.randomUUID(), mode, pool, cards, listVersion });
       recorderRef.current = recorder;
       start({
-        mode, cards, plan: plan ?? undefined, onEvent: (event, view) => recorder.onEvent(event, view),
+        mode,
+        cards,
+        plan: plan ?? undefined,
+        onEvent: (event, view) => {
+          if (event.type === 'gameOver') ownedIdsRef.current = new Set(event.ownedIds);
+          recorder.onEvent(event, view);
+        },
       });
       setScreen('game');
     },
@@ -174,6 +201,7 @@ export default function App() {
     // A genuinely fresh run: nothing has been introduced yet, and anything
     // recorded by a PRIOR run/replay chain must not leak into this one.
     introducedIdsRef.current = new Set();
+    ownedIdsRef.current = new Set();
     try {
       const [{ cards, listVersion }, fetched] =
         await Promise.all([loadPool(pool), fetchRunPlan(pool, mode)]);
@@ -293,7 +321,7 @@ export default function App() {
             // of revenge's reach, preserving their ceremony for a later
             // planned run; both replay paths stay identical (see
             // replayPlan's doc comment for the failure this guards against).
-            replayPlan(lastPlanRef.current, missed, introducedIdsRef.current),
+            replayPlan(lastPlanRef.current, missed, introducedIdsRef.current, ownedIdsRef.current),
             REPLAY_NOTICE,
           )}
         onPlayAgain={() => lastRunRef.current
@@ -307,7 +335,12 @@ export default function App() {
             // doc comment: this is the fix for the CRITICAL "Play again"
             // bug, where a null plan let un-introduced cards spawn and burn
             // their acquisition moment forever.
-            replayPlan(lastPlanRef.current, lastRunRef.current.cards, introducedIdsRef.current),
+            replayPlan(
+              lastPlanRef.current,
+              lastRunRef.current.cards,
+              introducedIdsRef.current,
+              ownedIdsRef.current,
+            ),
             REPLAY_NOTICE,
           )}
         onTitle={() => setScreen('title')}
