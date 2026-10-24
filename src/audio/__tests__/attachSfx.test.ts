@@ -7,6 +7,7 @@ function fakePlayer(): Sfx {
   return {
     kill: vi.fn(), miss: vi.fn(), wrongSubmit: vi.fn(), waveClear: vi.fn(),
     gameOver: vi.fn(), ceremonyChime: vi.fn(), tierFanfare: vi.fn(),
+    lapse: vi.fn(), relit: vi.fn(),
   } as unknown as Sfx;
 }
 
@@ -26,6 +27,25 @@ describe('attachSfx', () => {
     expect(player.wrongSubmit).toHaveBeenCalledTimes(1);
     expect(player.waveClear).toHaveBeenCalledTimes(1);
     expect(player.gameOver).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes a lapse and a second drop to lapse(), a lesson to miss()', () => {
+    const player = fakePlayer();
+    const listen = attachSfx(player);
+    listen({ type: 'wordMissed', word, lapse: true, light: 'lit' } as GameEvent);
+    listen({ type: 'wordMissed', word, lapse: false, light: 'dark' } as GameEvent);
+    listen({ type: 'wordMissed', word, lapse: false, light: 'plain' } as GameEvent);
+    expect(player.lapse).toHaveBeenCalledTimes(2);
+    expect(player.miss).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes a relit kill to relit(combo), a plain kill to kill(combo)', () => {
+    const player = fakePlayer();
+    const listen = attachSfx(player);
+    listen({ type: 'wordKilled', word, msToKill: 1, points: 1, combo: 3, relit: true } as GameEvent);
+    listen({ type: 'wordKilled', word, msToKill: 1, points: 1, combo: 4, relit: false } as GameEvent);
+    expect(player.relit).toHaveBeenCalledWith(3);
+    expect(player.kill).toHaveBeenCalledWith(4);
   });
 
   it('ignores every other event and never touches the React-owned voices', () => {
