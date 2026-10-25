@@ -1,7 +1,7 @@
 # The Lapse — Design Spec
 
 **Date:** 2026-10-24
-**Status:** Draft, awaiting owner review
+**Status:** Implemented — see docs/superpowers/plans/2026-10-24-the-lapse.md
 **Scope:** Make a dropped word you already own feel different from a dropped word you've just met: owned words fall lit, a lapse puts the light out and shows only the reading you dropped, and the word comes back dark for you to relight.
 **Builds on:** the main spec's engine/render/audio boundary (`2026-07-22-kotoba-drop-design.md` §4: Pixi, the React HUD and audio are passive consumers of engine events), the juice pass (`2026-08-08-juice-pass-design.md`: SFX voices, effects levels), the second-pass visual identity (`2026-10-07-visual-identity-second-pass-design.md` §4.3: the moments of play, §6: the effects contract, §7: legibility), and the tiered-vocabulary plan (`2026-07-27-tiered-vocabulary-design.md` §3.4: the seen-card weights this spec extends).
 
