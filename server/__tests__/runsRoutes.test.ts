@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { buildApp } from '../app';
 import { makeTestDb } from '../testDb';
-import { runs } from '../db/schema';
+import { attempts, runs } from '../db/schema';
 import type { AttemptEvent, CreateRun, WrongSubmitEvent } from '../../src/shared/api';
 
 let cleanup: (() => void) | null = null;
@@ -42,6 +42,7 @@ function makeAttempt(overrides: Partial<AttemptEvent> = {}): AttemptEvent {
     backspaceCount: 0,
     hintShown: false,
     wasTargeted: true,
+    comeback: false,
     airborneCount: 1,
     speedLevel: 1,
     createdAt: Date.now(),
@@ -173,6 +174,33 @@ describe('POST /api/runs/:id/events', () => {
 
     expect(countRows(t.handle.sqlite, 'attempts')).toBe(0);
     expect(countRows(t.handle.sqlite, 'ingested_batches')).toBe(0);
+  });
+
+  it('stores comeback=true and defaults it when an old client omits the field', async () => {
+    const t = makeTestDb();
+    cleanup = t.cleanup;
+    const app = buildApp(t.handle);
+    const runId = await createRun(app);
+
+    const batch = {
+      batchId: randomUUID(),
+      attempts: [
+        makeAttempt({ comeback: true }),
+        // An old client: the attempt carries no comeback key at all.
+        (({ comeback: _omit, ...rest }) => rest)(makeAttempt({ cardId: 'card-2' })),
+      ],
+      wrongSubmits: [],
+    };
+
+    const res = await app.request(`/api/runs/${runId}/events`, jsonRequest(batch));
+    expect(res.status).toBe(201);
+
+    const rows = t.handle.db
+      .select({ comeback: attempts.comeback })
+      .from(attempts)
+      .orderBy(attempts.id)
+      .all();
+    expect(rows.map((r) => r.comeback)).toEqual([true, false]);
   });
 
   describe('introduction ingest', () => {

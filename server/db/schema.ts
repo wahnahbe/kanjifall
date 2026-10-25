@@ -41,6 +41,7 @@ export const attempts = sqliteTable('attempts', {
   backspaceCount: integer('backspace_count').notNull(),
   hintShown: integer('hint_shown', { mode: 'boolean' }).notNull(),
   wasTargeted: integer('was_targeted', { mode: 'boolean' }).notNull(),
+  comeback: integer('comeback', { mode: 'boolean' }).notNull().default(false),
   airborneCount: integer('airborne_count').notNull(),
   speedLevel: integer('speed_level').notNull(),
   createdAt: integer('created_at').notNull(),

@@ -26,7 +26,7 @@ describe('comboPitch', () => {
 describe('sfx voices', () => {
   it('are silent no-ops without AudioContext (jsdom) — nothing throws', () => {
     expect(() => {
-      sfx.kill(3); sfx.miss(); sfx.wrongSubmit(); sfx.waveClear();
+      sfx.kill(3); sfx.relit(3); sfx.miss(); sfx.lapse(); sfx.wrongSubmit(); sfx.waveClear();
       sfx.gameOver(); sfx.ceremonyChime(); sfx.tierFanfare();
     }).not.toThrow();
   });

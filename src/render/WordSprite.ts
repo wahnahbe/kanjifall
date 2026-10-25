@@ -9,6 +9,7 @@ import { visualParams } from '../design/visualParams';
 import type { AirborneWord, GameMode } from '../engine/types';
 import { approachMix, approachTint } from './approach';
 import { HEIGHT as BRUSH_STROKE_HEIGHT, loadBrushTexture, type BrushStrokeOptions } from './brushStroke';
+import { LIT_CORE_BLUR, lightStyle, type LightStyle } from './light';
 import { reticleBrackets } from './reticle';
 import { lockFlickerAlpha, spawnFrame, type SpawnParams } from './spawnTween';
 
@@ -87,14 +88,17 @@ const RETICLE_GLOW_OUTER_STRENGTH = 1.6;
 const UNDERLINE_GLOW_DISTANCE = 5;
 const UNDERLINE_GLOW_OUTER_STRENGTH = 1.6;
 
-const HALO_BLUR = 18;
+// Exported so lightGlyph.ts, which rebuilds a lit word's glyph detached from
+// the sprite for the lapse and relit flickers (lapse spec §6.2, §6.3), reads
+// the same halo numbers instead of re-typing them.
+export const HALO_BLUR = 18;
 // TextStyle._getFinalPadding() sizes the backing canvas from `padding` and
 // filter padding only — it does not know about dropShadow.blur. Without
 // this, the shadow's soft falloff is hard-clipped at the canvas edge and
 // reads as a visible rectangle around the glyph instead of fading out
 // (visual-identity review, fix round 1). 1.5x the blur radius comfortably
 // covers the falloff.
-const HALO_PADDING = HALO_BLUR * 1.5;
+export const HALO_PADDING = HALO_BLUR * 1.5;
 
 // Spec §9.1: kanji stroke detail wins over any effect. The chromatic split
 // must never apply below this font size, no matter what visualParams says —
@@ -147,6 +151,11 @@ export class WordSprite {
   // resolution and the halo alpha to rebuild the same glyph later.
   private readonly approachTintAlpha: number;
   private readonly haloAlpha: number;
+  // Same fixed-for-life posture again: the light this word was dealt (lapse
+  // spec §6.1) decides its fill, halo, white core, chromatic split and spawn
+  // flicker once at construction. beginSpawn() reads spawnFlicker and
+  // setApproach() reads halo (a dark word has no halo to warm).
+  private readonly light: LightStyle;
   private hotText: Text | null = null;
   private readonly display: string;
   private readonly resolution: number;
@@ -163,7 +172,13 @@ export class WordSprite {
       ? word.card.gloss
       : word.card.kanji ?? word.card.kana[0];
     const resolution = Math.min(Math.max(window.devicePixelRatio, 1) * 2, 4);
-    const { chromaticSplitPx, haloAlpha, glowAlpha, flicker, approachTintAlpha } = visualParams(getSettings().effects);
+    const params = visualParams(getSettings().effects);
+    const { chromaticSplitPx, haloAlpha, glowAlpha, flicker, approachTintAlpha } = params;
+    // The light this word carries (lapse spec §6.1), decided once by the pure
+    // lightStyle(): plain is today's look at every level, lit adds the white
+    // core, dark is dim ink with no halo and no chromatic split.
+    const style = lightStyle(word.light, params);
+    this.light = style;
     this.glowAlpha = glowAlpha;
     this.flicker = flicker;
     this.approachTintAlpha = approachTintAlpha;
@@ -177,8 +192,10 @@ export class WordSprite {
 
     // Chromatic split: two ghost copies of the glyph behind the main one,
     // offset ±chromaticSplitPx on x and tinted red/cyan at low alpha. Added
-    // first so they render behind `this.text`, added below.
-    if (chromaticSplitPx > 0 && chromaticSplitAllowed(fontSize)) {
+    // first so they render behind `this.text`, added below. A dark word has
+    // no split (lapse spec §6.1): dim ink with a red/cyan fringe would not
+    // read as dim.
+    if (style.chromaticSplit && chromaticSplitPx > 0 && chromaticSplitAllowed(fontSize)) {
       const offsets: readonly [color: number, dx: number][] = [
         [PALETTE.danger, -chromaticSplitPx],
         [PALETTE.system, chromaticSplitPx],
@@ -197,22 +214,50 @@ export class WordSprite {
       }
     }
 
+    // The white core of a lit word (lapse spec §6.1): a second Text, built the
+    // way hotText is (same label, size and resolution), whose tight ink
+    // dropShadow is the part that glows. It is added immediately before
+    // `this.text` so it sits under the ink glyph and inside the cyan halo
+    // baked into that Text, and it is a sibling, so it cannot change
+    // `this.text.width/height` (the reticle, underline and hint measure
+    // those). Decoration only: it is gated on coreAlpha, which is 0 for a
+    // plain or dark word and at effects 'off'; nothing that carries state
+    // is created or skipped here.
+    if (style.coreAlpha > 0) {
+      const core = new Text({
+        text: display,
+        style: new TextStyle({
+          ...BASE_STYLE,
+          fontSize,
+          fill: PALETTE.ink,
+          dropShadow: { color: PALETTE.ink, blur: LIT_CORE_BLUR, distance: 0, alpha: style.coreAlpha },
+          padding: HALO_PADDING,
+        }),
+        resolution,
+      });
+      core.anchor.set(0.5);
+      this.view.addChild(core);
+    }
+
     this.text = new Text({
       text: display,
       style: new TextStyle({
         ...BASE_STYLE,
         fontSize,
+        // Dim ink for a dark word, ink otherwise (lapse spec §6.1).
+        fill: style.fill,
         // Word halo (spec §7): a soft glow behind the glyph, strength tied
         // to haloAlpha. Omitted entirely at 0 rather than passed with
         // alpha: 0, so effects 'off' renders genuinely flat, not a
-        // zero-opacity shadow still costing a draw pass. `padding` grows only
+        // zero-opacity shadow still costing a draw pass. A dark word never
+        // gets one either (lapse spec §6.1). `padding` grows only
         // the backing canvas (Text.updateBounds() measures the unpadded
         // glyph when style.trim is false, its default, so this.text.width/
         // height — and therefore bracket/underline sizing below — are
         // unaffected); without it the shadow's blur falloff is hard-clipped
         // at the canvas edge and reads as a visible rectangle around the
         // glyph instead of fading out.
-        ...(haloAlpha > 0
+        ...(style.halo
           ? {
               dropShadow: { color: PALETTE.system, blur: HALO_BLUR, distance: 0, alpha: haloAlpha },
               padding: HALO_PADDING,
@@ -317,7 +362,9 @@ export class WordSprite {
    *  underline and recall hint (added later) still draw over it. Built lazily
    *  on the first non-zero mix; most words die before it exists. */
   setApproach(progress: number): void {
-    if (this.approachTintAlpha === 0 || this.haloAlpha === 0) return;
+    // A dark word has no halo to warm (lapse spec §6.1): the floor swell still
+    // rises under it, which is the only approach signal it needs.
+    if (this.approachTintAlpha === 0 || this.haloAlpha === 0 || !this.light.halo) return;
     const { hot, base } = approachMix(progress, this.approachTintAlpha);
     if (hot === 0) {
       if (this.hotText !== null) {
@@ -353,7 +400,10 @@ export class WordSprite {
     const filter = withBlur && params.blurPx > 0 ? new BlurFilter({ strength: params.blurPx, quality: 2 }) : null;
     if (filter !== null) this.view.filters = [filter];
     this.view.alpha = 0;
-    this.spawn = { ageMs: 0, params, filter };
+    // A dark word comes back without the spawn-halo flicker (lapse spec §6.1):
+    // it has no light to flicker on, so it bleeds in with alpha (and blur)
+    // alone.
+    this.spawn = { ageMs: 0, params: { ...params, flicker: this.light.spawnFlicker ? params.flicker : 0 }, filter };
   }
 
   /** True from beginSpawn() until the bleed completes; PixiStage counts these

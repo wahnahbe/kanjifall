@@ -41,6 +41,17 @@ export class GameEngine {
   private nextSpawnAt = 0;
   private nextWaveAt = 0;
   private nextInstanceId = 1;
+
+  // The light (lapse spec §5.1). The map is the run's truth about each card
+  // ('lit' = owned, 'dark' = lapsed and not yet cleared; absent = plain). A
+  // word freezes its own light at spawn, and every event keys on that, never
+  // on the live map.
+  private readonly lightById = new Map<string, 'lit' | 'dark'>();
+  private comebackQueue: Card[] = [];
+  private readonly comebackDone = new Set<string>();
+  /** How many of the current wave's leading spawns are still comebacks. */
+  private comebacksPending = 0;
+
   private lastNow: number | null = null;
   private accumulator = 0;
   private stepCount = 0;
@@ -65,6 +76,12 @@ export class GameEngine {
       perWaveNewCap: 0,
     };
     this.spawner = new Spawner(pool, mulberry32(opts.seed), this.config, plan);
+    // Owned cards fall lit from the first wave (lapse spec §5.1). Without a
+    // plan nothing is owned, but kills still promote (§5.2): the light needs
+    // no flag, only the map.
+    for (const s of plan.seenCards) {
+      if (s.owned === true) this.lightById.set(s.id, 'lit');
+    }
   }
 
   subscribe(listener: (e: GameEvent) => void): () => void {
@@ -163,7 +180,10 @@ export class GameEngine {
 
   private beginWave(wave: number): void {
     this.wave = wave;
-    this.wavePlan = this.spawner.planWave(wave);
+    // Lapsed cards owed their one comeback lead this wave (lapse spec §5.4).
+    this.wavePlan = this.spawner.planWave(wave, this.comebackQueue);
+    this.comebackQueue = [];
+    this.comebacksPending = this.wavePlan.comebacks.length;
     this.waveQueue = [...this.wavePlan.cards];
     if (this.config.pauseOnWaveStart) {
       this.status = 'waveIntro';
@@ -207,7 +227,12 @@ export class GameEngine {
       backspaceCount: 0,
       hintShown: false,
       wasTargeted: false,
+      light: this.lightById.get(card.id) ?? 'plain',
+      // Only the wave's leading spawns are comebacks; a comeback card drawn
+      // again later in the run is an ordinary word.
+      comeback: this.comebacksPending > 0,
     };
+    if (this.comebacksPending > 0) this.comebacksPending -= 1;
     this.words.push(word);
     this.nextSpawnAt = this.timeMs + plan.spawnIntervalMs;
     this.emit({ type: 'wordSpawned', word });
@@ -238,10 +263,23 @@ export class GameEngine {
     this.lives -= 1;
     this.combo = 0;
     this.refreshLocks();
-    this.emit({ type: 'wordMissed', word });
+    // A lapse is a miss of a word that fell lit (lapse spec §5.3). A dark
+    // instance (second drop) and a plain one (a lesson, even if its twin was
+    // killed meanwhile and the map says lit) leave the map alone.
+    const lapse = word.light === 'lit';
+    if (lapse) {
+      this.lightById.set(word.card.id, 'dark');
+      if (!this.comebackDone.has(word.card.id)) {
+        this.comebackDone.add(word.card.id);
+        this.comebackQueue.push(word.card);
+      }
+    }
+    this.emit({ type: 'wordMissed', word, lapse, light: word.light });
     if (this.lives <= 0) {
       this.status = 'gameOver';
-      this.emit({ type: 'gameOver', score: this.score, wave: this.wave });
+      this.emit({
+        type: 'gameOver', score: this.score, wave: this.wave, ownedIds: [...this.lightById.keys()],
+      });
     }
   }
 
@@ -284,7 +322,11 @@ export class GameEngine {
     this.score += points;
     this.buffer.clear();
     this.refreshLocks();
-    this.emit({ type: 'wordKilled', word, msToKill, points, combo: this.combo });
+    // Clearing a dark word is a relit kill; any kill leaves the card lit
+    // (lapse spec §5.2).
+    const relit = word.light === 'dark';
+    this.lightById.set(word.card.id, 'lit');
+    this.emit({ type: 'wordKilled', word, msToKill, points, combo: this.combo, relit });
   }
 
   private refreshLocks(): void {

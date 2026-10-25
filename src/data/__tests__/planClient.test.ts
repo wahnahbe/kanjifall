@@ -31,7 +31,7 @@ describe('fetchRunPlan', () => {
     // Passed straight through so both the UI (starved-pool detection, spec
     // §3.2, §7) and the engine (Spawner's seen pool, spec §5.3) see the
     // weighted list untouched.
-    expect(plan!.seenCards).toEqual([{ id: 'c', weight: 1 }]);
+    expect(plan!.seenCards).toEqual([{ id: 'c', weight: 1, owned: false }]);
     // The fetched URL must carry the caller's mode (final-review Fix 1) —
     // otherwise the server can't exclude reading-mode kana-only cards.
     expect(fetchMock).toHaveBeenCalledWith('/api/plan?pool=n5&mode=reading');

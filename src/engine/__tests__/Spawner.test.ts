@@ -240,3 +240,35 @@ describe('Spawner tier-gate composition (M4-D)', () => {
     }
   });
 });
+
+describe('comebacks (lapse spec §5.4)', () => {
+  it('lead the wave and displace review draws, size unchanged', () => {
+    const s = makeWithPlan(planOf([], 0));
+    const wave = s.planWave(1, [pool[3], pool[7]]);
+    expect(wave.cards.slice(0, 2)).toEqual([pool[3], pool[7]]);
+    expect(wave.comebacks).toEqual([pool[3], pool[7]]);
+    expect(wave.cards).toHaveLength(DEFAULT_CONFIG.baseWaveSize);
+  });
+  it('never draws a comeback card a second time in the same wave', () => {
+    const s = makeWithPlan(planOf([], 0, 2, [{ id: 'c3', weight: 1 }, { id: 'c4', weight: 1 }]));
+    const wave = s.planWave(1, [pool[3]]);
+    expect(wave.cards.filter((c) => c.id === 'c3')).toHaveLength(1);
+  });
+  it('defers introductions, never drops comebacks, when both exceed the size', () => {
+    // wave size 5 (baseWaveSize), 4 comebacks, perWaveNewCap 2, budget 2
+    const s = makeWithPlan(planOf(['c0', 'c1'], 2, 2));
+    const wave = s.planWave(1, [pool[10], pool[11], pool[12], pool[13]]);
+    expect(wave.comebacks).toHaveLength(4);
+    expect(wave.newCards).toHaveLength(1);
+    expect(wave.cards).toHaveLength(5);
+    expect(s.planWave(2).newCards).toHaveLength(1); // the deferred one arrives next wave
+  });
+  it('a seen pool of one card that is also the comeback yields just the comeback', () => {
+    const s = makeWithPlan(planOf([], 0, 2, [{ id: 'c3', weight: 1 }]));
+    const wave = s.planWave(1, [pool[3]]);
+    expect(wave.cards).toEqual([pool[3]]);
+  });
+  it('planWave(wave) with no comebacks is unchanged', () => {
+    expect(makeWithPlan(planOf([], 0)).planWave(1).comebacks).toEqual([]);
+  });
+});

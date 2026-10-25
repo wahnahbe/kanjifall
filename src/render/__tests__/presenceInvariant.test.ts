@@ -53,12 +53,18 @@ function findStatements(source: ts.SourceFile, statementText: string): ts.Node[]
   return found;
 }
 
-function assertNeverGated(source: ts.SourceFile, statementText: string): void {
+/** The tokens an `if` may not test around a state statement. The default pair
+ *  covers the floor, deadline and target; a statement that has a wider set of
+ *  decoration knobs beside it (the lapse reveal) passes its own list. */
+const DECORATION_GATES = ['glowAlpha', 'haloAlpha'];
+
+function assertNeverGated(source: ts.SourceFile, statementText: string, gates: string[] = DECORATION_GATES): void {
   const matches = findStatements(source, statementText);
   expect(matches.length, `expected to find \`${statementText}\` in the source`).toBeGreaterThan(0);
   for (const node of matches) {
-    expect(isGatedBy(node, 'glowAlpha'), `\`${statementText}\` must not be gated on glowAlpha`).toBe(false);
-    expect(isGatedBy(node, 'haloAlpha'), `\`${statementText}\` must not be gated on haloAlpha`).toBe(false);
+    for (const gate of gates) {
+      expect(isGatedBy(node, gate), `\`${statementText}\` must not be gated on ${gate}`).toBe(false);
+    }
   }
 }
 
@@ -67,6 +73,20 @@ describe('presence is never gated on a decoration alpha (spec §7)', () => {
     const { source } = parse('src/render/PixiStage.ts');
     assertNeverGated(source, 'this.app.stage.addChild(floor);');
     assertNeverGated(source, 'this.app.stage.addChild(deadline);');
+  });
+
+  /** The miss reveal is state (lapse spec §6.2): the answer, and for a lapse
+   *  the YOU HAD THIS tag, must reach the player at every effects level. The
+   *  lit glyph copy beside it IS decoration and sits inside a haloAlpha gate;
+   *  the reveal call must stay outside that gate and any flicker or effects
+   *  one. */
+  it('PixiStage.playMiss spawns the reveal unconditionally', () => {
+    const { source } = parse('src/render/PixiStage.ts');
+    assertNeverGated(
+      source,
+      'this.spawnReveal(word, revealLayout(word.card, word.light, wordPx), wordPx);',
+      [...DECORATION_GATES, 'flicker', 'effects'],
+    );
   });
 
   it('WordSprite mounts the target reticle brackets unconditionally', () => {

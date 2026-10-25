@@ -5,7 +5,7 @@ import { getSettings, subscribeSettings } from '../data/settings';
 import { MOTION } from '../design/motion';
 import { cssHex, PALETTE } from '../design/palette';
 import { playScale, type PlayScale } from '../design/scale';
-import { FONT_STACK } from '../design/typography';
+import { FONT_STACK, UI_FONT_STACK } from '../design/typography';
 import { visualParams } from '../design/visualParams';
 import type { AirborneWord, GameMode } from '../engine/types';
 import { approachProgress, deadlineFlickerAlpha, DEADLINE_FLICKER_LIFE_MS, impactFrame, swellScaleX } from './approach';
@@ -13,6 +13,8 @@ import { loadBrushTexture } from './brushStroke';
 import { buildFilters, filterKinds } from './filters';
 import { tryFlareTexture } from './flareTexture';
 import { flareFrame, SLASH_ANGLE_RAD, SLASH_LENGTH_RATIO, SLASH_LIFE_MS, SLASH_SEED, slashFrame, slashHeightPx } from './killFx';
+import { LAPSE_TAG_RATIO, LIGHT_FLICKER_LIFE_MS, lightFlickerFrame, RELIT_LABEL, revealLayout, type RevealLayout } from './light';
+import { buildLightGlyph, type LightGlyph } from './lightGlyph';
 import { Particles } from './Particles';
 import { WordSprite } from './WordSprite';
 
@@ -49,9 +51,26 @@ const FLOOR_GLOW_DISTANCE = 12;
 const FLOOR_GLOW_OUTER_STRENGTH = 3;
 const FLOOR_TEXTURE_SEED = 11;
 // Miss-reveal underline (spec §5.4) — a flat rect, not a texture: see
-// playMiss()'s doc comment for why this one skips the brush-stroke treatment.
+// spawnReveal()'s doc comment for why this one skips the brush-stroke treatment.
 const MISS_UNDERLINE_GAP_PX = 4;
 const MISS_UNDERLINE_THICKNESS_PX = 2;
+// The lapse reveal stacks the kanji above the reading and the micro-label
+// below the underline (lapse spec §6.2). The label's letterSpacing is this
+// multiple of its own font size: the canvas stand-in for --tracking-label.
+const LAPSE_TAG_TRACKING_RATIO = 0.3;
+// Words are centre-anchored, so a gap here is measured from each Text's own
+// bounding box (line-height included).
+const LAPSE_STACK_GAP_PX = 2;
+const MISS_REVEAL_LIFE_MS = 1600;
+
+// The pop-and-fade shared by the kill flashes (`×N!` and `relit`): grows 30% over
+// the first 30% of the life, settles back over the next 30%, and fades over the
+// last 30% (lapse spec §6.3: relit "using the ×N! mechanism").
+const flashPop: (view: Container, t: number) => void = (view, t) => {
+  const pop = t < 0.3 ? 1 + (t / 0.3) * 0.3 : 1.3 - Math.min((t - 0.3) / 0.3, 1) * 0.3;
+  view.scale.set(pop);
+  view.alpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
+};
 
 // The kill slash (second-pass spec §4.3): a dry-brush stroke in ink. It is
 // displayed at about 2.6 x wordPx long (roughly 100-260px), so the canvas
@@ -122,6 +141,11 @@ export class PixiStage {
   // effects change picks up the new bleed/flicker numbers; sprites already
   // airborne keep the treatment they were built under (see WordSprite).
   private params = visualParams(getSettings().effects);
+  // The game mode of the last sync(), so a lapse or relit event can rebuild the
+  // dead word's glyph (displayFor) when its sprite has already been swept
+  // (lapse spec §6.2, §10). Reading until the first sync, which is before any
+  // word exists to miss or kill.
+  private mode: GameMode = 'reading';
   private shakeMs = 0;
   private destroyed = false;
   // Sentinel so the FIRST applyFilters() call always applies, no matter what
@@ -193,6 +217,7 @@ export class PixiStage {
 
   /** Mirror engine word list into sprites; reposition everything. */
   sync(words: readonly AirborneWord[], lockedIds: readonly number[], mode: GameMode): void {
+    this.mode = mode;
     const alive = new Set<number>();
     for (const word of words) {
       alive.add(word.instanceId);
@@ -273,7 +298,14 @@ export class PixiStage {
    *  the word, an ink-droplet splatter that grows with combo tier, and a neon
    *  flare blooming behind. Each is gated by its own visualParams number, so
    *  effects 'off' plays none of them — the word simply vanishes. Every 5th
-   *  combo step adds a `×N!` flash (skipped at 'off': spec §5.1). */
+   *  combo step adds a `×N!` flash (skipped at 'off': spec §5.1).
+   *
+   *  Clearing a dark word is a relit kill (lapse spec §6.3). Today's kill plays
+   *  first and unchanged, nothing deferred, and then the light comes on over
+   *  it: a detached glyph copy flickers dark to lit under the slash, and a
+   *  `relit` flash pops in accent, unless this kill is a ×5 step and `×N!`
+   *  already has the flash. Both are decoration: the copy needs a halo to
+   *  light, the flash needs effects above 'off'. */
   playKill(word: AirborneWord, combo: number): void {
     const px = word.x * this.app.screen.width;
     const py = Math.min(word.y, 0.95) * this.app.screen.height;
@@ -329,12 +361,29 @@ export class PixiStage {
     }
     this.particles.killBurst(px, py, combo);
 
-    if (combo > 0 && combo % 5 === 0 && getSettings().effects !== 'off') {
-      this.spawnFx(word, `×${combo}!`, PALETTE.accent, 500, (view, t) => {
-        const pop = t < 0.3 ? 1 + (t / 0.3) * 0.3 : 1.3 - Math.min((t - 0.3) / 0.3, 1) * 0.3;
-        view.scale.set(pop);
-        view.alpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
+    // The light comes on (lapse spec §6.3). The copy is built from the event's
+    // word, not the sprite (a swept sprite costs nothing), and pushed before
+    // the flashes below so they draw over it; the slash, which lands a
+    // microtask later, draws across it. It starts dark and runs dark, lit,
+    // dark, lit over three snap steps (a single step to lit at reduced), then
+    // rests lit and fades out with the flare.
+    if (word.light === 'dark' && this.params.haloAlpha > 0) {
+      const glyph = this.buildGlyphAt(word, wordPx);
+      this.pushFx(glyph.view, MOTION.flareMs, (view, t) => {
+        const age = t * MOTION.flareMs;
+        glyph.setLit(lightFlickerFrame(age, this.params.flicker, 'lit').lit);
+        view.alpha = age < LIGHT_FLICKER_LIFE_MS ? 1 : 1 - (age - LIGHT_FLICKER_LIFE_MS) / (MOTION.flareMs - LIGHT_FLICKER_LIFE_MS);
       });
+    }
+
+    const comboStep = combo > 0 && combo % 5 === 0;
+    const flashes = getSettings().effects !== 'off';
+    if (comboStep && flashes) {
+      this.spawnFx(word, `×${combo}!`, PALETTE.accent, 500, flashPop);
+    }
+    // `×N!` wins a shared kill (spec §10); the relit voice still plays.
+    if (word.light === 'dark' && flashes && !comboStep) {
+      this.spawnFx(word, RELIT_LABEL, PALETTE.accent, 500, flashPop);
     }
   }
 
@@ -342,20 +391,30 @@ export class PixiStage {
    *  moment), then the miss in the ink/neon grammar (second-pass spec §4.3): a
    *  vermillion splash, an impact glow along the floor, the deadline's
    *  flicker, and a 2px jolt. The reveal text is state and always plays; every
-   *  other part is gated by its own visualParams number. */
+   *  other part is gated by its own visualParams number.
+   *
+   *  What the reveal shows follows the word's light (lapse spec §6.2, §6.4): a
+   *  plain word is a lesson, a lit word is a lapse (the reading alone, the
+   *  kanji above it, the tag below), a dark word is a second drop (the lesson
+   *  in dead ink). A lapse also puts the light out: a detached glyph copy
+   *  flickers off at the floor, decoration that needs a halo to lose. The rest
+   *  of the miss is the same for all three. */
   playMiss(word: AirborneWord): void {
-    const reveal = `${word.card.kanji ?? ''} ${word.card.kana[0]} — ${word.card.gloss}`.trim();
-    // Spec §5.4: "becomes --color-ink on a vermillion underline rather than
-    // pink text" — the reveal is the game's most important teaching moment.
-    // Task 4's brief deferred this underline to Task 7; Task 7's own brief
-    // only ever specified the *target-lock* underline (§5.3), so it was
-    // never picked up — found during this task's matrix walk. §5.4 says
-    // "a vermillion underline", not §5.3's "vermillion brush underline", so
-    // this is a flat Graphics rect rather than the dry-brush texture: no new
-    // texture/tuning surface, and it matches the spec's literal wording.
-    this.spawnFx(word, reveal, PALETTE.ink, 1600, (view, t) => {
-      view.alpha = t < 0.15 ? 1 : 1 - (t - 0.15) / 0.85;
-    }, { underline: true });
+    const wordPx = this.sprites.get(word.instanceId)?.wordPx ?? this.scale.wordPx;
+    // State, first and unconditional: never inside the halo gate below.
+    this.spawnReveal(word, revealLayout(word.card, word.light, wordPx), wordPx);
+
+    if (word.light === 'lit' && this.params.haloAlpha > 0) {
+      const glyph = this.buildGlyphAt(word, wordPx);
+      glyph.setLit(true);
+      // Under the reveal, not over it: the dying glyph is decoration and the
+      // reveal is state, so it sits above the floor, swell, flare and impact
+      // glow (-1 / -0.75 / -0.5) and below the reveal and the words at 0.
+      glyph.view.zIndex = FLOOR_Z_INDEX + 0.75;
+      this.pushFx(glyph.view, LIGHT_FLICKER_LIFE_MS, (_view, t) => {
+        glyph.setLit(lightFlickerFrame(t * LIGHT_FLICKER_LIFE_MS, this.params.flicker, 'dark').lit);
+      });
+    }
 
     const px = word.x * this.app.screen.width;
     const killY = this.app.screen.height * FLOOR_Y_RATIO;
@@ -420,14 +479,7 @@ export class PixiStage {
     this.fx = [];
   }
 
-  private spawnFx(
-    word: AirborneWord,
-    label: string,
-    color: number,
-    lifeMs: number,
-    update: Fx['update'],
-    options: { underline?: boolean } = {},
-  ): void {
+  private spawnFx(word: AirborneWord, label: string, color: number, lifeMs: number, update: Fx['update']): void {
     const text = new Text({
       text: label,
       style: new TextStyle({
@@ -440,19 +492,116 @@ export class PixiStage {
     text.anchor.set(0.5);
     const view = new Container();
     view.addChild(text);
-    // Miss reveal only (spec §5.4) — measured against the real label, so it
-    // spans exactly the rendered text regardless of how long the reveal
-    // string (kanji + kana + gloss) turns out to be.
-    if (options.underline === true) {
-      const underline = new Graphics()
-        .rect(-text.width / 2, text.height / 2 + MISS_UNDERLINE_GAP_PX, text.width, MISS_UNDERLINE_THICKNESS_PX)
-        .fill(PALETTE.danger);
-      view.addChild(underline);
-    }
     const yPx = Math.min(word.y, 0.95) * this.app.screen.height;
     view.position.set(word.x * this.app.screen.width, yPx);
     this.app.stage.addChild(view);
     this.fx.push({ view, ageMs: 0, lifeMs, update });
+  }
+
+  /** The floor reveal where a missed word landed (spec §5.4, lapse spec §6.2,
+   *  §6.4), laid out by revealLayout(). State, not decoration: it plays at
+   *  every effects level and is never created inside a visualParams gate.
+   *
+   *  Spec §5.4: "becomes --color-ink on a vermillion underline rather than
+   *  pink text" — the reveal is the game's most important teaching moment.
+   *  Task 4's brief deferred this underline to Task 7; Task 7's own brief
+   *  only ever specified the *target-lock* underline (§5.3), so it was never
+   *  picked up — found during this task's matrix walk. §5.4 says "a vermillion
+   *  underline", not §5.3's "vermillion brush underline", so this is a flat
+   *  Graphics rect rather than the dry-brush texture: no new texture/tuning
+   *  surface, and it matches the spec's literal wording.
+   *
+   *  The underline sits under the `main` line and is measured against the real
+   *  Text, so it spans exactly the rendered line however long the string turns
+   *  out to be. A lesson is `main` alone and renders as it always has. A lapse
+   *  adds the kanji centred above `main` and the tag centred below the
+   *  underline, in the UI face at LAPSE_TAG_RATIO of the word size. */
+  private spawnReveal(word: AirborneWord, layout: RevealLayout, wordPx: number): void {
+    const view = new Container();
+    const main = new Text({
+      text: layout.main.text,
+      style: new TextStyle({ fontFamily: FONT_STACK, fontSize: layout.main.fontSize, fill: layout.fill }),
+      resolution: 2,
+    });
+    main.anchor.set(0.5);
+    view.addChild(main);
+
+    const underlineTop = main.height / 2 + MISS_UNDERLINE_GAP_PX;
+    const underline = new Graphics()
+      .rect(-main.width / 2, underlineTop, main.width, MISS_UNDERLINE_THICKNESS_PX)
+      .fill(PALETTE.danger);
+    view.addChild(underline);
+    // How far the block reaches below `main`'s centre; grows when a tag hangs
+    // under the underline.
+    let bottomPx = underlineTop + MISS_UNDERLINE_THICKNESS_PX;
+
+    if (layout.above !== null) {
+      const above = new Text({
+        text: layout.above.text,
+        style: new TextStyle({ fontFamily: FONT_STACK, fontSize: layout.above.fontSize, fill: layout.fill }),
+        resolution: 2,
+      });
+      above.anchor.set(0.5);
+      above.position.set(0, -(main.height / 2 + LAPSE_STACK_GAP_PX + above.height / 2));
+      view.addChild(above);
+    }
+    if (layout.tag !== null) {
+      const tagPx = Math.round(LAPSE_TAG_RATIO * wordPx);
+      const tag = new Text({
+        text: layout.tag.toUpperCase(),
+        style: new TextStyle({
+          fontFamily: UI_FONT_STACK,
+          fontSize: tagPx,
+          fill: PALETTE.danger,
+          letterSpacing: LAPSE_TAG_TRACKING_RATIO * tagPx,
+        }),
+        resolution: 2,
+      });
+      tag.anchor.set(0.5);
+      tag.position.set(0, bottomPx + LAPSE_STACK_GAP_PX + tag.height / 2);
+      bottomPx = tag.position.y + tag.height / 2;
+      view.addChild(tag);
+    }
+
+    // Where the word landed (the same 0.95 line as every other fx). A lesson
+    // fits under it; a lapse's tag hangs below the underline, past the 5% the
+    // stage leaves under that line. The stage ends at the kill line, so there
+    // it would be cut off whole, and just above the edge it would sit on the
+    // floor stroke's glow. A tagged reveal is lifted until the tag clears the
+    // top of the floor stroke (its canvas is floorPx tall, lower edge on the
+    // kill line). The mounted sprite keeps its mount-time height across
+    // resizes while this.scale is refreshed, so measure the sprite itself.
+    const landedY = Math.min(word.y, 0.95) * this.app.screen.height;
+    const floorPx = this.floor?.height ?? this.scale.floorPx;
+    const yPx = layout.tag === null ? landedY : Math.min(landedY, this.app.screen.height * FLOOR_Y_RATIO - floorPx - bottomPx);
+    view.position.set(word.x * this.app.screen.width, yPx);
+    this.app.stage.addChild(view);
+    this.fx.push({
+      view,
+      ageMs: 0,
+      lifeMs: MISS_REVEAL_LIFE_MS,
+      update: (v, t) => {
+        v.alpha = t < 0.15 ? 1 : 1 - (t - 0.15) / 0.85;
+      },
+    });
+  }
+
+  /** The text a word shows on the field: its gloss in recall mode, else its
+   *  kanji (kana for a kana-only card). The same rule WordSprite's constructor
+   *  applies, kept here so a lapse or relit glyph copy can be rebuilt from the
+   *  event's word after the sprite is gone. */
+  private displayFor(word: AirborneWord): string {
+    return this.mode === 'recall' ? word.card.gloss : word.card.kanji ?? word.card.kana[0];
+  }
+
+  /** A detached glyph copy of `word` at its place on the field (lapse spec
+   *  §6.2, §6.3), unlit, built under the current effects level. The caller
+   *  gates on haloAlpha and pushes it onto fx. */
+  private buildGlyphAt(word: AirborneWord, wordPx: number): LightGlyph {
+    const resolution = Math.min(Math.max(window.devicePixelRatio, 1) * 2, 4);
+    const glyph = buildLightGlyph(this.displayFor(word), wordPx, resolution, this.params);
+    glyph.view.position.set(word.x * this.app.screen.width, Math.min(word.y, 0.95) * this.app.screen.height);
+    return glyph;
   }
 
   /** Like spawnFx, for a ready-made display object instead of a label. */

@@ -42,6 +42,14 @@ function setup() {
          VALUES ('run-1', ?, 'reading', ?, 100, ?, 0, 0, 1, 1, 1, ?)`,
       )
       .run(cardId, outcome, outcome === 'kill' ? 400 : null, at);
+  const recallAttempt = (cardId: string, at: number) =>
+    t.handle.sqlite
+      .prepare(
+        `INSERT INTO attempts (run_id, card_id, mode, outcome, ms_to_first_key, ms_to_kill,
+           backspace_count, hint_shown, was_targeted, airborne_count, speed_level, created_at)
+         VALUES ('run-1', ?, 'recall', 'kill', 100, 400, 0, 0, 1, 1, 1, ?)`,
+      )
+      .run(cardId, at);
   const introduce = (cardId: string, at: number) =>
     t.handle.sqlite
       .prepare(`INSERT OR IGNORE INTO introductions (card_id, run_id, introduced_at) VALUES (?, 'run-1', ?)`)
@@ -75,8 +83,8 @@ function setup() {
       )
       .run(id, kanji);
   return {
-    t, ids: n5Ids.map((r) => r.id), tierIds, kanaOnlyTierIds, attempt, introduce, makeSolid,
-    makeAmnestied, weightOf, makeList, insertCustomCard,
+    t, ids: n5Ids.map((r) => r.id), tierIds, kanaOnlyTierIds, attempt, recallAttempt, introduce,
+    makeSolid, makeAmnestied, weightOf, makeList, insertCustomCard,
   };
 }
 
@@ -461,5 +469,37 @@ describe('computeRunPlan — list pools (custom-list-import spec §5.2)', () => 
     expect(computeRunPlan(t.handle, 'list:99', NOW)).toEqual({
       newCardIds: [], seenCards: [], runBudget: 0, tiers: [],
     });
+  });
+});
+
+describe('owned (lapse spec §4.1)', () => {
+  const ownedOf = (plan: ReturnType<typeof computeRunPlan>, id: string) =>
+    plan.seenCards.find((s) => s.id === id)?.owned;
+
+  it('is true after one kill, in either mode, and false with misses only', () => {
+    const { t, ids, attempt, recallAttempt, introduce } = setup();
+    const [a, b, c] = ids;
+    introduce(a, NOW - HOUR); introduce(b, NOW - HOUR); introduce(c, NOW - HOUR);
+    attempt(a, NOW - HOUR);                  // one reading kill
+    recallAttempt(b, NOW - HOUR);            // one recall kill
+    attempt(c, NOW - HOUR, 'miss');          // misses only
+    const plan = computeRunPlan(t.handle, 'n5', NOW, 'reading');
+    expect(ownedOf(plan, a)).toBe(true);
+    expect(ownedOf(plan, b)).toBe(true);
+    expect(ownedOf(plan, c)).toBe(false);
+  });
+  it('is false for an introduced card never attempted', () => {
+    const { t, ids, introduce } = setup();
+    introduce(ids[0], NOW - HOUR);
+    expect(ownedOf(computeRunPlan(t.handle, 'n5', NOW, 'reading'), ids[0])).toBe(false);
+  });
+  it('is present on list-pool plans', () => {
+    const { t, ids, attempt, introduce, makeList } = setup();
+    makeList(1, [ids[0], ids[1]]);
+    introduce(ids[0], NOW - HOUR); introduce(ids[1], NOW - HOUR);
+    attempt(ids[0], NOW - HOUR);
+    const plan = computeRunPlan(t.handle, 'list:1', NOW, 'reading');
+    expect(ownedOf(plan, ids[0])).toBe(true);
+    expect(ownedOf(plan, ids[1])).toBe(false);
   });
 });

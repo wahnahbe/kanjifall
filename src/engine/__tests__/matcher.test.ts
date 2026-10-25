@@ -11,6 +11,7 @@ const card = (id: string, readings: string[], kanji: string | null = '字'): Car
 const airborne = (id: number, c: Card, y: number): AirborneWord => ({
   instanceId: id, card: c, lane: 0, x: 0.5, y, speed: 0.1,
   spawnedAt: 0, firstKeyAt: null, backspaceCount: 0, hintShown: false, wasTargeted: false,
+  light: 'plain', comeback: false,
 });
 
 describe('normalizeReading', () => {

@@ -79,8 +79,25 @@ export const sfx = {
   kill(combo: number): void {
     playNotes([{ type: 'triangle', freq: comboPitch(combo), startMs: 0, durMs: 90 }]);
   },
+  /** A dark word cleared, leaving its card owned again (lapse spec §7). */
+  relit(combo: number): void {
+    playNotes([
+      { type: 'sine', freq: 1600, startMs: 0, durMs: 20, peak: 0.14 },
+      { type: 'sine', freq: 330, endFreq: 660, startMs: 20, durMs: 160, peak: 0.16 },
+      { type: 'sine', freq: 495, endFreq: 990, startMs: 60, durMs: 180, peak: 0.12 },
+      { type: 'triangle', freq: comboPitch(combo), startMs: 200, durMs: 90 },
+    ]);
+  },
   miss(): void {
     playNotes([{ type: 'sawtooth', freq: 160, endFreq: 70, startMs: 0, durMs: 320, peak: 0.3 }]);
+  },
+  /** Power-down: an owned word dropped, or a dark word dropped again (lapse spec §7). */
+  lapse(): void {
+    playNotes([
+      { type: 'sine', freq: 1800, startMs: 0, durMs: 25, peak: 0.18 },
+      { type: 'triangle', freq: 196, endFreq: 38, startMs: 20, durMs: 680, peak: 0.26 },
+      { type: 'sawtooth', freq: 98, endFreq: 22, startMs: 20, durMs: 680, peak: 0.1 },
+    ]);
   },
   wrongSubmit(): void {
     playNotes([

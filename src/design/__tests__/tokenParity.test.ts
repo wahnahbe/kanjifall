@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { EASE, MOTION } from '../motion';
 import { PALETTE } from '../palette';
-import { FONT_STACK } from '../typography';
+import { FONT_STACK, UI_FONT_STACK } from '../typography';
 
 /** `--color-ink-dim` → `inkDim`. */
 function toCamel(cssName: string): string {
@@ -23,12 +23,12 @@ function readCssPalette(): Map<string, number> {
   return found;
 }
 
-/** Reads `--font-word`'s declared value verbatim (not colour-shaped, so it
- *  can't reuse readCssPalette's hex regex). */
-function readCssFontWord(): string {
+/** Reads `--font-word` or `--font-ui`'s declared value verbatim (not
+ *  colour-shaped, so it can't reuse readCssPalette's hex regex). */
+function readCssFont(name: 'word' | 'ui'): string {
   const css = readFileSync(join(process.cwd(), 'src/ui/tokens.css'), 'utf8');
-  const match = /--font-word:\s*([^;]+);/.exec(css);
-  if (match === null) throw new Error('tokens.css has no --font-word declaration');
+  const match = new RegExp(`--font-${name}:\\s*([^;]+);`).exec(css);
+  if (match === null) throw new Error(`tokens.css has no --font-${name} declaration`);
   return match[1].trim();
 }
 
@@ -59,7 +59,13 @@ describe('token parity (visual-identity spec §3.3)', () => {
   // re-typed in both WordSprite.ts and PixiStage.ts with nothing catching
   // drift from tokens.css's own --font-word — this pins all three together.
   it('typography.ts FONT_STACK equals tokens.css --font-word', () => {
-    expect(FONT_STACK).toBe(readCssFontWord());
+    expect(FONT_STACK).toBe(readCssFont('word'));
+  });
+
+  // Lapse spec §6.2: the reveal tag ("you had this") is drawn by Pixi in the
+  // UI face, so Pixi needs `--font-ui` as a plain string too.
+  it('typography.ts UI_FONT_STACK equals tokens.css --font-ui', () => {
+    expect(UI_FONT_STACK).toBe(readCssFont('ui'));
   });
 
   /** `--duration-bleed` → `bleedMs`; `--ease-ink` → `ink`. */

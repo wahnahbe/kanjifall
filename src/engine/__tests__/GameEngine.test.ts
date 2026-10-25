@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GameEngine } from '../GameEngine';
 import { STEP_MS } from '../constants';
-import type { Card, GameEvent } from '../types';
+import type { Card, EngineConfig, EnginePlan, GameEvent } from '../types';
 
 const cards: Card[] = [
   { id: 'neko', kanji: '猫', kana: ['ねこ'], gloss: 'cat', pos: 'noun', jlpt: 5, source: 'jlpt' },
@@ -22,6 +22,16 @@ const config = {
 
 function makeEngine(seed = 1) {
   const engine = new GameEngine({ cards, mode: 'reading', seed, config });
+  const events: GameEvent[] = [];
+  engine.subscribe((e) => events.push(e));
+  engine.start();
+  return { engine, events };
+}
+
+function makeEngineWithPlan(plan: EnginePlan, seed = 1, configOverride: Partial<EngineConfig> = {}) {
+  const engine = new GameEngine({
+    cards, mode: 'reading', seed, config: { ...config, ...configOverride }, plan,
+  });
   const events: GameEvent[] = [];
   engine.subscribe((e) => events.push(e));
   engine.start();
@@ -471,5 +481,220 @@ describe('wave intro, hints, counters (M2)', () => {
     const { events } = makeIntroEngine();
     const starting = events.find((e) => e.type === 'waveStarting');
     expect(starting && starting.type === 'waveStarting' && starting.newCards).toEqual([]);
+  });
+});
+
+/**
+ * A plan whose reviewable set is exactly `inPlay` (cards in neither list never
+ * spawn, §5.3) with `ownedIds` marked owned. Two cards fill a 2-word wave
+ * without repeats, and one card fills it with itself, so which card falls
+ * when never depends on the seed.
+ */
+const ownedPlan = (ownedIds: string[], inPlay: string[] = ['neko', 'inu']): EnginePlan => ({
+  newCardIds: [], runBudget: 0, perWaveNewCap: 0,
+  seenCards: inPlay.map((id) => ({ id, weight: 1, owned: ownedIds.includes(id) })),
+});
+
+const spawned = (events: GameEvent[]) =>
+  events.flatMap((e) => (e.type === 'wordSpawned' ? [e.word] : []));
+
+const missedOf = (events: GameEvent[], id: string) =>
+  events.flatMap((e) => (e.type === 'wordMissed' && e.word.card.id === id ? [e] : []));
+
+const airborne = (engine: GameEngine, id: string) =>
+  engine.getWords().find((w) => w.card.id === id);
+
+/**
+ * Step the clock (16ms at a time, like `advance`) until `done()` holds and
+ * return the new clock. Bounded, so an engine that never gets there fails the
+ * test instead of hanging it.
+ */
+function advanceUntil(engine: GameEngine, from: number, done: () => boolean, limitMs = 30_000): number {
+  let now = from;
+  while (!done()) {
+    if (now - from >= limitMs) throw new Error(`condition not met within ${limitMs}ms of engine time`);
+    now += 16;
+    engine.tick(now);
+  }
+  return now;
+}
+
+describe('light state (lapse spec §3, §5)', () => {
+  it('spawns owned cards lit and the rest plain', () => {
+    const { engine, events } = makeEngineWithPlan(ownedPlan(['neko']));
+    advance(engine, 1_100);
+    const lights = Object.fromEntries(spawned(events).map((w) => [w.card.id, w.light]));
+    expect(lights).toEqual({ neko: 'lit', inu: 'plain' });
+    expect(spawned(events).every((w) => w.comeback === false)).toBe(true);
+  });
+
+  it('a first kill lights the card for its later spawns', () => {
+    const { engine, events } = makeEngineWithPlan(ownedPlan([]));
+    const now = advanceUntil(engine, 0, () => airborne(engine, 'neko') !== undefined);
+    typeWord(engine, 'neko');
+    expect(events.find((e) => e.type === 'wordKilled')).toMatchObject({ relit: false });
+    // across the wave boundary, until neko falls again
+    advanceUntil(engine, now, () => spawned(events).filter((w) => w.card.id === 'neko').length >= 2);
+    const nekos = spawned(events).filter((w) => w.card.id === 'neko');
+    expect(nekos[0].light).toBe('plain');
+    expect(nekos.at(-1)?.light).toBe('lit');
+  });
+
+  it('a lit word reaching the floor is a lapse; a plain one is a lesson', () => {
+    const { engine, events } = makeEngineWithPlan(ownedPlan(['neko']), 1, { lives: 10 });
+    advance(engine, 12_000); // wave 1 has fallen; wave 2 is only just starting
+    expect(missedOf(events, 'neko')).toHaveLength(1);
+    expect(missedOf(events, 'inu')).toHaveLength(1);
+    expect(missedOf(events, 'neko')[0]).toMatchObject({ lapse: true, light: 'lit' });
+    expect(missedOf(events, 'inu')[0]).toMatchObject({ lapse: false, light: 'plain' });
+  });
+
+  it('a lapsed card leads the next wave, dark, marked comeback, and relights on the kill', () => {
+    const { engine, events } = makeEngineWithPlan(ownedPlan(['neko']), 1, { lives: 10 });
+    // wave 1 falls (neko lapses), then wave 2 opens with its first spawn
+    let now = advanceUntil(engine, 0, () => spawned(events).length >= 3);
+    expect(spawned(events)[2]).toMatchObject({ card: { id: 'neko' }, light: 'dark', comeback: true });
+
+    typeWord(engine, 'neko');
+    const killed = events.find((e) => e.type === 'wordKilled');
+    expect(killed).toMatchObject({ word: { card: { id: 'neko' }, light: 'dark' }, relit: true });
+
+    // the wave's remaining slot is an ordinary review draw, never a second comeback
+    now = advanceUntil(engine, now, () => spawned(events).length >= 4);
+    expect(spawned(events)[3]).toMatchObject({ card: { id: 'inu' }, light: 'plain', comeback: false });
+
+    // the kill relit the card: its spawn after the comeback (neko's third) is lit, no longer a comeback
+    advanceUntil(engine, now, () => spawned(events).filter((w) => w.card.id === 'neko').length >= 3);
+    expect(spawned(events).filter((w) => w.card.id === 'neko').at(-1)).toMatchObject({
+      light: 'lit', comeback: false,
+    });
+  });
+
+  it('a second drop is not a lapse and does not re-queue', () => {
+    const { engine, events } = makeEngineWithPlan(ownedPlan(['neko']), 1, { lives: 10 });
+    // wave 1 lapses neko, wave 2 brings it back dark and lets it fall, wave 3 spawns both words
+    advanceUntil(engine, 0, () => spawned(events).length >= 6);
+    expect(spawned(events)[2]).toMatchObject({ card: { id: 'neko' }, light: 'dark', comeback: true });
+    expect(missedOf(events, 'neko')).toHaveLength(2);
+    expect(missedOf(events, 'neko')[0]).toMatchObject({ lapse: true, light: 'lit' });
+    expect(missedOf(events, 'neko')[1]).toMatchObject({ lapse: false, light: 'dark' });
+
+    const wave3 = spawned(events).slice(4, 6);
+    expect(wave3.every((w) => w.comeback === false)).toBe(true);
+    // still dark until it is cleared
+    expect(wave3.find((w) => w.card.id === 'neko')?.light).toBe('dark');
+  });
+
+  it('a plain twin landing after the lit twin was killed is a lesson and the map stays lit', () => {
+    // one reading card, 2-word waves: both instances of the wave are neko
+    const { engine, events } = makeEngineWithPlan(ownedPlan([], ['neko']), 1, { lives: 10 });
+    let now = advanceUntil(engine, 0, () => spawned(events).length >= 2);
+    expect(spawned(events).map((w) => w.light)).toEqual(['plain', 'plain']);
+
+    typeWord(engine, 'neko'); // kills one instance; the other was spawned plain
+    const killed = events.find((e) => e.type === 'wordKilled');
+    expect(killed).toMatchObject({ relit: false });
+
+    now = advanceUntil(engine, now, () => missedOf(events, 'neko').length >= 1);
+    const missed = missedOf(events, 'neko')[0];
+    expect(missed).toMatchObject({ lapse: false, light: 'plain' });
+    expect(killed && killed.type === 'wordKilled' && killed.word.instanceId).not.toBe(missed.word.instanceId);
+
+    // the landing left the map lit and queued nothing: the next spawn is lit, not a comeback
+    advanceUntil(engine, now, () => spawned(events).length >= 3);
+    expect(spawned(events)[2]).toMatchObject({ light: 'lit', comeback: false });
+  });
+
+  it('a lit twin killed after the other lapsed is not a relit kill', () => {
+    // one owned card, 2-word waves: both instances fall lit
+    const { engine, events } = makeEngineWithPlan(ownedPlan(['neko'], ['neko']), 1, { lives: 10 });
+    advanceUntil(engine, 0, () => missedOf(events, 'neko').length >= 1);
+    expect(missedOf(events, 'neko')[0]).toMatchObject({ lapse: true, light: 'lit' });
+
+    // the map says dark now, but the instance still airborne fell lit: that is what the player saw
+    expect(airborne(engine, 'neko')?.light).toBe('lit');
+    typeWord(engine, 'neko');
+    expect(events.find((e) => e.type === 'wordKilled')).toMatchObject({
+      word: { light: 'lit' }, relit: false,
+    });
+  });
+
+  it('a card lapses again after its comeback is cleared but is only queued once per run', () => {
+    const { engine, events } = makeEngineWithPlan(ownedPlan(['neko']), 1, { lives: 10 });
+    // wave 1 lapses neko; wave 2 brings it back dark and the player clears it
+    const now = advanceUntil(engine, 0, () => spawned(events).length >= 3);
+    typeWord(engine, 'neko');
+    expect(events.find((e) => e.type === 'wordKilled')).toMatchObject({ relit: true });
+
+    // wave 3 spawns neko lit, and this time it falls: a second lapse...
+    advanceUntil(engine, now, () => spawned(events).length >= 8);
+    const wave3 = spawned(events).slice(4, 6);
+    expect(wave3.find((w) => w.card.id === 'neko')).toMatchObject({ light: 'lit', comeback: false });
+    expect(missedOf(events, 'neko')).toHaveLength(2);
+    expect(missedOf(events, 'neko')[1]).toMatchObject({ lapse: true, light: 'lit' });
+
+    // ...that is not owed a second comeback: wave 4 leads with an ordinary draw
+    expect(spawned(events).slice(6, 8).every((w) => w.comeback === false)).toBe(true);
+  });
+
+  it('gameOver carries ownedIds and a lapse that ends the run queues nothing', () => {
+    // both owned cards fall lit; the first to land lapses (dark) and ends the run
+    const { engine, events } = makeEngineWithPlan(ownedPlan(['neko', 'inu']), 1, { lives: 1 });
+    const now = advance(engine, 12_000);
+    const over = events.findIndex((e) => e.type === 'gameOver');
+    expect(over).toBeGreaterThan(-1);
+    const gameOver = events[over];
+    expect(gameOver.type === 'gameOver' && [...gameOver.ownedIds].sort()).toEqual(['inu', 'neko']); // dark and lit alike
+    expect(events.find((e) => e.type === 'wordMissed')).toMatchObject({ lapse: true, light: 'lit' });
+
+    advance(engine, 20_000, now); // a dead run spawns nothing, comeback or not
+    expect(events.slice(over).some((e) => e.type === 'wordSpawned')).toBe(false);
+  });
+
+  it('gameOver carries a card killed this run even though the plan owned nothing', () => {
+    // nothing is owned at the start; the player kills neko, then inu lands and ends the run
+    const { engine, events } = makeEngineWithPlan(ownedPlan([]), 1, { lives: 1 });
+    const now = advanceUntil(engine, 0, () => airborne(engine, 'neko') !== undefined);
+    typeWord(engine, 'neko');
+    expect(events.find((e) => e.type === 'wordKilled')).toMatchObject({ word: { card: { id: 'neko' } } });
+
+    advanceUntil(engine, now, () => events.some((e) => e.type === 'gameOver'));
+    const gameOver = events.find((e) => e.type === 'gameOver');
+    // the kill, not the plan, put neko here; inu was never killed or owned, so it is absent
+    expect(gameOver && gameOver.type === 'gameOver' && [...gameOver.ownedIds]).toEqual(['neko']);
+  });
+
+  it('without a plan nothing spawns lit, but a kill then a drop is still a lapse', () => {
+    const engine = new GameEngine({
+      cards: cards.filter((c) => c.id === 'neko'), mode: 'reading', seed: 1,
+      config: { ...config, lives: 10 },
+    });
+    const events: GameEvent[] = [];
+    engine.subscribe((e) => events.push(e));
+    engine.start();
+    const now = advance(engine, 20);
+    expect(spawned(events).map((w) => w.light)).toEqual(['plain']);
+
+    typeWord(engine, 'neko'); // no plan, but a kill still promotes the card
+    expect(events.find((e) => e.type === 'wordKilled')).toMatchObject({ relit: false });
+
+    advanceUntil(engine, now, () => missedOf(events, 'neko').length >= 1);
+    expect(spawned(events)[1]).toMatchObject({ light: 'lit', comeback: false });
+    expect(missedOf(events, 'neko')[0]).toMatchObject({ lapse: true, light: 'lit' });
+  });
+
+  it('is deterministic: same seed, same plan, same spawn order and lights', () => {
+    const run = () => {
+      const { engine, events } = makeEngineWithPlan(
+        ownedPlan(['neko', 'inu'], ['neko', 'inu', 'hon']), 7, { lives: 10 },
+      );
+      advance(engine, 40_000);
+      return spawned(events).map((w) => [w.card.id, w.light, w.comeback]);
+    };
+    const first = run();
+    expect(first.length).toBeGreaterThanOrEqual(6);
+    // any two of three cards include an owned one, so wave 1 lapses and wave 2 leads with a comeback
+    expect(first.some(([, light, comeback]) => light === 'dark' && comeback === true)).toBe(true);
+    expect(run()).toEqual(first);
   });
 });
