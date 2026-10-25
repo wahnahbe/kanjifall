@@ -392,6 +392,41 @@ describe('App replay wiring carries the run\'s owned cards forward', () => {
     expect(ownedOf(plan, 'seen-b')).toBe(false);
   });
 
+  it('a card this run introduced and then killed replays owned, not plain', async () => {
+    const newA = card('new-a'); // wave 1 introduces it via the ceremony; the run then kills it
+    const newB = card('new-b'); // named in the plan too, but this run never reaches it
+    window.history.pushState({}, '', '/?mode=reading&pool=n5');
+    stubFetch([newA, newB], {
+      newCardIds: ['new-a', 'new-b'],
+      seenCards: [],
+      tiers,
+      runBudget: 2,
+    });
+    mockSnapshot = snap({ status: 'waveIntro' });
+    mockIntroCards = [newA];
+
+    const { rerender } = render(<App />);
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+
+    // Same ceremony drive as the introduced-card test above: Escape still
+    // counts as introduced, which puts new-a in App.tsx's introducedIdsRef.
+    await screen.findByTestId('ceremony', {}, { timeout: 3000 });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(resume).toHaveBeenCalled(), { timeout: MOTION.beatMs + 2000 });
+
+    // The run kills new-a, so the engine's gameOver carries it as owned.
+    endRun(0, ['new-a']);
+    mockSnapshot = snap({ status: 'gameOver', missed: [] });
+    rerender(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: /play again/i }));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+
+    // It is not in the run-start snapshot, so it comes from the introduced-this-run
+    // entries, which must read ownedIds too.
+    const plan = start.mock.calls[1]?.[0]?.plan as EnginePlan;
+    expect(plan.seenCards).toEqual([{ id: 'new-a', weight: 1, owned: true }]);
+  });
+
   it('a fresh run from Setup clears the previous run\'s ownedIds', async () => {
     const seenA = card('seen-a');
     const seenB = card('seen-b');

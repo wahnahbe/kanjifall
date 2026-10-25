@@ -651,6 +651,19 @@ describe('light state (lapse spec §3, §5)', () => {
     expect(events.slice(over).some((e) => e.type === 'wordSpawned')).toBe(false);
   });
 
+  it('gameOver carries a card killed this run even though the plan owned nothing', () => {
+    // nothing is owned at the start; the player kills neko, then inu lands and ends the run
+    const { engine, events } = makeEngineWithPlan(ownedPlan([]), 1, { lives: 1 });
+    const now = advanceUntil(engine, 0, () => airborne(engine, 'neko') !== undefined);
+    typeWord(engine, 'neko');
+    expect(events.find((e) => e.type === 'wordKilled')).toMatchObject({ word: { card: { id: 'neko' } } });
+
+    advanceUntil(engine, now, () => events.some((e) => e.type === 'gameOver'));
+    const gameOver = events.find((e) => e.type === 'gameOver');
+    // the kill, not the plan, put neko here; inu was never killed or owned, so it is absent
+    expect(gameOver && gameOver.type === 'gameOver' && [...gameOver.ownedIds]).toEqual(['neko']);
+  });
+
   it('without a plan nothing spawns lit, but a kill then a drop is still a lapse', () => {
     const engine = new GameEngine({
       cards: cards.filter((c) => c.id === 'neko'), mode: 'reading', seed: 1,

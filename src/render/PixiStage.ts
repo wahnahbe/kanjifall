@@ -407,6 +407,10 @@ export class PixiStage {
     if (word.light === 'lit' && this.params.haloAlpha > 0) {
       const glyph = this.buildGlyphAt(word, wordPx);
       glyph.setLit(true);
+      // Under the reveal, not over it: the dying glyph is decoration and the
+      // reveal is state, so it sits above the floor, swell, flare and impact
+      // glow (-1 / -0.75 / -0.5) and below the reveal and the words at 0.
+      glyph.view.zIndex = FLOOR_Z_INDEX + 0.75;
       this.pushFx(glyph.view, LIGHT_FLICKER_LIFE_MS, (_view, t) => {
         glyph.setLit(lightFlickerFrame(t * LIGHT_FLICKER_LIFE_MS, this.params.flicker, 'dark').lit);
       });
@@ -565,9 +569,11 @@ export class PixiStage {
     // it would be cut off whole, and just above the edge it would sit on the
     // floor stroke's glow. A tagged reveal is lifted until the tag clears the
     // top of the floor stroke (its canvas is floorPx tall, lower edge on the
-    // kill line).
+    // kill line). The mounted sprite keeps its mount-time height across
+    // resizes while this.scale is refreshed, so measure the sprite itself.
     const landedY = Math.min(word.y, 0.95) * this.app.screen.height;
-    const yPx = layout.tag === null ? landedY : Math.min(landedY, this.app.screen.height * FLOOR_Y_RATIO - this.scale.floorPx - bottomPx);
+    const floorPx = this.floor?.height ?? this.scale.floorPx;
+    const yPx = layout.tag === null ? landedY : Math.min(landedY, this.app.screen.height * FLOOR_Y_RATIO - floorPx - bottomPx);
     view.position.set(word.x * this.app.screen.width, yPx);
     this.app.stage.addChild(view);
     this.fx.push({
