@@ -40,6 +40,20 @@ describe('ResultsScreen', () => {
     expect(screen.getByTestId('accuracy')).toHaveTextContent('71%');
   });
 
+  it('header reads "Revenge complete" on a clear and "Run over" on a death; the wave line shows the cap', () => {
+    const { rerender } = render(
+      <ResultsScreen snapshot={snap({ cleared: true, maxWaves: 5, lives: 2, missed: [] })} tierAdvance={null} onRevenge={noop} onPlayAgain={noop} onTitle={noop} />,
+    );
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Revenge complete');
+    expect(screen.getByText(/Wave 5 \/ 5/)).toBeInTheDocument();
+    expect(screen.getByTestId('revenge-button')).toBeDisabled();
+    rerender(
+      <ResultsScreen snapshot={snap({ cleared: false, maxWaves: 5 })} tierAdvance={null} onRevenge={noop} onPlayAgain={noop} onTitle={noop} />,
+    );
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Run over');
+    expect(screen.getByTestId('revenge-button')).toBeEnabled();
+  });
+
   it('accuracy is 0% with no attempts', () => {
     render(
       <ResultsScreen
