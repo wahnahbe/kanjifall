@@ -25,7 +25,7 @@ export function Hud({ snapshot, waveLabelHidden = false }: { snapshot: EngineSna
         </div>
         <div className={waveClass}>
           <span className="hud-wave-jp">第{snapshot.wave}波</span>
-          <span className="hud-wave-lat" data-testid="wave">wave {snapshot.wave}</span>
+          <span className="hud-wave-lat" data-testid="wave">wave {snapshot.wave}{snapshot.maxWaves > 0 ? ` / ${snapshot.maxWaves}` : ''}</span>
         </div>
         <div className="hud-right">
           <div className={`hud-block${snapshot.combo > 0 ? '' : ' hud-block-empty'}`}>

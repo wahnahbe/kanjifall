@@ -22,6 +22,14 @@ describe('Hud', () => {
     expect(screen.getByTestId('kana-buffer')).toHaveTextContent('べんk');
   });
 
+  it('reads "wave N / max" in a capped run and plain "wave N" otherwise', () => {
+    const { rerender } = render(<Hud snapshot={{ ...snapshot, wave: 2, maxWaves: 5 }} />);
+    expect(screen.getByTestId('wave')).toHaveTextContent(/^wave 2 \/ 5$/);
+    expect(screen.getByText('第2波')).toBeInTheDocument();
+    rerender(<Hud snapshot={{ ...snapshot, wave: 2, maxWaves: 0 }} />);
+    expect(screen.getByTestId('wave')).toHaveTextContent(/^wave 2$/);
+  });
+
   it('pops the combo span (juice-pass spec §6) when combo > 0, and does not when combo is 0', () => {
     const { rerender } = render(<Hud snapshot={snapshot} />);
     expect(screen.getByTestId('combo').className).toContain('combo-pop');
