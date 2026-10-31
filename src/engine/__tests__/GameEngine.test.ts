@@ -704,3 +704,80 @@ describe('light state (lapse spec §3, §5)', () => {
     expect(run()).toEqual(first);
   });
 });
+
+describe('wave cap (revenge round)', () => {
+  const capped = { ...config, maxWaves: 2 };
+  const makeCapped = (over: Partial<EngineConfig> = {}) => {
+    const engine = new GameEngine({ cards, mode: 'reading', seed: 1, config: { ...capped, ...over } });
+    const events: GameEvent[] = [];
+    engine.subscribe((e) => events.push(e));
+    engine.start();
+    return { engine, events };
+  };
+  /** Kills each word of the wave in progress as it spawns and returns the moment
+   *  waveCleared fires for it - BEFORE the inter-wave delay elapses. */
+  const killWave = (engine: GameEngine, events: GameEvent[], now: number): number => {
+    const wave = engine.getSnapshot().wave;
+    for (let guard = 0; guard < 400; guard++) {
+      const word = engine.getWords()[0];
+      if (word) typeWord(engine, word.card.id);
+      now = advance(engine, 50, now);
+      if (events.some((e) => e.type === 'waveCleared' && e.wave === wave)) return now;
+    }
+    throw new Error(`wave ${wave} never cleared`);
+  };
+  const delay = config.interWaveDelayMs + 100;
+
+  it('ends the run cleared after the last capped wave, after the wave-clear delay, with one gameOver', () => {
+    const { engine, events } = makeCapped();
+    let now = killWave(engine, events, advance(engine, 20));
+    now = advance(engine, delay, now);
+    expect(engine.getSnapshot().wave).toBe(2);
+    now = killWave(engine, events, now);
+    expect(engine.getSnapshot().status).toBe('playing'); // the wave-clear beat still plays first
+    advance(engine, delay, now);
+    expect(engine.getSnapshot()).toMatchObject({ status: 'gameOver', cleared: true, wave: 2, lives: 3 });
+    expect(events.filter((e) => e.type === 'gameOver')).toHaveLength(1);
+    expect(events.some((e) => e.type === 'waveStarting' && e.wave === 3)).toBe(false);
+  });
+
+  it('maxWaves 0 is endless: wave 3 starts as before', () => {
+    const { engine, events } = makeCapped({ maxWaves: 0 });
+    let now = killWave(engine, events, advance(engine, 20));
+    now = advance(engine, delay, now);
+    now = killWave(engine, events, now);
+    advance(engine, delay, now);
+    expect(engine.getSnapshot()).toMatchObject({ status: 'playing', wave: 3, cleared: false });
+  });
+
+  it('dying in a capped run is a death: cleared stays false', () => {
+    const { engine } = makeCapped();
+    advance(engine, 60_000);
+    expect(engine.getSnapshot()).toMatchObject({ status: 'gameOver', cleared: false, lives: 0 });
+  });
+
+  it('dropping the final word of the last wave with hearts left is a clear and owes no wave 3 (Review Focus 2)', () => {
+    // Both cards owned: every word falls lit, so the drop is a lapse that queues a comeback.
+    const plan: EnginePlan = {
+      newCardIds: [], seenCards: cards.map((c) => ({ id: c.id, weight: 1, owned: true })), runBudget: 0, perWaveNewCap: 0,
+    };
+    const { engine, events } = makeEngineWithPlan(plan, 1, { maxWaves: 2 });
+    let now = killWave(engine, events, advance(engine, 20));
+    now = advance(engine, delay + 20, now); // wave 2 has begun and its first word is airborne
+    typeWord(engine, engine.getWords()[0].card.id); // kill one; let the other land
+    advance(engine, 30_000, now);
+    expect(engine.getSnapshot()).toMatchObject({ status: 'gameOver', cleared: true, wave: 2, lives: 2 });
+    expect(events.some((e) => e.type === 'wordMissed' && e.lapse)).toBe(true);
+    expect(events.some((e) => e.type === 'waveStarting' && e.wave === 3)).toBe(false);
+  });
+
+  it('a last-heart miss on the only word of the last wave is a death: one gameOver, no stray waveCleared (Review Focus 3)', () => {
+    const { engine, events } = makeCapped({ lives: 1, baseWaveSize: 1, maxWaveSize: 1 });
+    let now = killWave(engine, events, advance(engine, 20));
+    now = advance(engine, delay, now);
+    advance(engine, 60_000, now); // wave 2: type nothing; its single word lands and kills the run
+    expect(engine.getSnapshot()).toMatchObject({ status: 'gameOver', cleared: false, lives: 0, wave: 2 });
+    expect(events.filter((e) => e.type === 'gameOver')).toHaveLength(1);
+    expect(events.filter((e) => e.type === 'waveCleared' && e.wave === 2)).toHaveLength(0);
+  });
+});

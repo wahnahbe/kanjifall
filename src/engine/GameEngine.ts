@@ -287,6 +287,10 @@ export class GameEngine {
   }
 
   private tryAdvanceWave(): void {
+    // A last-heart miss in moveWords this same step ended the run: it is a
+    // death, so no waveCleared and no cap end may follow it (revenge cap,
+    // plan 2026-10-31).
+    if (this.status !== 'playing') return;
     if (!this.wavePlan) return;
     if (this.waveQueue.length > 0 || this.words.length > 0) return;
     if (this.nextWaveAt === 0) {
@@ -296,6 +300,18 @@ export class GameEngine {
     }
     if (this.timeMs >= this.nextWaveAt) {
       this.nextWaveAt = 0;
+      // A capped run ends where wave maxWaves + 1 would begin, so the last
+      // wave's clear beat still plays first (revenge cap, plan 2026-10-31).
+      // Any comeback queued by a drop in that wave is deliberately abandoned:
+      // the run is over, and the results screen lists the drop.
+      if (this.config.maxWaves > 0 && this.wave >= this.config.maxWaves) {
+        this.cleared = true;
+        this.status = 'gameOver';
+        this.emit({
+          type: 'gameOver', score: this.score, wave: this.wave, ownedIds: [...this.lightById.keys()],
+        });
+        return;
+      }
       this.beginWave(this.wave + 1);
     }
   }
