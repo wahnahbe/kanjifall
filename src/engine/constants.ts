@@ -27,3 +27,16 @@ export const DEFAULT_CONFIG: EngineConfig = {
   pauseOnWaveStart: false, // engine default keeps M1 behavior; the UI opts in
   maxWaves: 0, // endless by default; revenge rounds cap the run
 };
+
+/**
+ * Overrides for a revenge round (a replay of the 1-3 words just missed).
+ * Those pools are tiny, so nothing but the cap would ever end the run:
+ * maxWaves makes it finite. Wave sizes come out 10, 11, 12, 14, 15 after
+ * the spawner rounds the fractional growth.
+ */
+export const REVENGE_CONFIG: Partial<EngineConfig> = {
+  maxWaves: 5,
+  baseWaveSize: 10,
+  waveSizeGrowth: 1.2,
+  maxWaveSize: 15,
+};
