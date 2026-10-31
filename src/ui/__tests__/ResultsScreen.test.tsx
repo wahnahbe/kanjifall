@@ -48,9 +48,10 @@ describe('ResultsScreen', () => {
     expect(screen.getByText(/Wave 5 \/ 5/)).toBeInTheDocument();
     expect(screen.getByTestId('revenge-button')).toBeDisabled();
     rerender(
-      <ResultsScreen snapshot={snap({ cleared: false, maxWaves: 5 })} tierAdvance={null} onRevenge={noop} onPlayAgain={noop} onTitle={noop} />,
+      <ResultsScreen snapshot={snap({ cleared: false, maxWaves: 0 })} tierAdvance={null} onRevenge={noop} onPlayAgain={noop} onTitle={noop} />,
     );
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Run over');
+    expect(screen.getByText(/Wave 5 ·/)).toBeInTheDocument();
     expect(screen.getByTestId('revenge-button')).toBeEnabled();
   });
 
