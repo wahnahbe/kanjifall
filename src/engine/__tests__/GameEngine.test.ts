@@ -280,6 +280,12 @@ describe('wave intro, hints, counters (M2)', () => {
     return { engine, events };
   }
 
+  it('snapshot carries maxWaves from config (0 = endless by default) and cleared=false', () => {
+    expect(makeEngine().engine.getSnapshot()).toMatchObject({ maxWaves: 0, cleared: false });
+    const capped = new GameEngine({ cards, mode: 'reading', seed: 1, config: { ...config, maxWaves: 5 } });
+    expect(capped.getSnapshot().maxWaves).toBe(5);
+  });
+
   it('start() with pauseOnWaveStart holds in waveIntro and emits waveStarting with the wave cards', () => {
     const { engine, events } = makeIntroEngine();
     expect(engine.getSnapshot().status).toBe('waveIntro');

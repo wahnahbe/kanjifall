@@ -7,6 +7,7 @@ import { GameScreen } from '../screens/GameScreen';
 const snapshot: EngineSnapshot = {
   status: 'playing', mode: 'reading', score: 0, lives: 3, wave: 1, combo: 0, maxCombo: 0,
   kills: 0, wrongSubmits: 0, bufferKana: '', bufferRomaji: '', lockedIds: [], missed: [], timeMs: 0,
+  maxWaves: 0, cleared: false,
 };
 
 function renderScreen() {

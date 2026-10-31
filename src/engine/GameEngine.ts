@@ -35,6 +35,7 @@ export class GameEngine {
   private readonly mode: GameMode;
   private kills = 0;
   private wrongSubmits = 0;
+  private cleared = false;
 
   private wavePlan: WavePlan | null = null;
   private waveQueue: Card[] = [];
@@ -169,6 +170,8 @@ export class GameEngine {
       lockedIds: [...this.lockedIds],
       missed: [...this.missed],
       timeMs: this.timeMs,
+      maxWaves: this.config.maxWaves,
+      cleared: this.cleared,
     };
   }
 

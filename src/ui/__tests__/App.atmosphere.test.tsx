@@ -7,6 +7,7 @@ import type { EngineSnapshot } from '../../engine/types';
 const idle: EngineSnapshot = {
   status: 'idle', mode: 'reading', score: 0, lives: 0, wave: 0, combo: 0, maxCombo: 0,
   kills: 0, wrongSubmits: 0, bufferKana: '', bufferRomaji: '', lockedIds: [], missed: [], timeMs: 0,
+  maxWaves: 0, cleared: false,
 };
 vi.mock('../useEngine', () => ({
   useEngine: () => ({ snapshot: idle, hostRef: { current: null }, start: vi.fn(), resume: vi.fn(), introCards: [] }),
