@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { playScale } from '../../design/scale';
 import type { Card, EngineSnapshot } from '../../engine/types';
+import type { RevengePoolEntry } from '../../revengePool';
 import { Hud } from '../hud/Hud';
 import { ImeWarning } from '../hud/ImeWarning';
 import { WaveStart } from '../WaveStart';
@@ -15,7 +16,7 @@ interface GameScreenProps {
   /** Forwarded straight to ResultsScreen (tiered spec §5.4). */
   tierAdvance: string | null;
   /** Forwarded straight to ResultsScreen: the session-wide revenge pool. */
-  revengePool: readonly Card[];
+  revengePool: readonly RevengePoolEntry[];
   onIntroduced: (cardId: string) => void;
   onIntroComplete: () => void;
   onRevenge: (pool: Card[]) => void;

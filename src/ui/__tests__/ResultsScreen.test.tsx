@@ -48,7 +48,7 @@ describe('ResultsScreen', () => {
     expect(screen.getByText(/Wave 5 \/ 5/)).toBeInTheDocument();
     expect(screen.getByTestId('revenge-button')).toBeDisabled();
     rerender(
-      <ResultsScreen snapshot={snap({ cleared: false, maxWaves: 0 })} revengePool={[card('m1')]} tierAdvance={null} onRevenge={noop} onPlayAgain={noop} onTitle={noop} />,
+      <ResultsScreen snapshot={snap({ cleared: false, maxWaves: 0 })} revengePool={[{ card: card('m1'), drops: 1 }]} tierAdvance={null} onRevenge={noop} onPlayAgain={noop} onTitle={noop} />,
     );
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Run over');
     expect(screen.getByText(/Wave 5 ·/)).toBeInTheDocument();
@@ -69,7 +69,7 @@ describe('ResultsScreen', () => {
   it('the table and the Revenge count come from the session pool, not this run\'s missed list', () => {
     // The pool holds a word from an EARLIER run (p0) plus this run's drops;
     // snapshot.missed is this run only and must not drive the table.
-    const pool = [card('m2'), card('m1'), card('p0')];
+    const pool = [{ card: card('m2'), drops: 1 }, { card: card('m1'), drops: 1 }, { card: card('p0'), drops: 1 }];
     render(
       <ResultsScreen
         snapshot={base} revengePool={pool} tierAdvance={null}
@@ -81,9 +81,22 @@ describe('ResultsScreen', () => {
     expect(screen.getByTestId('revenge-button')).toHaveTextContent('Revenge round (3)');
   });
 
+  it('a word that fell more than once is marked ×N; a single drop is not marked', () => {
+    const pool = [{ card: card('twice'), drops: 2 }, { card: card('once'), drops: 1 }];
+    render(
+      <ResultsScreen
+        snapshot={base} revengePool={pool} tierAdvance={null}
+        onRevenge={noop} onPlayAgain={noop} onTitle={noop}
+      />,
+    );
+    const [twice, once] = within(screen.getByRole('table')).getAllByRole('row');
+    expect(within(twice).getByTestId('drops')).toHaveTextContent('×2');
+    expect(within(once).queryByTestId('drops')).toBeNull();
+  });
+
   it('revenge hands over the pool in its own order and is disabled when nothing is owed', async () => {
     const onRevenge = vi.fn();
-    const pool = [card('m2'), card('m1'), card('p0')];
+    const pool = [{ card: card('m2'), drops: 1 }, { card: card('m1'), drops: 2 }, { card: card('p0'), drops: 1 }];
     const { rerender } = render(
       <ResultsScreen
         snapshot={base} revengePool={pool} tierAdvance={null}

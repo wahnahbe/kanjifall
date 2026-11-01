@@ -7,7 +7,7 @@ import { RunRecorder } from './data/recorder';
 import { REVENGE_CONFIG } from './engine/constants';
 import type { Card, EnginePlan, GameMode } from './engine/types';
 import { noticeFor } from './planNotice';
-import { unlockForRevenge, updateRevengePool } from './revengePool';
+import { unlockForRevenge, updateRevengePool, type RevengePoolEntry } from './revengePool';
 import type { TierProgress } from './shared/api';
 import { tierAdvanceLine } from './tierAdvance';
 import { Atmosphere, type AtmosphereScene } from './ui/Atmosphere';
@@ -168,7 +168,7 @@ export default function App() {
   // (src/revengePool.ts). Fed by every run's events below and read by the
   // results screen; never reset — a word dropped two runs ago is still owed
   // until some run clears it. Page reload is the only reset.
-  const [revengePool, setRevengePool] = useState<readonly Card[]>([]);
+  const [revengePool, setRevengePool] = useState<readonly RevengePoolEntry[]>([]);
   const { snapshot, hostRef, start, resume, introCards } = useEngine();
 
   // The sole place planNotice is set, for fresh starts and both replay paths

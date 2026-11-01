@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AirborneWord, Card, EnginePlan, GameEvent } from '../engine/types';
-import { unlockForRevenge, updateRevengePool } from '../revengePool';
+import { unlockForRevenge, updateRevengePool, type RevengePoolEntry } from '../revengePool';
 
 const card = (id: string): Card => ({
   id, kanji: '字', kana: ['かな'], gloss: 'g', pos: 'n', jlpt: 5, source: 'jlpt',
@@ -15,30 +15,32 @@ const missed = (c: Card): GameEvent => ({ type: 'wordMissed', word: word(c), lap
 const killed = (c: Card): GameEvent =>
   ({ type: 'wordKilled', word: word(c), msToKill: 500, points: 100, combo: 1, relit: false });
 
+const ids = (pool: readonly RevengePoolEntry[]) => pool.map((e) => e.card.id);
+
 describe('updateRevengePool', () => {
-  it('a miss adds the card at the front, newest first', () => {
+  it('a miss adds the card at the front with one drop, newest first', () => {
     const a = card('a');
     const b = card('b');
     const pool = updateRevengePool(updateRevengePool([], missed(a)), missed(b));
-    expect(pool.map((c) => c.id)).toEqual(['b', 'a']);
+    expect(pool).toEqual([{ card: b, drops: 1 }, { card: a, drops: 1 }]);
   });
 
-  it('missing a card already in the pool moves it to the front without duplicating it', () => {
+  it('missing a card already owed moves it to the front and counts the drop', () => {
     const a = card('a');
     const b = card('b');
-    const pool = updateRevengePool([b, a], missed(a));
-    expect(pool.map((c) => c.id)).toEqual(['a', 'b']);
+    const pool = updateRevengePool([{ card: b, drops: 1 }, { card: a, drops: 1 }], missed(a));
+    expect(pool).toEqual([{ card: a, drops: 2 }, { card: b, drops: 1 }]);
   });
 
-  it('a kill removes the card from the pool, in any run', () => {
+  it('a kill settles the card completely, however many times it fell', () => {
     const a = card('a');
     const b = card('b');
-    expect(updateRevengePool([b, a], killed(a)).map((c) => c.id)).toEqual(['b']);
+    const pool = updateRevengePool([{ card: b, drops: 1 }, { card: a, drops: 3 }], killed(a));
+    expect(ids(pool)).toEqual(['b']);
   });
 
-  it('a kill of a card not in the pool, and every other event, return the same pool', () => {
-    const a = card('a');
-    const pool: readonly Card[] = [a];
+  it('a kill of a card not owed, and every other event, return the same pool', () => {
+    const pool: readonly RevengePoolEntry[] = [{ card: card('a'), drops: 1 }];
     expect(updateRevengePool(pool, killed(card('zzz')))).toBe(pool);
     expect(updateRevengePool(pool, { type: 'waveCleared', wave: 1 })).toBe(pool);
     expect(updateRevengePool(pool, { type: 'gameOver', score: 0, wave: 1, ownedIds: [] })).toBe(pool);

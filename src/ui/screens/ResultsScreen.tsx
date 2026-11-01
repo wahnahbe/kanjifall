@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { sfx } from '../../audio/sfx';
 import { cssHex, PALETTE } from '../../design/palette';
 import type { Card, EngineSnapshot } from '../../engine/types';
+import type { RevengePoolEntry } from '../../revengePool';
 import { useSettings } from '../useSettings';
 
 /** Spec §3.1: confetti draws from ink/cyan/accent only — the three colours the identity keeps, not
@@ -11,12 +12,14 @@ const CONFETTI_COLORS = [cssHex(PALETTE.ink), cssHex(PALETTE.system), cssHex(PAL
 
 interface ResultsScreenProps {
   snapshot: EngineSnapshot;
-  /** Every word dropped this sitting and not cleared since, newest first —
-   *  App's session-wide pool (src/revengePool.ts), NOT this run's
-   *  `snapshot.missed`: a word dropped two runs ago and still owed belongs
-   *  on this results screen too, and one cleared since (in any run) does
-   *  not. The table and the Revenge round both read it. */
-  revengePool: readonly Card[];
+  /** Every word dropped this sitting and not cleared since, newest first,
+   *  each with how many times it has fallen — App's session-wide pool
+   *  (src/revengePool.ts), NOT this run's `snapshot.missed`: a word dropped
+   *  two runs ago and still owed belongs on this results screen too, and
+   *  one cleared since (in any run) does not. The table and the Revenge
+   *  round both read it; a word that fell more than once is marked ×N so
+   *  three drops of two words never read as three words. */
+  revengePool: readonly RevengePoolEntry[];
   /** Plain line naming the tier this run advanced, or null (tiered spec
    *  §5.4). The celebration (banner/confetti/fanfare) built around it is
    *  juice-pass spec §6. */
@@ -80,11 +83,14 @@ export function ResultsScreen({
       {missed.length > 0 && (
         <table className="missed">
           <tbody>
-            {missed.map((card) => (
+            {missed.map(({ card, drops }) => (
               <tr key={card.id}>
                 <td>{card.kanji ?? '—'}</td>
                 <td>{card.kana[0]}</td>
                 <td>{card.gloss}</td>
+                <td className="drops">
+                  {drops > 1 && <span data-testid="drops">×{drops}</span>}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -94,7 +100,7 @@ export function ResultsScreen({
         <button
           data-testid="revenge-button"
           disabled={missed.length === 0}
-          onClick={() => onRevenge([...missed])}
+          onClick={() => onRevenge(missed.map((e) => e.card))}
         >
           Revenge round ({missed.length})
         </button>

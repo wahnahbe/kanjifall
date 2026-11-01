@@ -1,5 +1,14 @@
 import type { Card, EnginePlan, GameEvent } from './engine/types';
 
+/** A word still owed, and how many times it has fallen since it became owed
+ *  (a comeback dropped again counts; a kill settles it and resets by
+ *  removal). The results table marks `drops > 1`, so a word that fell twice
+ *  is not mistaken for two words. */
+export interface RevengePoolEntry {
+  card: Card;
+  drops: number;
+}
+
 /**
  * The revenge pool: every word dropped during this sitting that has not been
  * cleared since, newest drop first. It lives in App for the whole page life
@@ -9,14 +18,21 @@ import type { Card, EnginePlan, GameEvent } from './engine/types';
  * normal run, a revenge round, a lapse comeback relight — settles the debt;
  * the pool only ever offers what is still owed.
  */
-export function updateRevengePool(pool: readonly Card[], event: GameEvent): readonly Card[] {
+export function updateRevengePool(
+  pool: readonly RevengePoolEntry[],
+  event: GameEvent,
+): readonly RevengePoolEntry[] {
   if (event.type === 'wordMissed') {
     const { card } = event.word;
-    return [card, ...pool.filter((c) => c.id !== card.id)];
+    const owed = pool.find((e) => e.card.id === card.id);
+    return [
+      { card, drops: (owed?.drops ?? 0) + 1 },
+      ...pool.filter((e) => e.card.id !== card.id),
+    ];
   }
   if (event.type === 'wordKilled') {
     const { id } = event.word.card;
-    return pool.some((c) => c.id === id) ? pool.filter((c) => c.id !== id) : pool;
+    return pool.some((e) => e.card.id === id) ? pool.filter((e) => e.card.id !== id) : pool;
   }
   return pool;
 }
