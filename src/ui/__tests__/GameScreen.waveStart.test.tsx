@@ -17,7 +17,7 @@ const inu: Card = { id: 'inu', kanji: '犬', kana: ['いぬ'], gloss: 'dog', pos
 function introScreen(introCards: Card[], onIntroComplete: () => void, snapshot = base) {
   return (
     <GameScreen
-      snapshot={snapshot} hostRef={{ current: null }} introCards={introCards} planNotice={null} tierAdvance={null}
+      snapshot={snapshot} hostRef={{ current: null }} introCards={introCards} planNotice={null} revengePool={[]} tierAdvance={null}
       onIntroduced={() => {}} onIntroComplete={onIntroComplete} onRevenge={() => {}} onPlayAgain={() => {}} onTitle={() => {}}
     />
   );
@@ -86,7 +86,7 @@ describe('GameScreen: ceremony, then the beat, then resume (second-pass spec §4
     expect(screen.getByTestId('wave').closest('.hud-wave')?.className).toContain('hud-wave-hidden');
     rerender(
       <GameScreen
-        snapshot={{ ...base, status: 'playing' }} hostRef={{ current: null }} introCards={[]} planNotice={null} tierAdvance={null}
+        snapshot={{ ...base, status: 'playing' }} hostRef={{ current: null }} introCards={[]} planNotice={null} revengePool={[]} tierAdvance={null}
         onIntroduced={() => {}} onIntroComplete={() => {}} onRevenge={() => {}} onPlayAgain={() => {}} onTitle={() => {}}
       />,
     );

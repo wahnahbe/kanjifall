@@ -74,7 +74,7 @@ function Harness() {
       hostRef={hostRef}
       introCards={introCards}
       planNotice={null}
-      tierAdvance={null}
+      revengePool={[]} tierAdvance={null}
       onIntroduced={(cardId) => recorderRef.current?.recordIntroduction(cardId)}
       onIntroComplete={resume}
       onRevenge={() => {}}

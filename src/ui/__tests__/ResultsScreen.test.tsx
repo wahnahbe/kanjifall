@@ -31,7 +31,7 @@ describe('ResultsScreen', () => {
   it('shows score, wave, and accuracy = kills/(kills+misses+wrongSubmits)', () => {
     render(
       <ResultsScreen
-        snapshot={base} tierAdvance={null}
+        snapshot={base} revengePool={[]} tierAdvance={null}
         onRevenge={() => {}} onPlayAgain={() => {}} onTitle={() => {}}
       />,
     );
@@ -42,13 +42,13 @@ describe('ResultsScreen', () => {
 
   it('header reads "Revenge complete" on a clear and "Run over" on a death; the wave line shows the cap', () => {
     const { rerender } = render(
-      <ResultsScreen snapshot={snap({ cleared: true, maxWaves: 5, lives: 2, missed: [] })} tierAdvance={null} onRevenge={noop} onPlayAgain={noop} onTitle={noop} />,
+      <ResultsScreen snapshot={snap({ cleared: true, maxWaves: 5, lives: 2, missed: [] })} revengePool={[]} tierAdvance={null} onRevenge={noop} onPlayAgain={noop} onTitle={noop} />,
     );
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Revenge complete');
     expect(screen.getByText(/Wave 5 \/ 5/)).toBeInTheDocument();
     expect(screen.getByTestId('revenge-button')).toBeDisabled();
     rerender(
-      <ResultsScreen snapshot={snap({ cleared: false, maxWaves: 0 })} tierAdvance={null} onRevenge={noop} onPlayAgain={noop} onTitle={noop} />,
+      <ResultsScreen snapshot={snap({ cleared: false, maxWaves: 0 })} revengePool={[card('m1')]} tierAdvance={null} onRevenge={noop} onPlayAgain={noop} onTitle={noop} />,
     );
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Run over');
     expect(screen.getByText(/Wave 5 ·/)).toBeInTheDocument();
@@ -59,33 +59,51 @@ describe('ResultsScreen', () => {
     render(
       <ResultsScreen
         snapshot={{ ...base, kills: 0, wrongSubmits: 0, missed: [] }}
-        tierAdvance={null}
+        revengePool={[]} tierAdvance={null}
         onRevenge={() => {}} onPlayAgain={() => {}} onTitle={() => {}}
       />,
     );
     expect(screen.getByTestId('accuracy')).toHaveTextContent('0%');
   });
 
-  it('revenge passes DEDUPED missed cards and is disabled when nothing was missed', async () => {
+  it('the table and the Revenge count come from the session pool, not this run\'s missed list', () => {
+    // The pool holds a word from an EARLIER run (p0) plus this run's drops;
+    // snapshot.missed is this run only and must not drive the table.
+    const pool = [card('m2'), card('m1'), card('p0')];
+    render(
+      <ResultsScreen
+        snapshot={base} revengePool={pool} tierAdvance={null}
+        onRevenge={noop} onPlayAgain={noop} onTitle={noop}
+      />,
+    );
+    const rows = within(screen.getByRole('table')).getAllByRole('row');
+    expect(rows).toHaveLength(3);
+    expect(screen.getByTestId('revenge-button')).toHaveTextContent('Revenge round (3)');
+  });
+
+  it('revenge hands over the pool in its own order and is disabled when nothing is owed', async () => {
     const onRevenge = vi.fn();
+    const pool = [card('m2'), card('m1'), card('p0')];
     const { rerender } = render(
       <ResultsScreen
-        snapshot={base} tierAdvance={null}
+        snapshot={base} revengePool={pool} tierAdvance={null}
         onRevenge={onRevenge} onPlayAgain={() => {}} onTitle={() => {}}
       />,
     );
     await userEvent.click(screen.getByTestId('revenge-button'));
     expect(onRevenge).toHaveBeenCalledTimes(1);
-    expect(onRevenge.mock.calls[0][0].map((c: Card) => c.id)).toEqual(['m1', 'm2']);
+    expect(onRevenge.mock.calls[0][0].map((c: Card) => c.id)).toEqual(['m2', 'm1', 'p0']);
 
+    // This run dropped words, but every one has since been cleared: nothing owed.
     rerender(
       <ResultsScreen
-        snapshot={{ ...base, missed: [] }}
-        tierAdvance={null}
+        snapshot={base}
+        revengePool={[]} tierAdvance={null}
         onRevenge={onRevenge} onPlayAgain={() => {}} onTitle={() => {}}
       />,
     );
     expect(screen.getByTestId('revenge-button')).toBeDisabled();
+    expect(screen.queryByRole('table')).toBeNull();
   });
 });
 
@@ -93,7 +111,7 @@ describe('ResultsScreen tier-advance line (tiered spec §5.4, final-review Fix 2
   it('renders the line when a tier advanced this run', () => {
     render(
       <ResultsScreen
-        snapshot={base} tierAdvance="N5 tier 1 cleared — tier 2 is next."
+        snapshot={base} revengePool={[]} tierAdvance="N5 tier 1 cleared — tier 2 is next."
         onRevenge={() => {}} onPlayAgain={() => {}} onTitle={() => {}}
       />,
     );
@@ -105,7 +123,7 @@ describe('ResultsScreen tier-advance line (tiered spec §5.4, final-review Fix 2
   it('is absent when nothing advanced', () => {
     render(
       <ResultsScreen
-        snapshot={base} tierAdvance={null}
+        snapshot={base} revengePool={[]} tierAdvance={null}
         onRevenge={() => {}} onPlayAgain={() => {}} onTitle={() => {}}
       />,
     );
@@ -123,7 +141,7 @@ describe('tier celebration (juice-pass spec §6)', () => {
   it('full effects: banner + confetti render and the fanfare fires exactly once under StrictMode', () => {
     render(
       <StrictMode>
-        <ResultsScreen snapshot={snap({ status: 'gameOver' })} tierAdvance="N5 tier 1 cleared — tier 2 is next."
+        <ResultsScreen snapshot={snap({ status: 'gameOver' })} revengePool={[]} tierAdvance="N5 tier 1 cleared — tier 2 is next."
           onRevenge={noop} onPlayAgain={noop} onTitle={noop} />
       </StrictMode>,
     );
@@ -135,7 +153,7 @@ describe('tier celebration (juice-pass spec §6)', () => {
 
   it('reduced effects: banner and fanfare, no confetti', () => {
     updateSettings({ effects: 'reduced' });
-    render(<ResultsScreen snapshot={snap({ status: 'gameOver' })} tierAdvance="x"
+    render(<ResultsScreen snapshot={snap({ status: 'gameOver' })} revengePool={[]} tierAdvance="x"
       onRevenge={noop} onPlayAgain={noop} onTitle={noop} />);
     expect(screen.getByTestId('tier-celebration')).toBeInTheDocument();
     expect(screen.queryByTestId('confetti')).toBeNull();
@@ -144,7 +162,7 @@ describe('tier celebration (juice-pass spec §6)', () => {
 
   it('effects off: the plain line only, still with its testid, no fanfare suppression by effects (sound handles that)', () => {
     updateSettings({ effects: 'off' });
-    render(<ResultsScreen snapshot={snap({ status: 'gameOver' })} tierAdvance="x"
+    render(<ResultsScreen snapshot={snap({ status: 'gameOver' })} revengePool={[]} tierAdvance="x"
       onRevenge={noop} onPlayAgain={noop} onTitle={noop} />);
     expect(screen.queryByTestId('tier-celebration')).toBeNull();
     expect(screen.getByTestId('tier-advance')).toBeInTheDocument();
@@ -154,7 +172,7 @@ describe('tier celebration (juice-pass spec §6)', () => {
   it('leaving the results screen does not replay the fanfare while it drains', () => {
     const { rerender } = render(
       <ScreenTransition screenKey="x">
-        <ResultsScreen snapshot={snap({ status: 'gameOver' })} tierAdvance="N5 tier 2"
+        <ResultsScreen snapshot={snap({ status: 'gameOver' })} revengePool={[]} tierAdvance="N5 tier 2"
           onRevenge={noop} onPlayAgain={noop} onTitle={noop} />
       </ScreenTransition>,
     );
@@ -167,7 +185,7 @@ describe('tier celebration (juice-pass spec §6)', () => {
   });
 
   it('no tierAdvance: nothing renders, nothing plays', () => {
-    render(<ResultsScreen snapshot={snap({ status: 'gameOver' })} tierAdvance={null}
+    render(<ResultsScreen snapshot={snap({ status: 'gameOver' })} revengePool={[]} tierAdvance={null}
       onRevenge={noop} onPlayAgain={noop} onTitle={noop} />);
     expect(screen.queryByTestId('tier-advance')).toBeNull();
     expect(sfx.tierFanfare).not.toHaveBeenCalled();

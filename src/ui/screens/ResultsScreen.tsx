@@ -11,31 +11,26 @@ const CONFETTI_COLORS = [cssHex(PALETTE.ink), cssHex(PALETTE.system), cssHex(PAL
 
 interface ResultsScreenProps {
   snapshot: EngineSnapshot;
+  /** Every word dropped this sitting and not cleared since, newest first —
+   *  App's session-wide pool (src/revengePool.ts), NOT this run's
+   *  `snapshot.missed`: a word dropped two runs ago and still owed belongs
+   *  on this results screen too, and one cleared since (in any run) does
+   *  not. The table and the Revenge round both read it. */
+  revengePool: readonly Card[];
   /** Plain line naming the tier this run advanced, or null (tiered spec
    *  §5.4). The celebration (banner/confetti/fanfare) built around it is
    *  juice-pass spec §6. */
   tierAdvance: string | null;
-  onRevenge: (missed: Card[]) => void;
+  onRevenge: (pool: Card[]) => void;
   onPlayAgain: () => void;
   onTitle: () => void;
 }
 
-function dedupeById(cards: Card[]): Card[] {
-  const seen = new Set<string>();
-  const out: Card[] = [];
-  for (const card of cards) {
-    if (!seen.has(card.id)) {
-      seen.add(card.id);
-      out.push(card);
-    }
-  }
-  return out;
-}
-
 export function ResultsScreen({
-  snapshot, tierAdvance, onRevenge, onPlayAgain, onTitle,
+  snapshot, revengePool, tierAdvance, onRevenge, onPlayAgain, onTitle,
 }: ResultsScreenProps) {
-  const missed = dedupeById(snapshot.missed);
+  const missed = revengePool;
+  // Accuracy stays this run's own numbers: the pool spans runs.
   const attempts = snapshot.kills + snapshot.missed.length + snapshot.wrongSubmits;
   const accuracy = attempts === 0 ? 0 : Math.round((snapshot.kills / attempts) * 100);
 
@@ -99,7 +94,7 @@ export function ResultsScreen({
         <button
           data-testid="revenge-button"
           disabled={missed.length === 0}
-          onClick={() => onRevenge(missed)}
+          onClick={() => onRevenge([...missed])}
         >
           Revenge round ({missed.length})
         </button>
