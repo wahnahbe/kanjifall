@@ -67,7 +67,7 @@ export class Spawner {
    */
   planWave(wave: number, comebacks: readonly Card[] = []): WavePlan {
     const c = this.config;
-    const size = Math.min(c.baseWaveSize + c.waveSizeGrowth * (wave - 1), c.maxWaveSize);
+    const size = Math.round(Math.min(c.baseWaveSize + c.waveSizeGrowth * (wave - 1), c.maxWaveSize));
 
     const introduceCount = Math.min(
       this.budgetRemaining,

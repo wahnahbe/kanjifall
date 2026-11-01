@@ -185,8 +185,8 @@ export class RunRecorder {
     const body: FinalizeRun = {
       endedAt,
       score: snapshot.score,
-      // snapshot.wave is the wave in progress at death; cleared = one less
-      wavesCleared: Math.max(0, snapshot.wave - 1),
+      // snapshot.wave is the wave in progress at death; cleared = one less — unless the run ended by clearing it
+      wavesCleared: snapshot.cleared ? snapshot.wave : Math.max(0, snapshot.wave - 1),
       durationMs: Math.round(snapshot.timeMs),
       pausedMs: Math.max(0, Math.round(endedAt - this.startedWallMs - snapshot.timeMs)),
       maxCombo: snapshot.maxCombo,

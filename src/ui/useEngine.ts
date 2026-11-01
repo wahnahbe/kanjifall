@@ -13,6 +13,7 @@ const IDLE_SNAPSHOT: EngineSnapshot = {
   status: 'idle', mode: 'reading', score: 0, lives: 0, wave: 0, combo: 0, maxCombo: 0,
   kills: 0, wrongSubmits: 0,
   bufferKana: '', bufferRomaji: '', lockedIds: [], missed: [], timeMs: 0,
+  maxWaves: 0, cleared: false,
 };
 
 export interface GameKeyEvent {
@@ -100,7 +101,7 @@ export function useEngine() {
       if (event.type === 'waveCleared') stage?.playWaveClear();
       if (event.type === 'waveStarting') setIntroCards(event.newCards);
       try {
-        playSfx(event);
+        playSfx(event, engine.getSnapshot());
       } catch (error) {
         console.warn('[sfx] voice failed', error);
       }

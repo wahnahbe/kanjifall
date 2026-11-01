@@ -25,4 +25,18 @@ export const DEFAULT_CONFIG: EngineConfig = {
   interWaveDelayMs: 1500,
   hintAtY: 0.6,
   pauseOnWaveStart: false, // engine default keeps M1 behavior; the UI opts in
+  maxWaves: 0, // 0 = endless; a positive value ends the run cleared after that wave
+};
+
+/**
+ * Overrides for a revenge round (a replay of the 1-3 words just missed).
+ * Those pools are tiny (1-3 words), so without the cap the only end would be
+ * losing three hearts; maxWaves gives the round a finish line. Wave sizes
+ * come out 10, 11, 12, 14, 15 after the spawner rounds the fractional growth.
+ */
+export const REVENGE_CONFIG: Partial<EngineConfig> = {
+  maxWaves: 5,
+  baseWaveSize: 10,
+  waveSizeGrowth: 1.2,
+  maxWaveSize: 15,
 };

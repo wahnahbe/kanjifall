@@ -28,7 +28,8 @@ an example sentence, and you type it once before it ever falls:
   introduce.
 - **Weighted review** — words you're weak on or haven't seen recently fall
   more often, spaced-repetition style.
-- **Revenge runs** — replay exactly the words you missed last run.
+- **Revenge runs** — replay exactly the words you missed last run: five
+  waves of 10–15 drops, then a "Revenge complete" screen.
 - **Custom lists** — paste a word list (e.g. exported from your SRS) and play
   it with the same ceremony + review treatment.
 - **Local-first analytics** — everything lives in one SQLite file on your

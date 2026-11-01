@@ -9,6 +9,7 @@ import { GameScreen } from '../screens/GameScreen';
 const base: EngineSnapshot = {
   status: 'waveIntro', mode: 'reading', score: 0, lives: 3, wave: 2, combo: 0, maxCombo: 0,
   kills: 0, wrongSubmits: 0, bufferKana: '', bufferRomaji: '', lockedIds: [], missed: [], timeMs: 0,
+  maxWaves: 0, cleared: false,
 };
 const neko: Card = { id: 'neko', kanji: '猫', kana: ['ねこ'], gloss: 'cat', pos: 'n', jlpt: 5, source: 'jlpt' };
 const inu: Card = { id: 'inu', kanji: '犬', kana: ['いぬ'], gloss: 'dog', pos: 'n', jlpt: 5, source: 'jlpt' };

@@ -46,6 +46,7 @@ function makeSnapshot(overrides: Partial<EngineSnapshot> = {}): EngineSnapshot {
   return {
     status: 'playing', mode: 'reading', score: 0, lives: 3, wave: 1, combo: 0, maxCombo: 0,
     kills: 0, wrongSubmits: 0, bufferKana: '', bufferRomaji: '', lockedIds: [], missed: [], timeMs: 0,
+    maxWaves: 0, cleared: false,
     ...overrides,
   };
 }
@@ -361,6 +362,26 @@ describe('gameOver (rule 6)', () => {
       accuracy: 10 / 14, // kills / (kills + missed.length + wrongSubmits)
     });
     expect(eventsBodyOf().attempts).toHaveLength(1); // the pre-gameOver kill was flushed too
+  });
+
+  it('a cleared run counts its final wave as cleared; a death still counts wave - 1 (Review Focus 5)', async () => {
+    fetchMock.mockResolvedValue(ok());
+    const recorder = new RunRecorder(ctx);
+    await flush();
+    const snapshot = makeSnapshot({ wave: 5, maxWaves: 5, cleared: true, lives: 3 });
+    recorder.onEvent({ type: 'gameOver', score: 0, wave: 5, ownedIds: [] }, { words: [], snapshot });
+    await flush();
+    expect(finalizeBodyOf().wavesCleared).toBe(5);
+
+    fetchMock.mockClear();
+    const dead = new RunRecorder(ctx);
+    await flush();
+    dead.onEvent(
+      { type: 'gameOver', score: 0, wave: 3, ownedIds: [] },
+      { words: [], snapshot: makeSnapshot({ wave: 3, maxWaves: 5, cleared: false, lives: 0 }) },
+    );
+    await flush();
+    expect(finalizeBodyOf().wavesCleared).toBe(2);
   });
 
   it('accuracy is 0 when there were zero kills/misses/wrongSubmits', async () => {

@@ -9,6 +9,7 @@ const snapshot: EngineSnapshot = {
   status: 'playing', mode: 'reading', score: 1230, lives: 2, wave: 3, combo: 4, maxCombo: 0,
   kills: 0, wrongSubmits: 0,
   bufferKana: 'べんk', bufferRomaji: 'benk', lockedIds: [1], missed: [], timeMs: 0,
+  maxWaves: 0, cleared: false,
 };
 
 describe('Hud', () => {
@@ -19,6 +20,14 @@ describe('Hud', () => {
     expect(screen.getByTestId('wave')).toHaveTextContent('3');
     expect(screen.getByTestId('combo')).toHaveTextContent('4');
     expect(screen.getByTestId('kana-buffer')).toHaveTextContent('べんk');
+  });
+
+  it('reads "wave N / max" in a capped run and plain "wave N" otherwise', () => {
+    const { rerender } = render(<Hud snapshot={{ ...snapshot, wave: 2, maxWaves: 5 }} />);
+    expect(screen.getByTestId('wave')).toHaveTextContent(/^wave 2 \/ 5$/);
+    expect(screen.getByText('第2波')).toBeInTheDocument();
+    rerender(<Hud snapshot={{ ...snapshot, wave: 2, maxWaves: 0 }} />);
+    expect(screen.getByTestId('wave')).toHaveTextContent(/^wave 2$/);
   });
 
   it('pops the combo span (juice-pass spec §6) when combo > 0, and does not when combo is 0', () => {

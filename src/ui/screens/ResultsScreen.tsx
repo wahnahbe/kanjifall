@@ -53,9 +53,10 @@ export function ResultsScreen({
 
   return (
     <div className="overlay" data-testid="results">
-      <h2>Run over</h2>
+      {/* Revenge is the only capped run today, so `cleared` means a revenge clear; a second capped mode would need to key this copy on the pool instead. */}
+      <h2>{snapshot.cleared ? 'Revenge complete' : 'Run over'}</h2>
       <p>
-        <span data-testid="final-score">{snapshot.score}</span> pts · Wave {snapshot.wave} ·{' '}
+        <span data-testid="final-score">{snapshot.score}</span> pts · Wave {snapshot.wave}{snapshot.maxWaves > 0 ? ` / ${snapshot.maxWaves}` : ''} ·{' '}
         <span data-testid="accuracy">{accuracy}%</span> accuracy
       </p>
       {tierAdvance !== null && settings.effects !== 'off' && (

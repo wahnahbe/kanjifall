@@ -85,6 +85,8 @@ export interface EngineSnapshot {
   lockedIds: number[];
   missed: Card[];
   timeMs: number;
+  maxWaves: number; // mirrors EngineConfig.maxWaves; 0 = endless
+  cleared: boolean; // the run ended by clearing wave `maxWaves`, not by losing every life
 }
 
 export interface EngineConfig {
@@ -102,4 +104,5 @@ export interface EngineConfig {
   interWaveDelayMs: number;
   hintAtY: number; // recall mode: kanji grace hint appears when word.y crosses this
   pauseOnWaveStart: boolean; // emit waveStarting and hold in 'waveIntro' until resume()
+  maxWaves: number; // waves before the run ends cleared; 0 = endless
 }

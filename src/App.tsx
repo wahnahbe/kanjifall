@@ -4,6 +4,7 @@ import { DataLoadError, isListPool, loadPool, type PlayablePool, type PoolId } f
 import { drainOutbox } from './data/outbox';
 import { fetchRunPlan, toEnginePlan } from './data/planClient';
 import { RunRecorder } from './data/recorder';
+import { REVENGE_CONFIG } from './engine/constants';
 import type { Card, EnginePlan, GameMode } from './engine/types';
 import { noticeFor } from './planNotice';
 import type { TierProgress } from './shared/api';
@@ -185,6 +186,8 @@ export default function App() {
         mode,
         cards,
         plan: plan ?? undefined,
+        // Revenge and its replays are capped; other runs stay endless (revenge cap, plan 2026-10-31).
+        config: pool === 'revenge' ? REVENGE_CONFIG : undefined,
         onEvent: (event, view) => {
           if (event.type === 'gameOver') ownedIdsRef.current = new Set(event.ownedIds);
           recorder.onEvent(event, view);

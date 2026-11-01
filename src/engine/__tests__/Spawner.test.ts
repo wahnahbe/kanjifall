@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CONFIG, LANES } from '../constants';
+import { DEFAULT_CONFIG, LANES, REVENGE_CONFIG } from '../constants';
 import { mulberry32 } from '../rng';
 import { Spawner } from '../Spawner';
 import type { Card, EnginePlan, SeenCardRef } from '../types';
@@ -270,5 +270,23 @@ describe('comebacks (lapse spec §5.4)', () => {
   });
   it('planWave(wave) with no comebacks is unchanged', () => {
     expect(makeWithPlan(planOf([], 0)).planWave(1).comebacks).toEqual([]);
+  });
+});
+
+describe('REVENGE_CONFIG wave sizes', () => {
+  const revenge = { ...DEFAULT_CONFIG, ...REVENGE_CONFIG };
+  const seenAll = planOf([], 0); // the existing helper: every pool card seen at weight 1, no budget
+
+  it('ramps 10, 11, 12, 14, 15 across the five capped waves', () => {
+    const s = new Spawner(pool, mulberry32(1), revenge, seenAll);
+    expect([1, 2, 3, 4, 5].map((w) => s.planWave(w).cards.length)).toEqual([10, 11, 12, 14, 15]);
+  });
+
+  it('a one-word revenge pool still fills wave 1 with 10 drops of that word (Review Focus 1)', () => {
+    const only = pool[0];
+    const s = new Spawner([only], mulberry32(1), revenge, { newCardIds: [], seenCards: [{ id: only.id, weight: 1 }], runBudget: 0, perWaveNewCap: 0 });
+    const wave = s.planWave(1);
+    expect(wave.cards).toHaveLength(10);
+    expect(wave.cards.every((c) => c.id === only.id)).toBe(true);
   });
 });

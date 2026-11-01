@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MOTION } from '../../design/motion';
-import { DEFAULT_CONFIG } from '../../engine/constants';
+import { DEFAULT_CONFIG, REVENGE_CONFIG } from '../../engine/constants';
 import { mulberry32 } from '../../engine/rng';
 import { Spawner } from '../../engine/Spawner';
 import type { Card, EnginePlan, EngineSnapshot } from '../../engine/types';
@@ -33,7 +33,7 @@ const card = (id: string): Card => ({
 const snap = (over: Partial<EngineSnapshot>): EngineSnapshot => ({
   status: 'playing', mode: 'reading', score: 0, lives: 3, wave: 1, combo: 0,
   kills: 0, wrongSubmits: 0, maxCombo: 0, bufferKana: '', bufferRomaji: '',
-  lockedIds: [], missed: [], timeMs: 0, ...over,
+  lockedIds: [], missed: [], timeMs: 0, maxWaves: 0, cleared: false, ...over,
 });
 
 function stubFetch(
@@ -469,5 +469,53 @@ describe('App replay wiring carries the run\'s owned cards forward', () => {
     const plan = start.mock.calls[3]?.[0]?.plan as EnginePlan;
     expect(ownedOf(plan, 'seen-a')).toBe(false);
     expect(ownedOf(plan, 'seen-b')).toBe(false);
+  });
+});
+
+/**
+ * A revenge run is capped at five waves (revenge cap, plan 2026-10-31); a
+ * normal run stays endless. The cap travels as the `config` App hands
+ * `start()`, so these tests drive the same real App wiring as the blocks
+ * above and read that option off each start() call: undefined for a fresh
+ * run and its play again, REVENGE_CONFIG for a revenge run and for play again
+ * from a revenge results screen.
+ */
+describe('App passes REVENGE_CONFIG to revenge runs only', () => {
+  it('fresh run: no config; revenge: REVENGE_CONFIG; play again after revenge: REVENGE_CONFIG', async () => {
+    const pool = [card('a'), card('b'), card('c')];
+    window.history.pushState({}, '', '/?mode=reading&pool=n5');
+    stubFetch(pool, { newCardIds: [], seenCards: pool.map((c) => ({ id: c.id, weight: 1 })), tiers: [], runBudget: 0 });
+    mockSnapshot = snap({ status: 'playing' });
+    const { rerender } = render(<App />);
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+    expect((start.mock.calls[0][0] as RunOptions).config).toBeUndefined();
+
+    mockSnapshot = snap({ status: 'gameOver', missed: [pool[0], pool[1]] });
+    rerender(<App />);
+    await userEvent.click(await screen.findByTestId('revenge-button'));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+    const revenge = start.mock.calls[1][0] as RunOptions;
+    expect(revenge.config).toEqual(REVENGE_CONFIG);
+    expect(revenge.cards.map((c) => c.id)).toEqual(['a', 'b']);
+
+    mockSnapshot = snap({ status: 'gameOver', cleared: true, maxWaves: 5, missed: [] });
+    rerender(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: /play again/i }));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(3));
+    expect((start.mock.calls[2][0] as RunOptions).config).toEqual(REVENGE_CONFIG);
+  });
+
+  it('play again from a normal run stays endless: no config (Review Focus 4)', async () => {
+    const pool = [card('a'), card('b')];
+    window.history.pushState({}, '', '/?mode=reading&pool=n5');
+    stubFetch(pool, { newCardIds: [], seenCards: pool.map((c) => ({ id: c.id, weight: 1 })), tiers: [], runBudget: 0 });
+    mockSnapshot = snap({ status: 'playing' });
+    const { rerender } = render(<App />);
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+    mockSnapshot = snap({ status: 'gameOver', missed: [] });
+    rerender(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: /play again/i }));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+    expect((start.mock.calls[1][0] as RunOptions).config).toBeUndefined();
   });
 });
