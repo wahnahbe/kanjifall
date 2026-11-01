@@ -29,7 +29,7 @@ describe('GameScreen plan-notice visibility', () => {
         hostRef={{ current: null }}
         introCards={[]}
         planNotice="a notice"
-        tierAdvance={null}
+        revengePool={[]} tierAdvance={null}
         onIntroduced={noop}
         onIntroComplete={noop}
         onRevenge={noop}
@@ -47,7 +47,7 @@ describe('GameScreen plan-notice visibility', () => {
         hostRef={{ current: null }}
         introCards={[]}
         planNotice="a notice"
-        tierAdvance={null}
+        revengePool={[]} tierAdvance={null}
         onIntroduced={noop}
         onIntroComplete={noop}
         onRevenge={noop}
@@ -65,7 +65,7 @@ describe('GameScreen plan-notice visibility', () => {
         hostRef={{ current: null }}
         introCards={[]}
         planNotice="a notice"
-        tierAdvance={null}
+        revengePool={[]} tierAdvance={null}
         onIntroduced={noop}
         onIntroComplete={noop}
         onRevenge={noop}
@@ -83,7 +83,7 @@ describe('GameScreen plan-notice visibility', () => {
         hostRef={{ current: null }}
         introCards={[]}
         planNotice={null}
-        tierAdvance={null}
+        revengePool={[]} tierAdvance={null}
         onIntroduced={noop}
         onIntroComplete={noop}
         onRevenge={noop}

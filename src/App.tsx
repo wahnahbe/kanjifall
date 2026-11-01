@@ -7,6 +7,7 @@ import { RunRecorder } from './data/recorder';
 import { REVENGE_CONFIG } from './engine/constants';
 import type { Card, EnginePlan, GameMode } from './engine/types';
 import { noticeFor } from './planNotice';
+import { unlockForRevenge, updateRevengePool, type RevengePoolEntry } from './revengePool';
 import type { TierProgress } from './shared/api';
 import { tierAdvanceLine } from './tierAdvance';
 import { Atmosphere, type AtmosphereScene } from './ui/Atmosphere';
@@ -163,6 +164,11 @@ export default function App() {
   // Reset alongside planNotice so a replay never shows a stale prior run's
   // achievement before its own gameOver has had a chance to recompute it.
   const [tierAdvance, setTierAdvance] = useState<string | null>(null);
+  // Every word dropped this sitting and not cleared since, newest first
+  // (src/revengePool.ts). Fed by every run's events below and read by the
+  // results screen; never reset — a word dropped two runs ago is still owed
+  // until some run clears it. Page reload is the only reset.
+  const [revengePool, setRevengePool] = useState<readonly RevengePoolEntry[]>([]);
   const { snapshot, hostRef, start, resume, introCards } = useEngine();
 
   // The sole place planNotice is set, for fresh starts and both replay paths
@@ -190,6 +196,7 @@ export default function App() {
         config: pool === 'revenge' ? REVENGE_CONFIG : undefined,
         onEvent: (event, view) => {
           if (event.type === 'gameOver') ownedIdsRef.current = new Set(event.ownedIds);
+          setRevengePool((current) => updateRevengePool(current, event));
           recorder.onEvent(event, view);
         },
       });
@@ -306,6 +313,7 @@ export default function App() {
         introCards={introCards}
         planNotice={planNotice}
         tierAdvance={tierAdvance}
+        revengePool={revengePool}
         onIntroduced={(cardId) => {
           introducedIdsRef.current.add(cardId);
           recorderRef.current?.recordIntroduction(cardId);
@@ -324,7 +332,14 @@ export default function App() {
             // of revenge's reach, preserving their ceremony for a later
             // planned run; both replay paths stay identical (see
             // replayPlan's doc comment for the failure this guards against).
-            replayPlan(lastPlanRef.current, missed, introducedIdsRef.current, ownedIdsRef.current),
+            // The pool spans runs, so it can name cards the last run's plan
+            // never listed; unlockForRevenge makes those drawable (and keeps
+            // the parked ones parked — see src/revengePool.ts).
+            unlockForRevenge(
+              replayPlan(lastPlanRef.current, missed, introducedIdsRef.current, ownedIdsRef.current),
+              missed,
+              ownedIdsRef.current,
+            ),
             REPLAY_NOTICE,
           )}
         onPlayAgain={() => lastRunRef.current

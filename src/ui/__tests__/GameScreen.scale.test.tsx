@@ -13,7 +13,7 @@ const snapshot: EngineSnapshot = {
 function renderScreen() {
   return render(
     <GameScreen
-      snapshot={snapshot} hostRef={{ current: null }} introCards={[]} planNotice={null} tierAdvance={null}
+      snapshot={snapshot} hostRef={{ current: null }} introCards={[]} planNotice={null} revengePool={[]} tierAdvance={null}
       onIntroduced={() => {}} onIntroComplete={() => {}} onRevenge={() => {}} onPlayAgain={() => {}} onTitle={() => {}}
     />,
   );

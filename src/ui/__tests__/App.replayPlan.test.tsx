@@ -6,7 +6,7 @@ import { MOTION } from '../../design/motion';
 import { DEFAULT_CONFIG, REVENGE_CONFIG } from '../../engine/constants';
 import { mulberry32 } from '../../engine/rng';
 import { Spawner } from '../../engine/Spawner';
-import type { Card, EnginePlan, EngineSnapshot } from '../../engine/types';
+import type { AirborneWord, Card, EnginePlan, EngineSnapshot } from '../../engine/types';
 import type { RunOptions } from '../useEngine';
 
 const start = vi.fn();
@@ -84,6 +84,28 @@ function endRun(startCall: number, ownedIds: string[]): void {
   const options = start.mock.calls[startCall]?.[0] as RunOptions;
   options.onEvent?.(
     { type: 'gameOver', score: 0, wave: 1, ownedIds },
+    { words: [], snapshot: mockSnapshot },
+  );
+}
+
+const airborne = (c: Card): AirborneWord => ({
+  instanceId: 1, card: c, lane: 0, x: 0.5, y: 1, speed: 0.1, spawnedAt: 0, firstKeyAt: null,
+  backspaceCount: 0, hintShown: false, wasTargeted: false, light: 'plain', comeback: false,
+});
+
+/** The engine's wordMissed / wordKilled for a card, fired through the same
+ *  `onEvent` — these are what feed App's session-wide revenge pool. */
+function dropWord(startCall: number, c: Card): void {
+  const options = start.mock.calls[startCall]?.[0] as RunOptions;
+  options.onEvent?.(
+    { type: 'wordMissed', word: airborne(c), lapse: false, light: 'plain' },
+    { words: [], snapshot: mockSnapshot },
+  );
+}
+function clearWord(startCall: number, c: Card): void {
+  const options = start.mock.calls[startCall]?.[0] as RunOptions;
+  options.onEvent?.(
+    { type: 'wordKilled', word: airborne(c), msToKill: 500, points: 100, combo: 1, relit: false },
     { words: [], snapshot: mockSnapshot },
   );
 }
@@ -183,6 +205,8 @@ describe('App replay wiring never lets an un-introduced card spawn', () => {
     // missed card may legitimately sit in newCardIds rather than the seen
     // set. The wiring itself must enforce the invariant rather than rely
     // on Revenge's callers to always behave.
+    dropWord(0, seenX);
+    dropWord(0, neverC);
     mockSnapshot = snap({ status: 'gameOver', missed: [seenX, neverC] });
     rerender(<App />);
     await userEvent.click(await screen.findByRole('button', { name: /revenge round/i }));
@@ -328,6 +352,7 @@ describe('App replay wiring carries the run\'s owned cards forward', () => {
 
     // seen-a was killed and then dropped later in the run (a lapse leaves it
     // dark, which still counts as owned); it is what Revenge replays.
+    dropWord(0, seenA);
     endRun(0, ['seen-a']);
     mockSnapshot = snap({ status: 'gameOver', missed: [seenA] });
     rerender(<App />);
@@ -490,13 +515,16 @@ describe('App passes REVENGE_CONFIG to revenge runs only', () => {
     await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
     expect((start.mock.calls[0][0] as RunOptions).config).toBeUndefined();
 
+    dropWord(0, pool[0]);
+    dropWord(0, pool[1]);
     mockSnapshot = snap({ status: 'gameOver', missed: [pool[0], pool[1]] });
     rerender(<App />);
     await userEvent.click(await screen.findByTestId('revenge-button'));
     await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
     const revenge = start.mock.calls[1][0] as RunOptions;
     expect(revenge.config).toEqual(REVENGE_CONFIG);
-    expect(revenge.cards.map((c) => c.id)).toEqual(['a', 'b']);
+    // The pool is newest-drop first.
+    expect(revenge.cards.map((c) => c.id)).toEqual(['b', 'a']);
 
     mockSnapshot = snap({ status: 'gameOver', cleared: true, maxWaves: 5, missed: [] });
     rerender(<App />);
@@ -519,3 +547,46 @@ describe('App passes REVENGE_CONFIG to revenge runs only', () => {
     expect((start.mock.calls[1][0] as RunOptions).config).toBeUndefined();
   });
 });
+/**
+ * The revenge pool spans the sitting, not the run (revenge pool, 2026-10-31):
+ * a word dropped in an earlier run and not cleared since is still owed on the
+ * next results screen; a kill in any run settles it; this run's drops lead.
+ */
+describe('App keeps a session-wide revenge pool', () => {
+  it('a drop from the previous run is still owed, a word cleared since is not, newest first', async () => {
+    const a = card('a');
+    const b = card('b');
+    const c = card('c');
+    const pool = [a, b, c];
+    window.history.pushState({}, '', '/?mode=reading&pool=n5');
+    stubFetch(pool, { newCardIds: [], seenCards: pool.map((x) => ({ id: x.id, weight: 1 })), tiers: [], runBudget: 0 });
+    mockSnapshot = snap({ status: 'playing' });
+    const { rerender } = render(<App />);
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+
+    // Run 1: a and b fall; b is cleared later in the same run (a comeback relight).
+    dropWord(0, a);
+    dropWord(0, b);
+    clearWord(0, b);
+    endRun(0, ['b']);
+    mockSnapshot = snap({ status: 'gameOver', missed: [a, b] });
+    rerender(<App />);
+    expect(screen.getByTestId('revenge-button')).toHaveTextContent('Revenge round (1)');
+
+    // Run 2 (play again): only c falls. a is still owed from run 1.
+    await userEvent.click(screen.getByRole('button', { name: /play again/i }));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+    dropWord(1, c);
+    endRun(1, ['b']);
+    mockSnapshot = snap({ status: 'gameOver', missed: [c] });
+    rerender(<App />);
+    expect(screen.getByTestId('revenge-button')).toHaveTextContent('Revenge round (2)');
+
+    await userEvent.click(screen.getByTestId('revenge-button'));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(3));
+    const revenge = start.mock.calls[2][0] as RunOptions;
+    expect(revenge.cards.map((x) => x.id)).toEqual(['c', 'a']);
+    expect(revenge.plan?.seenCards.map((s) => s.id)).toEqual(expect.arrayContaining(['a', 'c']));
+  });
+});
+

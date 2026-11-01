@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { playScale } from '../../design/scale';
 import type { Card, EngineSnapshot } from '../../engine/types';
+import type { RevengePoolEntry } from '../../revengePool';
 import { Hud } from '../hud/Hud';
 import { ImeWarning } from '../hud/ImeWarning';
 import { WaveStart } from '../WaveStart';
@@ -14,16 +15,18 @@ interface GameScreenProps {
   planNotice: string | null;
   /** Forwarded straight to ResultsScreen (tiered spec §5.4). */
   tierAdvance: string | null;
+  /** Forwarded straight to ResultsScreen: the session-wide revenge pool. */
+  revengePool: readonly RevengePoolEntry[];
   onIntroduced: (cardId: string) => void;
   onIntroComplete: () => void;
-  onRevenge: (missed: Card[]) => void;
+  onRevenge: (pool: Card[]) => void;
   onPlayAgain: () => void;
   onTitle: () => void;
 }
 
 export function GameScreen({
-  snapshot, hostRef, introCards, planNotice, tierAdvance, onIntroduced, onIntroComplete, onRevenge,
-  onPlayAgain, onTitle,
+  snapshot, hostRef, introCards, planNotice, tierAdvance, revengePool, onIntroduced, onIntroComplete,
+  onRevenge, onPlayAgain, onTitle,
 }: GameScreenProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   // Second-pass spec §3.3: the buffer kana and the HUD ramp scale with the
@@ -76,6 +79,7 @@ export function GameScreen({
       {snapshot.status === 'gameOver' && (
         <ResultsScreen
           snapshot={snapshot}
+          revengePool={revengePool}
           tierAdvance={tierAdvance}
           onRevenge={onRevenge}
           onPlayAgain={onPlayAgain}

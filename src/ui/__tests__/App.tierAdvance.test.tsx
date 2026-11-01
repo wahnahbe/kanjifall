@@ -2,7 +2,8 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Card, EngineSnapshot } from '../../engine/types';
+import type { AirborneWord, Card, EngineSnapshot } from '../../engine/types';
+import type { RunOptions } from '../useEngine';
 
 const start = vi.fn();
 const resume = vi.fn();
@@ -99,6 +100,17 @@ describe('App tier-advance wiring (final-review Fix 2)', () => {
     const { rerender } = render(<App />);
     await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
 
+    // The Revenge button offers App's session pool, which the engine's
+    // wordMissed events feed (src/revengePool.ts) — so drop the card the way
+    // the engine would, through the onEvent App handed to start().
+    const dropped: AirborneWord = {
+      instanceId: 1, card: missedCard, lane: 0, x: 0.5, y: 1, speed: 0.1, spawnedAt: 0,
+      firstKeyAt: null, backspaceCount: 0, hintShown: false, wasTargeted: false, light: 'plain', comeback: false,
+    };
+    (start.mock.calls[0][0] as RunOptions).onEvent?.(
+      { type: 'wordMissed', word: dropped, lapse: false, light: 'plain' },
+      { words: [], snapshot: mockSnapshot },
+    );
     mockSnapshot = snap({ status: 'gameOver', missed: [missedCard] });
     rerender(<App />);
     await waitFor(() =>

@@ -436,6 +436,11 @@ input[type='checkbox'], input[type='range'] { accent-color: var(--color-system);
    explicitly rather than left to inheritance so the rule can't silently
    regress if an ancestor's font-size ever changes. */
 .missed td { padding: var(--space-1) var(--space-4); font-size: var(--text-base); color: var(--color-danger); }
+/* A word that fell more than once this sitting carries its count (×2…) in
+   the accent, so three drops of two words never read as three words. Mono,
+   like every other count in the HUD. Empty for a single drop, so the column
+   keeps the rows aligned without drawing attention. */
+.missed td.drops { padding-left: 0; font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-accent); }
 .picker-row { display: flex; gap: var(--space-3); flex-wrap: wrap; justify-content: center; }
 /* A plain button sharing a row with taller pickers (Import… beside the
    two-line list pickers) keeps its own height: stretched, its 2.5:1 brush
