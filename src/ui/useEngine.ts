@@ -101,7 +101,7 @@ export function useEngine() {
       if (event.type === 'waveCleared') stage?.playWaveClear();
       if (event.type === 'waveStarting') setIntroCards(event.newCards);
       try {
-        playSfx(event);
+        playSfx(event, engine.getSnapshot());
       } catch (error) {
         console.warn('[sfx] voice failed', error);
       }

@@ -17,11 +17,11 @@ describe('attachSfx', () => {
   it('maps the five in-run events to their voices, combo included', () => {
     const player = fakePlayer();
     const listen = attachSfx(player);
-    listen({ type: 'wordKilled', word, msToKill: 400, points: 10, combo: 7, relit: false } as GameEvent);
-    listen({ type: 'wordMissed', word, lapse: false, light: 'plain' } as GameEvent);
-    listen({ type: 'wrongSubmit', submittedKana: 'x' } as GameEvent);
-    listen({ type: 'waveCleared', wave: 1 } as GameEvent);
-    listen({ type: 'gameOver', score: 1, wave: 1, ownedIds: [] } as GameEvent);
+    listen({ type: 'wordKilled', word, msToKill: 400, points: 10, combo: 7, relit: false } as GameEvent, { cleared: false });
+    listen({ type: 'wordMissed', word, lapse: false, light: 'plain' } as GameEvent, { cleared: false });
+    listen({ type: 'wrongSubmit', submittedKana: 'x' } as GameEvent, { cleared: false });
+    listen({ type: 'waveCleared', wave: 1 } as GameEvent, { cleared: false });
+    listen({ type: 'gameOver', score: 1, wave: 1, ownedIds: [] } as GameEvent, { cleared: false });
     expect(player.kill).toHaveBeenCalledWith(7);
     expect(player.miss).toHaveBeenCalledTimes(1);
     expect(player.wrongSubmit).toHaveBeenCalledTimes(1);
@@ -32,9 +32,9 @@ describe('attachSfx', () => {
   it('routes a lapse and a second drop to lapse(), a lesson to miss()', () => {
     const player = fakePlayer();
     const listen = attachSfx(player);
-    listen({ type: 'wordMissed', word, lapse: true, light: 'lit' } as GameEvent);
-    listen({ type: 'wordMissed', word, lapse: false, light: 'dark' } as GameEvent);
-    listen({ type: 'wordMissed', word, lapse: false, light: 'plain' } as GameEvent);
+    listen({ type: 'wordMissed', word, lapse: true, light: 'lit' } as GameEvent, { cleared: false });
+    listen({ type: 'wordMissed', word, lapse: false, light: 'dark' } as GameEvent, { cleared: false });
+    listen({ type: 'wordMissed', word, lapse: false, light: 'plain' } as GameEvent, { cleared: false });
     expect(player.lapse).toHaveBeenCalledTimes(2);
     expect(player.miss).toHaveBeenCalledTimes(1);
   });
@@ -42,18 +42,27 @@ describe('attachSfx', () => {
   it('routes a relit kill to relit(combo), a plain kill to kill(combo)', () => {
     const player = fakePlayer();
     const listen = attachSfx(player);
-    listen({ type: 'wordKilled', word, msToKill: 1, points: 1, combo: 3, relit: true } as GameEvent);
-    listen({ type: 'wordKilled', word, msToKill: 1, points: 1, combo: 4, relit: false } as GameEvent);
+    listen({ type: 'wordKilled', word, msToKill: 1, points: 1, combo: 3, relit: true } as GameEvent, { cleared: false });
+    listen({ type: 'wordKilled', word, msToKill: 1, points: 1, combo: 4, relit: false } as GameEvent, { cleared: false });
     expect(player.relit).toHaveBeenCalledWith(3);
     expect(player.kill).toHaveBeenCalledWith(4);
+  });
+
+  it('a cleared run is silent at gameOver: the wave-clear chime that just played is its sound', () => {
+    const player = fakePlayer();
+    const listen = attachSfx(player);
+    listen({ type: 'gameOver', score: 1, wave: 5, ownedIds: [] } as GameEvent, { cleared: true });
+    expect(player.gameOver).not.toHaveBeenCalled();
+    listen({ type: 'gameOver', score: 1, wave: 1, ownedIds: [] } as GameEvent, { cleared: false });
+    expect(player.gameOver).toHaveBeenCalledTimes(1);
   });
 
   it('ignores every other event and never touches the React-owned voices', () => {
     const player = fakePlayer();
     const listen = attachSfx(player);
-    listen({ type: 'bufferChanged', kana: '', romaji: '', lockedIds: [] } as GameEvent);
-    listen({ type: 'waveStarting', wave: 1, cards: [], newCards: [] } as GameEvent);
-    listen({ type: 'resumed', wave: 1 } as GameEvent);
+    listen({ type: 'bufferChanged', kana: '', romaji: '', lockedIds: [] } as GameEvent, { cleared: false });
+    listen({ type: 'waveStarting', wave: 1, cards: [], newCards: [] } as GameEvent, { cleared: false });
+    listen({ type: 'resumed', wave: 1 } as GameEvent, { cleared: false });
     expect(player.kill).not.toHaveBeenCalled();
     expect(player.ceremonyChime).not.toHaveBeenCalled();
     expect(player.tierFanfare).not.toHaveBeenCalled();

@@ -1,13 +1,16 @@
-import type { GameEvent } from '../engine/types';
+import type { EngineSnapshot, GameEvent } from '../engine/types';
 import type { Sfx } from './sfx';
 
 /** Passive event consumer (main spec §4 boundary): the in-run moments map
  *  to voices, lapses and relit kills included; mute/volume are enforced
  *  inside the player at play time, so nothing re-wires on settings
  *  changes. Installed in useEngine's onEvent seam alongside the stage
- *  effects. */
-export function attachSfx(player: Sfx): (event: GameEvent) => void {
-  return (event) => {
+ *  effects. A cleared run (read from the snapshot, never the event) stays
+ *  silent at game over: the wave-clear chime that just played is its sound. */
+export function attachSfx(
+  player: Sfx,
+): (event: GameEvent, snapshot: Pick<EngineSnapshot, 'cleared'>) => void {
+  return (event, snapshot) => {
     switch (event.type) {
       case 'wordKilled':
         if (event.relit) player.relit(event.combo);
@@ -24,7 +27,7 @@ export function attachSfx(player: Sfx): (event: GameEvent) => void {
         player.waveClear();
         break;
       case 'gameOver':
-        player.gameOver();
+        if (!snapshot.cleared) player.gameOver();
         break;
       default:
         break;
