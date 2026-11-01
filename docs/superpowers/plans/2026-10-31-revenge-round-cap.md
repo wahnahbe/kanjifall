@@ -407,6 +407,8 @@ git commit -m "feat(results): Revenge complete header and wave cap on the score 
 
 ### Task 7: App starts revenge (and its play-again) with `REVENGE_CONFIG`
 
+> **As built (fix round 1):** the two tests below live in `src/ui/__tests__/App.replayPlan.test.tsx` as their own describe block, reusing that file's harness. `App.revengeCap.test.tsx` was created and then removed: the review flagged the copied `stubFetch`/`snap` harness (a sixth copy of `snap`, a second hand-written copy of the `RunPlan` shape) and the controller ruled to fold the tests into the sibling instead.
+
 **Files:**
 - Modify: `src/App.tsx:166-191` (`beginRun`)
 - Create: `src/ui/__tests__/App.revengeCap.test.tsx`
